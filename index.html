@@ -18,7 +18,7 @@
 .lk h2{margin:0;font-style:italic;font-weight:800}.lk p{margin:0;color:var(--mu);font-size:.85rem}.lk p.er{color:var(--bad);min-height:1.2em}
 .lk .bt{background:var(--y);color:#0a0a0a;border-color:var(--y);padding:.6rem}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:1280px;margin:0 auto;padding:0 1rem}
+.wrap{width:100%;margin:0;padding:0 1rem;box-sizing:border-box}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--y);outline-offset:2px}
@@ -112,7 +112,7 @@ button,input,select{font:inherit;color:inherit}button{cursor:pointer}:focus-visi
 /* header */
 .hd{background:var(--hd);border-bottom:4px solid var(--y);padding:.7rem 0 0}
 .hdin{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;padding-bottom:.7rem}
-.wrap{max-width:1300px;margin:0 auto;padding:0 1rem}
+.wrap{width:100%;margin:0;padding:0 1rem;box-sizing:border-box}
 .lg{height:42px;width:auto}.ll{display:none}[data-t=light] .ld{display:none}[data-t=light] .ll{display:block}
 .ttl{flex:1;min-width:10rem}.ttl h1{margin:0;font-size:1.2rem;font-style:italic;font-weight:800}.ttl p{margin:0;color:var(--mu);font-size:.8rem}
 .bt{border:1px solid var(--ln);background:var(--s2);padding:.42rem .85rem;border-radius:8px;font-weight:600}
@@ -263,7 +263,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 
 /* ===== Responsividade geral ===== */
 /* Wrap principal */
-.wrap{width:100%;max-width:72rem;margin:0 auto;padding:0 1rem;box-sizing:border-box}
+.wrap{width:100%;margin:0;padding:0 1rem;box-sizing:border-box}
 /* Seções home */
 @media(max-width:480px){
   .home-grid{grid-template-columns:1fr;gap:.85rem;padding:1rem 0}
@@ -1084,7 +1084,7 @@ function renderHist(rs,el){
   const n=tots.length;
   // PL/PR fixos grandes o suficiente para o label do primeiro/último mês não cortar
   // PT alto para comportar: %var(10) + número(14) + LT(14) + gap(10) + %varLL(10) + LL(14) = ~72px acima do ponto
-  const W=900, H=310, PL=58, PR=58, PT=115, PB=32;
+  const W=900, H=310, PL=90, PR=90, PT=115, PB=32;
   const cW=W-PL-PR, cH=H-PT-PB;
   const xs=i=>PL+i/(n-1||1)*cW;
   // Escala usa mxEscala (apenas meses fechados) → mês atual não achata o gráfico
@@ -1118,8 +1118,8 @@ function renderHist(rs,el){
     const cx=xs(i);
     const isSel=x.m===selMes;
     const isAt=x.isAtual;
+    // Jan → 'start' (flui direita), Out/último → 'end' (flui esquerda), resto → 'middle'
     const anchor=i===0?'start':i===n-1?'end':'middle';
-    // cursor:pointer e data-m para clique filtrar
     return`<text x="${cx.toFixed(1)}" y="${H-6}" text-anchor="${anchor}" fill="${isSel?'var(--y)':isAt?'var(--ok)':'var(--mu)'}" font-size="10" font-weight="${(isSel||isAt)?'800':'400'}" class="area-xlbl" data-i="${i}" data-m="${x.m}" style="cursor:pointer">${fmtMes(x.m)}${isAt?' ◂':''}</text>`;
   }).join('');
 
@@ -1137,12 +1137,12 @@ function renderHist(rs,el){
     const cyLL=yv(x.LL);
     const isSel=x.m===selMes;
     const txW=isSel?'800':'600';
-    // Para o primeiro e último mês, centraliza o bloco sobre o ponto usando offset
-    // anchor 'start' → texto vai para direita, 'end' → vai para esquerda
-    // Usamos 'middle' em todos mas ajustamos o x para não sair da borda
-    const anchor='middle';
-    // Clamp x para não sair das bordas do SVG (mínimo 70px da borda, máximo W-70)
-    const cxLbl=Math.min(Math.max(cx, 70), W-70);
+    // Primeiro mês: anchor 'start' para texto ir para direita a partir do ponto
+    // Último mês: anchor 'end' para texto ir para esquerda a partir do ponto
+    // Demais: 'middle' centralizado
+    const anchor = i===0 ? 'start' : i===n-1 ? 'end' : 'middle';
+    // Para 'middle', cx já é o centro. Para 'start'/'end', cx é o ponto mesmo.
+    const cxLbl = cx;
 
     // ── Bloco TOTAL (de cima para baixo, todas acima do ponto amarelo):
     //   linha1: %varTot   (font 10, cor up/dn)
