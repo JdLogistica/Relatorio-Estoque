@@ -1124,40 +1124,54 @@ function renderHistDia(rs,el){
   const xs=i=>PL+i/(n-1||1)*cW;
   const yv=v=>PT+cH-(v/mx*cH);
 
+  // ── Stacked area: LL na base, LT em cima (tot = LT + LL) ─────────────
+  // yv(v) mapeia valor → coordenada Y (0 = baseline, mx = topo)
+  // Stacked: ponto LL fica em yv(LL), ponto Total fica em yv(tot)
+  // Área LT = entre linha tot e linha LL (preenchida com cor LT)
+  // Área LL = entre linha LL e baseline (preenchida com cor LL)
+
   // ── Gradients ────────────────────────────────────────────────────────
   const defs=`<defs>
-    <linearGradient id="dg-tot2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f5c518" stop-opacity=".3"/>
-      <stop offset="100%" stop-color="#f5c518" stop-opacity=".02"/>
+    <linearGradient id="dg-lt2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5c518" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#f5c518" stop-opacity=".1"/>
     </linearGradient>
     <linearGradient id="dg-ll2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5bafd6" stop-opacity=".22"/>
-      <stop offset="100%" stop-color="#5bafd6" stop-opacity=".02"/>
+      <stop offset="0%" stop-color="#5bafd6" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#5bafd6" stop-opacity=".1"/>
     </linearGradient>
   </defs>`;
 
-  // ── Points ───────────────────────────────────────────────────────────
+  // ── Pontos de cada série ──────────────────────────────────────────────
+  // Linha do topo (total = LT+LL)
   const ptsTot=tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.tot).toFixed(1)}`).join(' ');
+  // Linha da divisória LL/LT (nível LL empilhado)
   const ptsLL =tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.LL).toFixed(1)}`).join(' ');
-  const base=`${(W-PR).toFixed(1)},${(PT+cH).toFixed(1)} ${PL},${(PT+cH).toFixed(1)}`;
+  const baseRight=`${(W-PR).toFixed(1)},${(PT+cH).toFixed(1)}`;
+  const baseLeft=`${PL},${(PT+cH).toFixed(1)}`;
 
-  // ── Areas & Lines ────────────────────────────────────────────────────
-  const areaTot=`<polygon points="${ptsTot} ${base}" fill="url(#dg-tot2)"/>`;
-  const areaLL =`<polygon points="${ptsLL} ${base}" fill="url(#dg-ll2)"/>`;
-  const lineTot=`<polyline points="${ptsTot}" fill="none" stroke="#f5c518" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  // Área LL: de ptsLL até baseline (sentido horário)
+  const areaLL=`<polygon points="${ptsLL} ${baseRight} ${baseLeft}" fill="url(#dg-ll2)"/>`;
+  // Área LT: de ptsTot descendo por ptsLL invertido (entre as duas linhas)
+  const ptsLLrev=tots.slice().reverse().map((x,i,a)=>`${xs(n-1-i).toFixed(1)},${yv(x.LL).toFixed(1)}`).join(' ');
+  const areaLT=`<polygon points="${ptsTot} ${ptsLLrev}" fill="url(#dg-lt2)"/>`;
+
+  // Linha topo (total) — amarelo sólido
+  const lineTot=`<polyline points="${ptsTot}" fill="none" stroke="#f5c518" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  // Linha divisória LL/LT — azul tracejado
   const lineLL =`<polyline points="${ptsLL}"  fill="none" stroke="#5bafd6" stroke-width="1.5" stroke-dasharray="5 3" stroke-linejoin="round" stroke-linecap="round"/>`;
 
   // ── Dots apenas nos picos (top-5) ─────────────────────────────────
   const sorted=[...tots].sort((a,b)=>b.tot-a.tot).slice(0,5).map(x=>x.m);
   const peakDots=tots.map((x,i)=>{
     if(!sorted.includes(x.m))return'';
-    const cx=xs(i).toFixed(1), cy=yv(x.tot).toFixed(1);
+    const cx=xs(i).toFixed(1);
+    const cyTot=yv(x.tot).toFixed(1);
     const cyLL=yv(x.LL).toFixed(1);
     const anchor=i<2?'start':i>n-3?'end':'middle';
-    // label do valor total acima do ponto
     const lbl=`<text x="${cx}" y="${(yv(x.tot)-9).toFixed(1)}" text-anchor="${anchor}" font-size="11" font-weight="800" fill="#f5c518">${x.tot}</text>`;
     return lbl+
-      `<circle cx="${cx}" cy="${cy}" r="4" fill="#f5c518" stroke="var(--bg)" stroke-width="1.5"/>`+
+      `<circle cx="${cx}" cy="${cyTot}" r="4" fill="#f5c518" stroke="var(--bg)" stroke-width="1.5"/>`+
       `<circle cx="${cx}" cy="${cyLL}" r="3" fill="#5bafd6" stroke="var(--bg)" stroke-width="1" opacity=".9"/>`;
   }).join('');
 
@@ -1193,14 +1207,15 @@ function renderHistDia(rs,el){
   }).join('');
 
   const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">
-    ${defs}${gridLines}${baseline}${areaTot}${areaLL}${lineTot}${lineLL}${peakDots}${hoverRects}${xlbls}
+    ${defs}${gridLines}${baseline}${areaLL}${areaLT}${lineTot}${lineLL}${peakDots}${hoverRects}${xlbls}
   </svg>`;
 
   // ── Legenda ───────────────────────────────────────────────────────
   const legenda=`<div class="hlgd" style="margin-top:.3rem">
-    <span style="color:#f5c518;font-size:.75rem">— Total</span>
-    <span style="color:#5bafd6;font-size:.75rem">- - LL (Leão)</span>
-    <span class="mu2" style="font-size:.7rem">passe o mouse sobre o gráfico para detalhes por dia</span>
+    <span style="color:#f5c518;font-size:.75rem">▬ Total (topo)</span>
+    <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:14px;height:10px;background:rgba(245,197,24,.45);border-radius:2px"></span> LT acima</span>
+    <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:14px;height:10px;background:rgba(91,175,214,.45);border-radius:2px"></span> LL base</span>
+    <span class="mu2" style="font-size:.7rem">passe o mouse para detalhes do dia</span>
   </div>`;
 
   el.innerHTML=toggleHtml+resumo+
