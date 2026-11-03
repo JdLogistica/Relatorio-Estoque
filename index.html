@@ -129,10 +129,12 @@ main{padding:1rem 0 2.5rem}
 .fl input{width:100%}.fa{display:flex;gap:.5rem;margin-left:auto;align-items:flex-end}
 .badge{display:inline-block;background:var(--y);color:#0a0a0a;border-radius:99px;font-size:.7rem;font-weight:800;padding:.05rem .45rem;margin-left:.3rem}
 /* kpis */
-.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(10.5rem,1fr));gap:.7rem;margin-bottom:1rem}
-.k{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:.8rem 1rem;border-left:4px solid var(--y)}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));gap:.7rem;margin-bottom:1rem}
+.k{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:.8rem 1rem;border-left:4px solid var(--y);min-width:0;overflow:hidden}
 .k.bl{border-left-color:var(--bl)}.k.ok{border-left-color:var(--ok)}.k.bad{border-left-color:var(--bad)}
-.k span{color:var(--mu);font-size:.78rem;font-weight:600}.k b{display:block;font-size:clamp(1.4rem,2.8vw,2rem);line-height:1.15;font-style:italic;font-weight:800;font-variant-numeric:tabular-nums}.k small{color:var(--mu);font-size:.78rem}
+.k span{color:var(--mu);font-size:.78rem;font-weight:600;display:block;margin-bottom:.15rem}
+.k b{display:block;font-size:clamp(1.1rem,2.2vw,1.75rem);line-height:1.2;font-style:italic;font-weight:800;font-variant-numeric:tabular-nums;word-break:break-all;overflow-wrap:anywhere}
+.k small{color:var(--mu);font-size:.75rem;display:block;margin-top:.1rem}
 /* grid de charts */
 .cg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:.75rem;margin-bottom:1rem}
 .pn{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:.9rem 1rem;min-width:0}
@@ -140,7 +142,7 @@ main{padding:1rem 0 2.5rem}
 /* barras */
 .bar{display:flex;flex-wrap:wrap;align-items:center;gap:.15rem .6rem;width:100%;padding:.42rem .5rem;border:0;background:none;border-radius:6px;text-align:left}
 .bar:hover,.bar.on{background:var(--s2)}.bar.on{box-shadow:inset 3px 0 var(--y)}
-.bl2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem;flex:1;min-width:0;font-weight:600}
+.bl2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem;flex:1;min-width:4rem;font-weight:600}
 .bt2{height:.5rem;background:var(--s2);border-radius:2px;overflow:hidden;flex:0 0 100%;order:4}.bar:hover .bt2,.bar.on .bt2{background:var(--ln)}
 .bt2 i{display:block;height:100%;background:var(--y)}
 .bval{display:flex;flex-direction:column;align-items:flex-end;flex:none}.bval b{font-variant-numeric:tabular-nums;font-size:.88rem;font-weight:800}
@@ -223,6 +225,10 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 .sb .fl input,.sb .fl select{background:var(--sf);width:100%}
 .sb .fa{display:flex;gap:.5rem}
 .sb .fa .bt{flex:1}
+/* diario kpi cards */
+.dia-kpi{background:var(--sf);border:1px solid var(--bd);border-left:3px solid var(--bd);border-radius:8px;padding:.4rem .7rem;min-width:7rem;flex:1}
+.dia-kpi span{display:block;font-size:.68rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.1rem}
+.dia-kpi b{display:block;font-size:1.3rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
 /* mes picker calendar */
 .hist-tog{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:.22rem .65rem;font-size:.75rem;font-weight:700;color:var(--mu);cursor:pointer;transition:all .12s}
 .hist-tog:hover{border-color:var(--y);color:var(--tx)}
@@ -809,7 +815,7 @@ function pareto(tab,c,el){
  const sh=rows.slice(0,Math.min(rows.length,Math.max(n80+3,10),Math.max(24,n80)));
  if(sel&&!sh.some(r=>String(r.k)===sel)){const r=rows.find(r=>String(r.k)===sel);if(r)sh.push(r)}
  const n=sh.length,W=Math.max(n*34+104,340),H=270,L=58,R=40,T=14,B=78,pw=W-L-R,ph=H-T-B,sl=pw/n,y=p=>T+ph*(1-p/100);
- const lab=k=>{k=String(c.lab?c.lab(k):k);return esc(k.length>12?k.slice(0,11)+'…':k)};
+ const lab=k=>{k=String(c.lab?c.lab(k):k);return esc(k.length>16?k.slice(0,15)+'…':k)};
  let s=[0,20,40,60,80,100].map(p=>`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(p)}" y2="${y(p)}"/><text x="${L-6}" y="${y(p)+3}" text-anchor="end">${(c.fmt===BRL?'R$ ':'')+short(tot*p/100)}</text><text x="${W-R+6}" y="${y(p)+3}">${p}%</text>`).join('');
  s+=sh.map((r,i)=>{const x=L+sl*i,p=r.v/tot*100,bh=ph*p/100,vt=`<text class="v${bh>=16?' vi':''}" x="${x+sl/2}" y="${bh>=16?y(p)+11:y(p)-3}">${c.fmt===BRL?short(r.v):N(r.v)}</text>`;
   return`<g class="pb" data-k="${c.k}" data-v="${esc(r.k)}"><title>${esc(r.k)}: ${f(r.v)} (${PCT(r.v,tot)}) · acumulado ${PCT(r.cum,100)}</title><rect x="${x}" y="${T}" width="${sl}" height="${ph}" fill="transparent"/><rect class="bx${i<n80?'':' o'}${String(r.k)===sel?' on':''}" x="${x+sl*.19}" y="${y(p)}" width="${sl*.62}" height="${ph*p/100}"/>${vt}<text transform="translate(${x+sl/2+3},${H-B+12}) rotate(-45)" text-anchor="end">${lab(r.k)}</text></g>`}).join('');
@@ -1086,7 +1092,7 @@ function renderDonut(rs,k,el,{col,u='pedidos'}={}){
 }
 
 function renderHistDia(rs,el){
-  const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div>`;
+  const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div>`;
   const g=new Map();
   rs.forEach(r=>{if(r.dia){if(!g.has(r.dia))g.set(r.dia,{LT:0,LL:0});g.get(r.dia)[r.loja]++}});
   if(!g.size){
@@ -1096,66 +1102,88 @@ function renderHistDia(rs,el){
   const dias=Array.from(g.keys()).sort();
   const tots=dias.map(d=>{const v=g.get(d);return{m:d,LT:v.LT,LL:v.LL,tot:v.LT+v.LL};});
   const mx=Math.max(1,...tots.map(x=>x.tot));
+  const totPer=tots.reduce((a,x)=>a+x.tot,0);
+  const ltPer=tots.reduce((a,x)=>a+x.LT,0);
+  const llPer=tots.reduce((a,x)=>a+x.LL,0);
+  const pkIdx=tots.reduce((a,x,i)=>x.tot>tots[a].tot?i:a,0);
   const fmtDia=d=>d?d.slice(8)+'/'+d.slice(5,7):'';
   const n=tots.length;
-  // Layout: PT grande para caber labels acima dos pontos
-  const W=900,H=300,PL=55,PR=55,PT=70,PB=36;
+
+  // ── Painel de resumo gerencial ─────────────────────────────────────────
+  const resumo=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.6rem">
+    <div class="dia-kpi"><span>Total período</span><b>${totPer}</b></div>
+    <div class="dia-kpi" style="border-color:#f5c518"><span>LT (Loja Trator)</span><b style="color:#f5c518">${ltPer}</b></div>
+    <div class="dia-kpi" style="border-color:#5bafd6"><span>LL (Loja Leão)</span><b style="color:#5bafd6">${llPer}</b></div>
+    <div class="dia-kpi" style="border-color:#66bb6a"><span>Pico: ${fmtDia(tots[pkIdx].m)}</span><b style="color:#66bb6a">${tots[pkIdx].tot}</b></div>
+    <div class="dia-kpi"><span>Média/dia</span><b>${(totPer/n).toFixed(1)}</b></div>
+  </div>`;
+
+  // ── Layout SVG ────────────────────────────────────────────────────────
+  const W=900,H=260,PL=42,PR=16,PT=16,PB=28;
   const cW=W-PL-PR, cH=H-PT-PB;
   const xs=i=>PL+i/(n-1||1)*cW;
   const yv=v=>PT+cH-(v/mx*cH);
 
-  // ── Gradients ───────────────────────────────────────────────────────────
+  // ── Gradients ────────────────────────────────────────────────────────
   const defs=`<defs>
-    <linearGradient id="dg-tot" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f5c518" stop-opacity=".35"/>
-      <stop offset="100%" stop-color="#f5c518" stop-opacity=".03"/>
+    <linearGradient id="dg-tot2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5c518" stop-opacity=".3"/>
+      <stop offset="100%" stop-color="#f5c518" stop-opacity=".02"/>
     </linearGradient>
-    <linearGradient id="dg-ll" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5bafd6" stop-opacity=".28"/>
-      <stop offset="100%" stop-color="#5bafd6" stop-opacity=".03"/>
+    <linearGradient id="dg-ll2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5bafd6" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#5bafd6" stop-opacity=".02"/>
     </linearGradient>
   </defs>`;
 
-  // ── Polyline points ──────────────────────────────────────────────────────
+  // ── Points ───────────────────────────────────────────────────────────
   const ptsTot=tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.tot).toFixed(1)}`).join(' ');
   const ptsLL =tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.LL).toFixed(1)}`).join(' ');
   const base=`${(W-PR).toFixed(1)},${(PT+cH).toFixed(1)} ${PL},${(PT+cH).toFixed(1)}`;
 
-  // ── Area fills ──────────────────────────────────────────────────────────
-  const areaTot=`<polygon points="${ptsTot} ${base}" fill="url(#dg-tot)"/>`;
-  const areaLL =`<polygon points="${ptsLL} ${base}" fill="url(#dg-ll)"/>`;
-
-  // ── Lines ───────────────────────────────────────────────────────────────
+  // ── Areas & Lines ────────────────────────────────────────────────────
+  const areaTot=`<polygon points="${ptsTot} ${base}" fill="url(#dg-tot2)"/>`;
+  const areaLL =`<polygon points="${ptsLL} ${base}" fill="url(#dg-ll2)"/>`;
   const lineTot=`<polyline points="${ptsTot}" fill="none" stroke="#f5c518" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   const lineLL =`<polyline points="${ptsLL}"  fill="none" stroke="#5bafd6" stroke-width="1.5" stroke-dasharray="5 3" stroke-linejoin="round" stroke-linecap="round"/>`;
 
-  // ── Labels de valor sobre cada ponto (total e LT/LL) ────────────────────
-  // Mostrar todos se n≤20, senão apenas cada step
-  const lblStep=n<=20?1:Math.ceil(n/20);
-  const dataLbls=tots.map((x,i)=>{
-    if(i%lblStep!==0&&i!==n-1)return'';
-    const cx=xs(i);
-    const cyTot=yv(x.tot);
-    const cyLL=yv(x.LL);
+  // ── Dots apenas nos picos (top-5) ─────────────────────────────────
+  const sorted=[...tots].sort((a,b)=>b.tot-a.tot).slice(0,5).map(x=>x.m);
+  const peakDots=tots.map((x,i)=>{
+    if(!sorted.includes(x.m))return'';
+    const cx=xs(i).toFixed(1), cy=yv(x.tot).toFixed(1);
+    const cyLL=yv(x.LL).toFixed(1);
+    const anchor=i<2?'start':i>n-3?'end':'middle';
+    // label do valor total acima do ponto
+    const lbl=`<text x="${cx}" y="${(yv(x.tot)-9).toFixed(1)}" text-anchor="${anchor}" font-size="11" font-weight="800" fill="#f5c518">${x.tot}</text>`;
+    return lbl+
+      `<circle cx="${cx}" cy="${cy}" r="4" fill="#f5c518" stroke="var(--bg)" stroke-width="1.5"/>`+
+      `<circle cx="${cx}" cy="${cyLL}" r="3" fill="#5bafd6" stroke="var(--bg)" stroke-width="1" opacity=".9"/>`;
+  }).join('');
+
+  // ── Grid Y ────────────────────────────────────────────────────────
+  const gridN=4;
+  const gridLines=Array.from({length:gridN+1},(_,k)=>{
+    const f=k/gridN;
+    const y=yv(mx*f).toFixed(1);
+    const val=Math.round(mx*f);
+    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="1" opacity="${k===0?0:.35}"/>`+
+           `<text x="${PL-4}" y="${y}" text-anchor="end" font-size="9" fill="var(--mu)" dominant-baseline="middle">${val}</text>`;
+  }).join('');
+
+  // ── Eixo X labels ────────────────────────────────────────────────
+  const maxLbls=Math.min(n,14);
+  const step=Math.max(1,Math.floor(n/maxLbls));
+  const xlbls=tots.map((x,i)=>{
+    if(i%step!==0&&i!==n-1)return'';
     const anchor=i===0?'start':i===n-1?'end':'middle';
-    // Total acima da linha amarela
-    const totLbl=`<text x="${cx.toFixed(1)}" y="${(cyTot-14).toFixed(1)}" text-anchor="${anchor}" font-size="10" font-weight="800" fill="#f5c518">${x.tot}</text>`;
-    // LT/LL juntos um pouco acima do ponto total (linha menor)
-    const ltllLbl=`<text x="${cx.toFixed(1)}" y="${(cyTot-4).toFixed(1)}" text-anchor="${anchor}" font-size="8.5" fill="var(--mu)">LT ${x.LT} · LL ${x.LL}</text>`;
-    // Ponto LL indicador (pequeno triângulo/círculo)
-    const llDot=`<circle cx="${cx.toFixed(1)}" cy="${cyLL.toFixed(1)}" r="3" fill="#5bafd6" opacity=".9"/>`;
-    const totDot=`<circle cx="${cx.toFixed(1)}" cy="${cyTot.toFixed(1)}" r="3.5" fill="#f5c518"/>`;
-    return totLbl+ltllLbl+llDot+totDot;
+    return`<text x="${xs(i).toFixed(1)}" y="${H-6}" text-anchor="${anchor}" font-size="9" fill="var(--mu)">${fmtDia(x.m)}</text>`;
   }).join('');
 
-  // Pontos em todos os dias (menor, sem label)
-  const dots=tots.map((x,i)=>{
-    const cx=xs(i), cyTot=yv(x.tot), cyLL=yv(x.LL);
-    return`<circle class="dia-dot" cx="${cx.toFixed(1)}" cy="${cyTot.toFixed(1)}" r="3" fill="#f5c518" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:pointer"/>`+
-           `<circle cx="${cx.toFixed(1)}" cy="${cyLL.toFixed(1)}" r="2.5" fill="#5bafd6" opacity=".7"/>`;
-  }).join('');
+  // ── Baseline ─────────────────────────────────────────────────────
+  const baseline=`<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1"/>`;
 
-  // ── Hover rects invisíveis (captura mouse em toda largura da coluna) ─────
+  // ── Hover rects ───────────────────────────────────────────────────
   const colW=n>1?(cW/(n-1)):cW;
   const hoverRects=tots.map((x,i)=>{
     const cx=xs(i);
@@ -1164,49 +1192,47 @@ function renderHistDia(rs,el){
     return`<rect class="dia-bar" x="${left.toFixed(1)}" y="${PT}" width="${(right-left).toFixed(1)}" height="${cH}" fill="transparent" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:crosshair"/>`;
   }).join('');
 
-  // ── Linha de grade horizontal suave ─────────────────────────────────────
-  const gridLines=[0.25,0.5,0.75,1].map(f=>{
-    const y=yv(mx*f).toFixed(1);
-    const val=Math.round(mx*f);
-    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="1" opacity=".4"/>`+
-           `<text x="${(PL-4)}" y="${y}" text-anchor="end" font-size="8.5" fill="var(--mu)" dominant-baseline="middle">${val}</text>`;
-  }).join('');
-
-  // ── Eixo X labels ────────────────────────────────────────────────────────
-  const step=Math.max(1,Math.floor(n/16));
-  const xlbls=tots.map((x,i)=>{
-    if(i%step!==0&&i!==n-1)return'';
-    const anchor=i===0?'start':i===n-1?'end':'middle';
-    return`<text x="${xs(i).toFixed(1)}" y="${H-8}" text-anchor="${anchor}" font-size="9" fill="var(--mu)">${fmtDia(x.m)}</text>`;
-  }).join('');
-
-  // ── Baseline ─────────────────────────────────────────────────────────────
-  const baseline=`<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1"/>`;
-
   const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">
-    ${defs}${gridLines}${areaTot}${areaLL}${lineTot}${lineLL}${dataLbls}${dots}${hoverRects}${xlbls}${baseline}
+    ${defs}${gridLines}${baseline}${areaTot}${areaLL}${lineTot}${lineLL}${peakDots}${hoverRects}${xlbls}
   </svg>`;
 
-  el.innerHTML=toggleHtml+
-    `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
-    `<div class="hlgd" style="margin-top:.4rem"><span style="color:#f5c518">— Total</span><span style="color:#5bafd6">- - LL</span><span class="mu2" style="font-size:.7rem">passe o mouse para detalhes</span></div>`;
+  // ── Legenda ───────────────────────────────────────────────────────
+  const legenda=`<div class="hlgd" style="margin-top:.3rem">
+    <span style="color:#f5c518;font-size:.75rem">— Total</span>
+    <span style="color:#5bafd6;font-size:.75rem">- - LL (Leão)</span>
+    <span class="mu2" style="font-size:.7rem">passe o mouse sobre o gráfico para detalhes por dia</span>
+  </div>`;
+
+  el.innerHTML=toggleHtml+resumo+
+    `<div class="area-chart" style="position:relative;margin:0 -0.5rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
+    legenda;
 
   el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
+
+  // Tooltip on hover
   el.querySelectorAll('.dia-bar').forEach(b=>{
     b.addEventListener('mouseenter',()=>{
       const tip=el.querySelector('#area-tip');
-      const fmtD=b.dataset.m?`${fmtDia(b.dataset.m)} (${b.dataset.m})`:'';
-      tip.innerHTML=`<b style="font-size:.85rem;display:block;margin-bottom:.2rem">${fmtD}</b>`+
-        `<span style="font-size:.8rem">Total: <b>${b.dataset.tot}</b></span><br>`+
-        `<span style="font-size:.78rem">LT: <b style="color:#f5c518">${b.dataset.lt}</b> &nbsp;·&nbsp; LL: <b style="color:#5bafd6">${b.dataset.ll}</b></span>`;
+      const idx=+b.dataset.i;
+      const dia=b.dataset.m;
+      const tot=+b.dataset.tot, lt=+b.dataset.lt, ll=+b.dataset.ll;
+      const pct=totPer>0?((tot/totPer)*100).toFixed(1):'0';
+      tip.innerHTML=
+        `<div style="font-size:.8rem;font-weight:800;margin-bottom:.3rem;color:var(--tx)">${fmtDia(dia)}</div>`+
+        `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.15rem .6rem;font-size:.78rem">`+
+        `<span style="color:var(--mu)">Total</span><b style="color:var(--tx)">${tot}</b>`+
+        `<span style="color:#f5c518">LT</span><b style="color:#f5c518">${lt}</b>`+
+        `<span style="color:#5bafd6">LL</span><b style="color:#5bafd6">${ll}</b>`+
+        `<span style="color:var(--mu)">% período</span><b style="color:var(--mu)">${pct}%</b>`+
+        `</div>`;
       const rc=el.querySelector('.area-chart').getBoundingClientRect();
-      const cx=parseFloat(xs(+b.dataset.i));
       const scaleX=rc.width/W;
+      const cx=xs(idx)*scaleX;
       tip.style.display='block';
       requestAnimationFrame(()=>{
-        const tw=tip.offsetWidth||160,th=tip.offsetHeight||60;
-        let lf=cx*scaleX-tw/2; let tp2=-th-10;
-        if(lf<0)lf=2; if(lf+tw>rc.width)lf=rc.width-tw-2;
+        const tw=tip.offsetWidth||150, th=tip.offsetHeight||80;
+        let lf=cx-tw/2; let tp2=12;
+        if(lf<2)lf=2; if(lf+tw>rc.width-2)lf=rc.width-tw-2;
         tip.style.left=lf+'px'; tip.style.top=tp2+'px';
       });
     });
