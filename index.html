@@ -223,6 +223,18 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 .sb .fl input,.sb .fl select{background:var(--sf);width:100%}
 .sb .fa{display:flex;gap:.5rem}
 .sb .fa .bt{flex:1}
+/* mes picker calendar */
+.mes-picker-wrap{display:grid;gap:.3rem;width:100%}
+.mes-picker-label{font-size:.75rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.mes-picker-sel{font-size:.82rem;color:var(--y);font-weight:700;padding:.35rem .6rem;background:var(--sf);border:1px solid var(--bd);border-radius:8px;min-height:1.9rem;line-height:1.2}
+.mes-picker-cal{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:.6rem .5rem;display:grid;gap:.3rem}
+.mp-year{font-size:.7rem;font-weight:800;color:var(--mu);letter-spacing:.06em;padding:.1rem .2rem}
+.mp-months{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.mp-m{font-size:.72rem;text-align:center;padding:.28rem .1rem;border-radius:5px;cursor:pointer;color:var(--tx);transition:background .12s}
+.mp-m:hover{background:var(--bd)}
+.mp-m-off{color:var(--bd);pointer-events:none}
+.mp-m-sel{background:var(--y);color:#000;font-weight:800}
+.mp-m-rng{background:color-mix(in srgb,var(--y) 22%,var(--sf));color:var(--tx)}
 /* botão hamburger */
 .hbtn{border:0;background:var(--s2);border-radius:8px;padding:.42rem .75rem;font-size:1.1rem;line-height:1;cursor:pointer;display:flex;align-items:center;gap:.5rem;font-weight:700;border:1px solid var(--ln)}
 .hbtn:hover{border-color:var(--y)}
@@ -939,6 +951,37 @@ function closeSB(){$('#sb').classList.remove('open');$('#ov2').classList.remove(
 function renderNav(){
   $('#sb-nav').innerHTML=TABS.map(t=>`<a class="${cur===t.k?'on':''}" data-tab="${t.k}" role="button" tabindex="0"><span class="ic">${t.ic}</span>${t.l}</a>`).join('');
 }
+function renderMesPicker(meses){
+  // Group months by year
+  const years={};
+  meses.forEach(m=>{const y=m.slice(0,4);if(!years[y])years[y]=[];years[y].push(m);});
+  const MNMS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  let html=`<div class="fl mes-picker-wrap"><div class="mes-picker-label">Período</div>`;
+  // show selected range label
+  const lbl=F.mes1&&F.mes2?(F.mes1===F.mes2?fmtMes(F.mes1):`${fmtMes(F.mes1)} → ${fmtMes(F.mes2)}`):(F.mes1?`De ${fmtMes(F.mes1)}`:(F.mes2?`Até ${fmtMes(F.mes2)}`:'Todos os meses'));
+  html+=`<div class="mes-picker-sel">${lbl}</div>`;
+  html+=`<div class="mes-picker-cal">`;
+  Object.keys(years).sort().forEach(y=>{
+    html+=`<div class="mp-year">${y}</div><div class="mp-months">`;
+    for(let mo=1;mo<=12;mo++){
+      const mv=`${y}-${String(mo).padStart(2,'0')}`;
+      const exists=meses.includes(mv);
+      let cls='mp-m';
+      if(exists){
+        const inRange=F.mes1&&F.mes2&&mv>=F.mes1&&mv<=F.mes2;
+        const isStart=mv===F.mes1;
+        const isEnd=mv===F.mes2;
+        if(isStart||isEnd) cls+=' mp-m-sel';
+        else if(inRange) cls+=' mp-m-rng';
+      } else cls+=' mp-m-off';
+      html+=`<div class="${cls}" data-mv="${exists?mv:''}">${MNMS[mo-1]}</div>`;
+    }
+    html+=`</div>`;
+  });
+  html+=`</div></div>`;
+  return html;
+}
+
 function buildSidebarFilters(){
   const meses=D.meses;
   const nf=nF();
@@ -955,8 +998,7 @@ function buildSidebarFilters(){
     `<label class="fl">Buscar<input id="fq" type="search" placeholder="Cliente / pedido / vendedor" value="${esc(F.q)}"></label>`+
     `<label class="fl">Loja<select id="floja"><option value="">Ambas</option><option value="LT"${F.loja==='LT'?' selected':''}>LT — Lojão dos Tratores</option><option value="LL"${F.loja==='LL'?' selected':''}>LL — LL Tratores</option></select></label>`+
     `<div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"><button id="sb-fechado" class="bt" style="flex:1;font-size:.78rem;padding:.3rem .6rem;background:${isMesFechado?'var(--y)':'var(--s2)'};color:${isMesFechado?'#000':'var(--tx)'};border:1px solid ${isMesFechado?'var(--y)':'var(--bd)'};border-radius:6px;cursor:pointer;white-space:nowrap" type="button">📅 Mês fechado${mesFechadoSB?' ('+fmtMes(mesFechadoSB)+')':''}</button></div>`+
-    `<label class="fl">Período — de<select id="fmes1"><option value="">Todos</option>${meses.map(m=>`<option value="${m}"${F.mes1===m?' selected':''}>${fmtMes(m)}</option>`).join('')}</select></label>`+
-    `<label class="fl">Até<select id="fmes2"><option value="">Todos</option>${meses.map(m=>`<option value="${m}"${F.mes2===m?' selected':''}>${fmtMes(m)}</option>`).join('')}</select></label>`+
+    renderMesPicker(meses)+
     `<label class="fl">Vendedor<select id="fvend"><option value="">Todos</option>${uniq('vend').map(v=>`<option${F.vend===v?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`+
     `<label class="fl">Tipo de entrega<select id="ftp2"><option value="">Todos</option>${['RETIRA','BALCÃO','ENTREGA','TRANSPORTADORA','NÃO SEPARAR'].map(v=>`<option${F.tp2===v?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`+
     `<label class="fl">Situação<select id="fsit"><option value="">Todas</option>${uniq('sit').map(v=>`<option${F.sit===v?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`+
@@ -1373,6 +1415,18 @@ document.addEventListener('click',e=>{
   if(b2=e.target.closest('#sb-nav [data-tab]')){closeSB();return go(b2.dataset.tab)}
   let b;
   if(b=e.target.closest('#p-tabs [data-tab]'))return go(b.dataset.tab);
+  if(b=e.target.closest('.mp-m[data-mv]')){
+    const mv=b.dataset.mv;if(!mv)return;
+    if(!F.mes1&&!F.mes2){F.mes1=mv;F.mes2=mv;}
+    else if(F.mes1===mv&&F.mes2===mv){F.mes1='';F.mes2='';}
+    else if(!F.mes2||mv<F.mes1){F.mes1=mv;if(!F.mes2)F.mes2=mv;}
+    else if(mv<F.mes1){F.mes1=mv;}
+    else if(mv>F.mes2){F.mes2=mv;}
+    else if(mv===F.mes1){F.mes1=F.mes2;}
+    else if(mv===F.mes2){F.mes2=F.mes1;}
+    else{F.mes1=mv;F.mes2=mv;}
+    tPage=0;buildSidebarFilters();return render();
+  }
   if(b=e.target.closest('[data-fk]')){const k=b.dataset.fk,v=b.dataset.fv;if(F[k]===v)F[k]='';else F[k]=v;tPage=0;buildSidebarFilters();return render()}
   if(b=e.target.closest('.hg .col')){const m=b.dataset.m;if(F.mes1===m&&F.mes2===m){F.mes1='';F.mes2=''}else{F.mes1=m;F.mes2=m};tPage=0;buildSidebarFilters();return render()}
   if(b=e.target.closest('th[data-sk]')){const k=b.dataset.sk;tSort=tSort&&tSort[0]===k?[k,-tSort[1]]:[k,1];tPage=0;return render()}
@@ -1388,8 +1442,7 @@ document.addEventListener('input',e=>{
   const id=e.target.id;
   if(id==='fq'){F.q=e.target.value;tPage=0;render()}
   else if(id==='floja'){F.loja=e.target.value;tPage=0;render()}
-  else if(id==='fmes1'){F.mes1=e.target.value;tPage=0;render()}
-  else if(id==='fmes2'){F.mes2=e.target.value;tPage=0;render()}
+  /* mes picker handled via click delegation */
   else if(id==='fvend'){F.vend=e.target.value;tPage=0;render()}
   else if(id==='ftp2'){F.tp2=e.target.value;tPage=0;render()}
   else if(id==='fsit'){F.sit=e.target.value;tPage=0;render()}
