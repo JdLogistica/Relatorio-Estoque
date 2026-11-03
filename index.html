@@ -1009,8 +1009,11 @@ function renderHist(rs,el){
   // Mês selecionado (único)
   const selMes=(F.mes1&&F.mes1===F.mes2)?F.mes1:'';
 
-  // SVG area chart — altura maior para caber os labels LT/LL/Total e %
-  const W=900,H=240,PL=50,PR=16,PT=70,PB=28;
+  // Soma geral de todos os pedidos (grand total)
+  const grandTotal=tots.reduce((s,x)=>s+x.tot,0);
+
+  // SVG area chart — sem padding lateral, largura total
+  const W=900,H=260,PL=4,PR=4,PT=85,PB=28;
   const cW=W-PL-PR, cH=H-PT-PB;
   const n=tots.length;
   const xs=i=>PL+i/(n-1||1)*cW;
@@ -1023,60 +1026,80 @@ function renderHist(rs,el){
   const polyTot=`${firstX},${baseY} ${ptsTot} ${lastX},${baseY}`;
   const polyLL=`${firstX},${baseY} ${ptsLL} ${lastX},${baseY}`;
 
+  // Ponto mais alto — onde fica o grand total
+  const idxMax=tots.reduce((best,x,i)=>x.tot>tots[best].tot?i:best,0);
+  const cxMax=xs(idxMax).toFixed(1);
+  const cyMax=yv(tots[idxMax].tot);
+  const grandTotalLbl=`<text x="${cxMax}" y="${(cyMax-62).toFixed(1)}" text-anchor="middle" fill="var(--tx)" font-size="13" font-weight="900">Total geral: ${N(grandTotal)}</text>
+<text x="${cxMax}" y="${(cyMax-45).toFixed(1)}" text-anchor="middle" fill="var(--mu)" font-size="9">soma de todos os meses</text>`;
+
   // Raia de destaque do mês selecionado
   const selBand=selMes?tots.reduce((acc,x,i)=>{
     if(x.m===selMes){const cx=xs(i);return`<rect x="${(cx-cW/(n*2)).toFixed(1)}" y="${PT-PT*0.9}" width="${(cW/n).toFixed(1)}" height="${cH+PT*0.9}" fill="var(--y)" fill-opacity=".07" rx="3"/>`;}
     return acc;
   },''):'';
 
-  // Grid lines
+  // Grid lines (sem números no eixo Y para ganhar espaço)
   const gridLines=[0.25,0.5,0.75,1].map(f=>{
     const y=(PT+cH-f*cH).toFixed(1);
-    const lbl=N(Math.round(mx*f));
-    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="0.5" stroke-dasharray="3,3"/>
-<text x="${PL-5}" y="${y}" text-anchor="end" fill="var(--mu)" font-size="9" dominant-baseline="middle">${lbl}</text>`;
+    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="0.5" stroke-dasharray="3,3"/>`;
   }).join('');
 
-  // Labels do eixo X (mês)
+  // Labels do eixo X (mês) — primeiros/últimos ancorados na borda
   const xAxisLabels=tots.map((x,i)=>{
-    const cx=xs(i).toFixed(1);
+    const cx=xs(i);
     const isSel=x.m===selMes;
-    return`<text x="${cx}" y="${H-6}" text-anchor="middle" fill="${isSel?'var(--y)':'var(--mu)'}" font-size="10" font-weight="${isSel?'800':'400'}">${fmtMes(x.m)}</text>`;
+    const anchor=i===0?'start':i===n-1?'end':'middle';
+    return`<text x="${cx.toFixed(1)}" y="${H-6}" text-anchor="${anchor}" fill="${isSel?'var(--y)':'var(--mu)'}" font-size="10" font-weight="${isSel?'800':'400'}">${fmtMes(x.m)}</text>`;
   }).join('');
 
-  // Bloco de labels acima de cada ponto: % variação + Total + LT + LL
+  // Labels posicionados em cada linha:
+  // — Total (% var + número) acima da linha amarela
+  // — LT (número) NA linha amarela
+  // — LL (% var + número) NA linha azul
   const dataLabels=tots.map((x,i)=>{
     const cx=xs(i).toFixed(1);
-    const cyDot=yv(x.tot);
+    const cyTot=yv(x.tot);  // posição Y da linha total (amarela)
+    const cyLL=yv(x.LL);    // posição Y da linha LL (azul)
     const isSel=x.m===selMes;
-    const txCol=isSel?'var(--tx)':'var(--mu)';
-    const txW=isSel?'700':'500';
+    const txW=isSel?'800':'600';
 
-    // % variação (linha do topo)
-    let varLbl='';
+    // % variação do TOTAL acima da linha amarela
+    let varTotLbl='';
     if(i>0){
       const v=varPct(x.tot,tots[i-1].tot);
       const cls=clsVar(v);
-      varLbl=`<text x="${cx}" y="${(cyDot-52).toFixed(1)}" text-anchor="middle" class="sv-var ${cls}" font-size="11" font-weight="800">${fmtVar(v)}</text>`;
+      varTotLbl=`<text x="${cx}" y="${(cyTot-28).toFixed(1)}" text-anchor="middle" class="sv-var ${cls}" font-size="10" font-weight="800">${fmtVar(v)}</text>`;
     }
-    // Total
-    const totLbl=`<text x="${cx}" y="${(cyDot-37).toFixed(1)}" text-anchor="middle" fill="var(--tx)" font-size="12" font-weight="800">${N(x.tot)}</text>`;
-    // LT
-    const ltLbl=`<text x="${cx}" y="${(cyDot-22).toFixed(1)}" text-anchor="middle" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
-    // LL
-    const llLbl=`<text x="${cx}" y="${(cyDot-9).toFixed(1)}" text-anchor="middle" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
+    // Total acima da linha amarela
+    const totLbl=`<text x="${cx}" y="${(cyTot-14).toFixed(1)}" text-anchor="middle" fill="var(--tx)" font-size="13" font-weight="900">${N(x.tot)}</text>`;
+    // LT NA linha amarela (ligeiramente acima do ponto)
+    const ltLbl=`<text x="${cx}" y="${(cyTot-2).toFixed(1)}" text-anchor="middle" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
 
-    return varLbl+totLbl+ltLbl+llLbl;
+    // % variação da LL na linha azul
+    let varLLLbl='';
+    if(i>0){
+      const v=varPct(x.LL,tots[i-1].LL);
+      const cls=clsVar(v);
+      varLLLbl=`<text x="${cx}" y="${(cyLL-16).toFixed(1)}" text-anchor="middle" class="sv-var ${cls}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+    }
+    // LL NA linha azul (ligeiramente acima do ponto)
+    const llLbl=`<text x="${cx}" y="${(cyLL-3).toFixed(1)}" text-anchor="middle" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
+
+    return varTotLbl+totLbl+ltLbl+varLLLbl+llLbl;
   }).join('');
 
-  // Pontos clicáveis
+  // Pontos clicáveis na linha total e pontos menores na linha LL
   const dots=tots.map((x,i)=>{
-    const cx=xs(i).toFixed(1), cy=yv(x.tot).toFixed(1);
+    const cx=xs(i).toFixed(1);
+    const cyT=yv(x.tot).toFixed(1);
+    const cyL=yv(x.LL).toFixed(1);
     const isSel=x.m===selMes;
-    return`<circle cx="${cx}" cy="${cy}" r="${isSel?5.5:4}" fill="${isSel?'var(--tx)':'var(--y)'}" stroke="var(--bg)" stroke-width="2" class="area-dot" data-i="${i}" data-m="${x.m}" style="cursor:pointer"/>`;
+    return`<circle cx="${cx}" cy="${cyT}" r="${isSel?5.5:4}" fill="${isSel?'var(--tx)':'var(--y)'}" stroke="var(--bg)" stroke-width="2" class="area-dot" data-i="${i}" data-m="${x.m}" style="cursor:pointer"/>
+<circle cx="${cx}" cy="${cyL}" r="3" fill="var(--bl)" stroke="var(--bg)" stroke-width="1.5" pointer-events="none"/>`;
   }).join('');
 
-  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">
+  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;min-height:${H}px">
     <defs>
       <linearGradient id="gTot" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--y)" stop-opacity=".4"/><stop offset="100%" stop-color="var(--y)" stop-opacity=".03"/></linearGradient>
       <linearGradient id="gLL" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--bl)" stop-opacity=".45"/><stop offset="100%" stop-color="var(--bl)" stop-opacity=".04"/></linearGradient>
@@ -1087,6 +1110,7 @@ function renderHist(rs,el){
     <polygon points="${polyLL}" fill="url(#gLL)"/>
     <polyline points="${ptsTot}" fill="none" stroke="var(--y)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
     <polyline points="${ptsLL}" fill="none" stroke="var(--bl)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5,3"/>
+    ${grandTotalLbl}
     ${dataLabels}
     ${dots}
     ${xAxisLabels}
@@ -1118,7 +1142,7 @@ function renderHist(rs,el){
   </div>`;
 
   el.innerHTML=filtrosHtml+
-    `<div class="area-chart" style="position:relative">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none"></div></div>`+
+    `<div class="area-chart" style="position:relative;margin:0 -1rem">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none"></div></div>`+
     `<div class="hlgd"><span style="color:var(--y)">— Total</span><span style="color:var(--bl)">- - LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span><span class="mu2" style="font-size:.7rem">clique no ponto para filtrar</span></div>`;
 
   // Preenche os selects com os valores atuais de F
