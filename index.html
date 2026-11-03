@@ -149,9 +149,11 @@ main{padding:1rem 0 2.5rem}
 .p80{padding:.3rem .5rem;border-top:2px dashed var(--bad);color:var(--bad);font-size:.73rem;font-weight:700;margin:.2rem 0}
 .pt{margin:0 0 .5rem;color:var(--mu);font-size:.84rem}.pt b{color:var(--tx)}
 /* histograma mensal */
-.area-chart{width:100%;overflow:hidden;position:relative}
-.area-tooltip{position:absolute;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:.35rem .6rem;font-size:.72rem;pointer-events:none;white-space:nowrap;z-index:10;display:none}
-.area-tooltip b{display:block;font-size:.8rem;color:var(--tx)}
+.area-chart{width:100%;overflow:visible;position:relative}
+.area-tooltip{position:absolute;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:.45rem .75rem;font-size:.76rem;pointer-events:none;white-space:nowrap;z-index:20;display:none;box-shadow:0 4px 16px rgba(0,0,0,.35);line-height:1.6}
+.area-tooltip b{font-size:.85rem;color:var(--tx)}
+@keyframes pulse-dot{0%,100%{r:6;opacity:1}50%{r:8;opacity:.7}}
+.area-dot-atual{animation:pulse-dot 1.8s ease-in-out infinite}
 .hvar{display:inline-block;font-size:.62rem;font-weight:800;font-variant-numeric:tabular-nums}
 .hvar.up{color:var(--ok)}.hvar.dn{color:var(--bad)}.hvar.eq{color:var(--mu)}
 .sv-var.up{fill:var(--ok)}.sv-var.dn{fill:var(--bad)}.sv-var.eq{fill:var(--mu)}
@@ -925,9 +927,16 @@ function buildSidebarFilters(){
   const nb=$('#fnb');nb.hidden=!nf;nb.textContent=nf||'';
   // FAB limpar
   const fab=$('#clr-fab');if(fab){fab.hidden=!nf;$('#clr-fab-n').textContent=nf?'('+nf+')':''}
+  // Mês fechado = mês anterior ao mês atual
+  const hoje=new Date();
+  const mesAtualSB=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+  const idxAtualSB=meses.indexOf(mesAtualSB);
+  const mesFechadoSB=idxAtualSB>0?meses[idxAtualSB-1]:(meses.length>0?meses[meses.length-2]||meses[meses.length-1]:'');
+  const isMesFechado=mesFechadoSB&&F.mes1===mesFechadoSB&&F.mes2===mesFechadoSB;
   $('#sb-body').innerHTML=
     `<label class="fl">Buscar<input id="fq" type="search" placeholder="Cliente / pedido / vendedor" value="${esc(F.q)}"></label>`+
     `<label class="fl">Loja<select id="floja"><option value="">Ambas</option><option value="LT"${F.loja==='LT'?' selected':''}>LT — Lojão dos Tratores</option><option value="LL"${F.loja==='LL'?' selected':''}>LL — LL Tratores</option></select></label>`+
+    `<div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"><button id="sb-fechado" class="bt" style="flex:1;font-size:.78rem;padding:.3rem .6rem;background:${isMesFechado?'var(--y)':'var(--s2)'};color:${isMesFechado?'#000':'var(--tx)'};border:1px solid ${isMesFechado?'var(--y)':'var(--bd)'};border-radius:6px;cursor:pointer;white-space:nowrap" type="button">📅 Mês fechado${mesFechadoSB?' ('+fmtMes(mesFechadoSB)+')':''}</button></div>`+
     `<label class="fl">Período — de<select id="fmes1"><option value="">Todos</option>${meses.map(m=>`<option value="${m}"${F.mes1===m?' selected':''}>${fmtMes(m)}</option>`).join('')}</select></label>`+
     `<label class="fl">Até<select id="fmes2"><option value="">Todos</option>${meses.map(m=>`<option value="${m}"${F.mes2===m?' selected':''}>${fmtMes(m)}</option>`).join('')}</select></label>`+
     `<label class="fl">Vendedor<select id="fvend"><option value="">Todos</option>${uniq('vend').map(v=>`<option${F.vend===v?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`+
@@ -935,6 +944,14 @@ function buildSidebarFilters(){
     `<label class="fl">Situação<select id="fsit"><option value="">Todas</option>${uniq('sit').map(v=>`<option${F.sit===v?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`+
     `<label class="fl">Urgente<select id="furg"><option value="">Todos</option><option value="S"${F.urg==='S'?' selected':''}>Só urgentes</option></select></label>`+
     `<div class="fa"><button id="clr" class="bt" type="button">Limpar${nf?' ('+nf+')':''}</button><button id="exp" class="bt">CSV</button></div>`;
+  // Botão mês fechado na sidebar
+  $('#sb-fechado')?.addEventListener('click',()=>{
+    if(mesFechadoSB){
+      if(F.mes1===mesFechadoSB&&F.mes2===mesFechadoSB){F.mes1='';F.mes2='';}
+      else{F.mes1=mesFechadoSB;F.mes2=mesFechadoSB;}
+      tPage=0;buildSidebarFilters();render();
+    }
+  });
 }
 
 function filtered(){
@@ -996,11 +1013,14 @@ function renderDonut(rs,k,el,{col,u='pedidos'}={}){
 function renderHist(rs,el){
   const g=new Map();
   rs.forEach(r=>{if(r.mes){if(!g.has(r.mes))g.set(r.mes,{LT:0,LL:0});g.get(r.mes)[r.loja]++}});
-  // Para o gráfico histórico usa TODOS os meses disponíveis (sem filtro de período)
+  // Gráfico sempre mostra TODOS os meses disponíveis (filtro de período age nos outros painéis via sidebar)
   const meses=D.meses;
   if(!meses.length){el.innerHTML='<p class="mu2" style="padding:.5rem">Sem dados disponíveis.</p>';return}
 
-  const tots=meses.map(m=>{const d=g.get(m)||{LT:0,LL:0};return{m,LT:d.LT,LL:d.LL,tot:d.LT+d.LL}});
+  const hoje=new Date();
+  const mesAtual=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+
+  const tots=meses.map(m=>{const d=g.get(m)||{LT:0,LL:0};return{m,LT:d.LT,LL:d.LL,tot:d.LT+d.LL,isAtual:m===mesAtual}});
   const mx=Math.max(1,...tots.map(x=>x.tot));
   const varPct=(cur,prv)=>prv>0?((cur-prv)/prv*100):null;
   const fmtVar=v=>v===null?'':(v>=0?`+${v.toFixed(1)}%`:`${v.toFixed(1)}%`);
@@ -1009,11 +1029,12 @@ function renderHist(rs,el){
   // Mês selecionado (único)
   const selMes=(F.mes1&&F.mes1===F.mes2)?F.mes1:'';
 
-  // Soma geral de todos os pedidos (grand total)
+  // Soma geral
   const grandTotal=tots.reduce((s,x)=>s+x.tot,0);
 
-  // SVG area chart — sem padding lateral, largura total
-  const W=900,H=260,PL=4,PR=4,PT=85,PB=28;
+  // SVG — padding generoso em cima para comportar os 3 blocos de texto (% + total + LT),
+  // e à esquerda/direita quase zero para encostar nas bordas
+  const W=900,H=290,PL=6,PR=6,PT=100,PB=32;
   const cW=W-PL-PR, cH=H-PT-PB;
   const n=tots.length;
   const xs=i=>PL+i/(n-1||1)*cW;
@@ -1026,77 +1047,106 @@ function renderHist(rs,el){
   const polyTot=`${firstX},${baseY} ${ptsTot} ${lastX},${baseY}`;
   const polyLL=`${firstX},${baseY} ${ptsLL} ${lastX},${baseY}`;
 
-  // Ponto mais alto — onde fica o grand total
+  // Ponto mais alto → grand total fica lá
   const idxMax=tots.reduce((best,x,i)=>x.tot>tots[best].tot?i:best,0);
   const cxMax=xs(idxMax).toFixed(1);
   const cyMax=yv(tots[idxMax].tot);
-  const grandTotalLbl=`<text x="${cxMax}" y="${(cyMax-62).toFixed(1)}" text-anchor="middle" fill="var(--tx)" font-size="13" font-weight="900">Total geral: ${N(grandTotal)}</text>
-<text x="${cxMax}" y="${(cyMax-45).toFixed(1)}" text-anchor="middle" fill="var(--mu)" font-size="9">soma de todos os meses</text>`;
+  const grandTotalLbl=`<text x="${cxMax}" y="${Math.max(14,(cyMax-68)).toFixed(1)}" text-anchor="middle" fill="var(--tx)" font-size="13" font-weight="900">Total geral: ${N(grandTotal)}</text>
+<text x="${cxMax}" y="${Math.max(26,(cyMax-54)).toFixed(1)}" text-anchor="middle" fill="var(--mu)" font-size="9">soma de todos os meses</text>`;
 
   // Raia de destaque do mês selecionado
   const selBand=selMes?tots.reduce((acc,x,i)=>{
-    if(x.m===selMes){const cx=xs(i);return`<rect x="${(cx-cW/(n*2)).toFixed(1)}" y="${PT-PT*0.9}" width="${(cW/n).toFixed(1)}" height="${cH+PT*0.9}" fill="var(--y)" fill-opacity=".07" rx="3"/>`;}
+    if(x.m===selMes){const cx=xs(i);return`<rect x="${(cx-cW/(n*2)).toFixed(1)}" y="${PT-PT*0.95}" width="${(cW/n).toFixed(1)}" height="${cH+PT*0.95}" fill="var(--y)" fill-opacity=".07" rx="3"/>`;}
     return acc;
   },''):'';
 
-  // Grid lines (sem números no eixo Y para ganhar espaço)
+  // Grid lines com valores no eixo Y à esquerda
   const gridLines=[0.25,0.5,0.75,1].map(f=>{
     const y=(PT+cH-f*cH).toFixed(1);
-    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="0.5" stroke-dasharray="3,3"/>`;
+    const lbl=N(Math.round(mx*f));
+    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="0.5" stroke-dasharray="3,3"/>
+<text x="${(PL+2).toFixed(0)}" y="${y}" dominant-baseline="auto" dy="-3" fill="var(--mu)" font-size="8.5" opacity=".7">${lbl}</text>`;
   }).join('');
 
-  // Labels do eixo X (mês) — primeiros/últimos ancorados na borda
+  // Labels do eixo X — primeiros/últimos ancorados na borda
   const xAxisLabels=tots.map((x,i)=>{
     const cx=xs(i);
     const isSel=x.m===selMes;
+    const isAt=x.isAtual;
     const anchor=i===0?'start':i===n-1?'end':'middle';
-    return`<text x="${cx.toFixed(1)}" y="${H-6}" text-anchor="${anchor}" fill="${isSel?'var(--y)':'var(--mu)'}" font-size="10" font-weight="${isSel?'800':'400'}">${fmtMes(x.m)}</text>`;
+    return`<text x="${cx.toFixed(1)}" y="${H-6}" text-anchor="${anchor}" fill="${isSel?'var(--y)':isAt?'var(--ok)':'var(--mu)'}" font-size="10" font-weight="${(isSel||isAt)?'800':'400'}">${fmtMes(x.m)}${isAt?' ◂':''}</text>`;
   }).join('');
 
-  // Labels posicionados em cada linha:
-  // — Total (% var + número) acima da linha amarela
-  // — LT (número) NA linha amarela
-  // — LL (% var + número) NA linha azul
+  // ─── LABELS INTELIGENTES ───────────────────────────────────────────────
+  // Para cada coluna calculamos posições e detectamos colisão entre:
+  //   bloco TOTAL (% + número + LT) e bloco LL (% + número)
+  // Se a distância entre cyTot e cyLL for pequena, o bloco LL vai ABAIXO da linha
+  // O mês ATUAL recebe apenas tooltip (sem labels no SVG) para evitar corte com poucos dados
+
   const dataLabels=tots.map((x,i)=>{
-    const cx=xs(i).toFixed(1);
-    const cyTot=yv(x.tot);  // posição Y da linha total (amarela)
-    const cyLL=yv(x.LL);    // posição Y da linha LL (azul)
+    // Mês vigente: sem labels inline — tooltip ao hover cobre tudo
+    if(x.isAtual) return '';
+
+    const cx=xs(i);
+    const cyTot=yv(x.tot);
+    const cyLL=yv(x.LL);
     const isSel=x.m===selMes;
     const txW=isSel?'800':'600';
+    // anchor: ajusta texto para não sair pelas bordas
+    const totAnchor=i===0?'start':i===n-1?'end':'middle';
+    const llAnchor=totAnchor;
 
-    // % variação do TOTAL acima da linha amarela
+    // Bloco TOTAL: % var (y-42) + número (y-28) + LT (y-14) — acima do ponto total
+    // Garantimos que nunca fique fora do topo (y mín = 8)
+    const baseTot=Math.max(cyTot-14, PT-80); // nunca acima do SVG
+
     let varTotLbl='';
     if(i>0){
       const v=varPct(x.tot,tots[i-1].tot);
-      const cls=clsVar(v);
-      varTotLbl=`<text x="${cx}" y="${(cyTot-28).toFixed(1)}" text-anchor="middle" class="sv-var ${cls}" font-size="10" font-weight="800">${fmtVar(v)}</text>`;
+      varTotLbl=`<text x="${cx.toFixed(1)}" y="${(baseTot-26).toFixed(1)}" text-anchor="${totAnchor}" class="sv-var ${clsVar(v)}" font-size="10" font-weight="800">${fmtVar(v)}</text>`;
     }
-    // Total acima da linha amarela
-    const totLbl=`<text x="${cx}" y="${(cyTot-14).toFixed(1)}" text-anchor="middle" fill="var(--tx)" font-size="13" font-weight="900">${N(x.tot)}</text>`;
-    // LT NA linha amarela (ligeiramente acima do ponto)
-    const ltLbl=`<text x="${cx}" y="${(cyTot-2).toFixed(1)}" text-anchor="middle" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
+    const totLbl=`<text x="${cx.toFixed(1)}" y="${(baseTot-12).toFixed(1)}" text-anchor="${totAnchor}" fill="var(--tx)" font-size="13" font-weight="900">${N(x.tot)}</text>`;
+    const ltLbl=`<text x="${cx.toFixed(1)}" y="${baseTot.toFixed(1)}" text-anchor="${totAnchor}" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
 
-    // % variação da LL na linha azul
-    let varLLLbl='';
-    if(i>0){
-      const v=varPct(x.LL,tots[i-1].LL);
-      const cls=clsVar(v);
-      varLLLbl=`<text x="${cx}" y="${(cyLL-16).toFixed(1)}" text-anchor="middle" class="sv-var ${cls}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+    // Bloco LL: detecta colisão com bloco TOTAL
+    // Se linha LL está perto da linha Total (gap < 40px), coloca LL ABAIXO da linha azul
+    const gap=cyLL-cyTot; // positivo = LL está abaixo do Total (normal)
+    let varLLLbl='', llLbl='';
+    if(gap<40){
+      // coloca LL abaixo da linha azul
+      const baseLL=Math.min(cyLL+22, PT+cH-2);
+      if(i>0){
+        const v=varPct(x.LL,tots[i-1].LL);
+        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL+12).toFixed(1)}" text-anchor="${llAnchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+      }
+      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${llAnchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
+    } else {
+      // coloca LL acima da linha azul (normal)
+      const baseLL=Math.max(cyLL-4, PT-80);
+      if(i>0){
+        const v=varPct(x.LL,tots[i-1].LL);
+        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL-14).toFixed(1)}" text-anchor="${llAnchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+      }
+      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${llAnchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
     }
-    // LL NA linha azul (ligeiramente acima do ponto)
-    const llLbl=`<text x="${cx}" y="${(cyLL-3).toFixed(1)}" text-anchor="middle" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
 
     return varTotLbl+totLbl+ltLbl+varLLLbl+llLbl;
   }).join('');
 
-  // Pontos clicáveis na linha total e pontos menores na linha LL
+  // Pontos clicáveis + indicador especial no mês atual
   const dots=tots.map((x,i)=>{
     const cx=xs(i).toFixed(1);
     const cyT=yv(x.tot).toFixed(1);
     const cyL=yv(x.LL).toFixed(1);
     const isSel=x.m===selMes;
-    return`<circle cx="${cx}" cy="${cyT}" r="${isSel?5.5:4}" fill="${isSel?'var(--tx)':'var(--y)'}" stroke="var(--bg)" stroke-width="2" class="area-dot" data-i="${i}" data-m="${x.m}" style="cursor:pointer"/>
-<circle cx="${cx}" cy="${cyL}" r="3" fill="var(--bl)" stroke="var(--bg)" stroke-width="1.5" pointer-events="none"/>`;
+    const isAt=x.isAtual;
+    // Ponto total: maior e pulsante se for o mês atual
+    const rT=isAt?6:isSel?5.5:4;
+    const fillT=isAt?'var(--ok)':isSel?'var(--tx)':'var(--y)';
+    const extra=isAt?` class="area-dot area-dot-atual" data-i="${i}" data-m="${x.m}" style="cursor:pointer"`
+                    :` class="area-dot" data-i="${i}" data-m="${x.m}" style="cursor:pointer"`;
+    return`<circle cx="${cx}" cy="${cyT}" r="${rT}" fill="${fillT}" stroke="var(--bg)" stroke-width="2"${extra}/>
+<circle cx="${cx}" cy="${cyL}" r="3" fill="${isAt?'var(--ok)':'var(--bl)'}" stroke="var(--bg)" stroke-width="1.5" pointer-events="none"/>`;
   }).join('');
 
   const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;min-height:${H}px">
@@ -1116,40 +1166,18 @@ function renderHist(rs,el){
     ${xAxisLabels}
   </svg>`;
 
-  // Filtros de período acima do gráfico
-  const mesOpts=meses.map(m=>`<option value="${m}">${fmtMes(m)}</option>`).join('');
-  // Mês fechado = mês anterior ao atual
-  const hoje=new Date();
-  const mesAtual=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
-  const idxAtual=meses.indexOf(mesAtual);
-  const mesFechado=idxAtual>0?meses[idxAtual-1]:(idxAtual===0?meses[0]:meses[meses.length-1]);
+  // Aviso mês vigente
+  const mesAtualTot=tots.find(x=>x.isAtual);
+  const avisoAtual=mesAtualTot
+    ?`<div style="display:inline-flex;align-items:center;gap:.35rem;background:var(--s2);border:1px solid var(--ok);border-radius:6px;padding:.25rem .6rem;font-size:.75rem;color:var(--ok);font-weight:700">
+        <span>◂ ${fmtMes(mesAtual)}: mês em andamento — passe o mouse no ponto verde para ver os dados</span>
+      </div>`:'';
 
-  const filtrosHtml=`<div class="hist-filters">
-    <div class="hf-group">
-      <span class="hf-label">Período</span>
-      <div class="hf-row">
-        <select class="hf-sel" id="hf-de"><option value="">De...</option>${mesOpts}</select>
-        <span class="hf-sep">até</span>
-        <select class="hf-sel" id="hf-ate"><option value="">Até...</option>${mesOpts}</select>
-        <button class="bt hf-btn" id="hf-apply">Aplicar</button>
-        ${(F.mes1||F.mes2)?`<button class="bt hf-btn hf-clear" id="hf-clear">✕ Limpar</button>`:''}
-      </div>
-    </div>
-    <div class="hf-group">
-      <button class="bt hf-btn${selMes===mesFechado?' hf-active':''}" id="hf-fechado" data-mes="${mesFechado}">📅 Mês fechado (${fmtMes(mesFechado)})</button>
-    </div>
-    ${selMes?`<div class="hf-sel-info">Filtrando: <b>${fmtMes(selMes)}</b> <button class="bt hf-btn hf-clear" id="hf-desel">✕</button></div>`:''}
-  </div>`;
+  el.innerHTML=
+    `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
+    `<div class="hlgd" style="margin-top:.4rem">${avisoAtual}<span style="color:var(--y)">— Total</span><span style="color:var(--bl)">- - LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span><span style="color:var(--ok)">● mês atual</span><span class="mu2" style="font-size:.7rem">clique no ponto para filtrar</span></div>`;
 
-  el.innerHTML=filtrosHtml+
-    `<div class="area-chart" style="position:relative;margin:0 -1rem">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none"></div></div>`+
-    `<div class="hlgd"><span style="color:var(--y)">— Total</span><span style="color:var(--bl)">- - LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span><span class="mu2" style="font-size:.7rem">clique no ponto para filtrar</span></div>`;
-
-  // Preenche os selects com os valores atuais de F
-  el.querySelector('#hf-de').value=F.mes1||'';
-  el.querySelector('#hf-ate').value=F.mes2||'';
-
-  // Clique nos dots → filtra por mês único
+  // Eventos nos pontos
   el.querySelectorAll('.area-dot').forEach(dot=>{
     dot.addEventListener('click',()=>{
       const m=dot.dataset.m;
@@ -1157,38 +1185,30 @@ function renderHist(rs,el){
       else{F.mes1=m;F.mes2=m;}
       tPage=0;buildSidebarFilters();render();
     });
-    // Tooltip hover
-    dot.addEventListener('mouseenter',ev=>{
+    dot.addEventListener('mouseenter',()=>{
       const i=+dot.dataset.i, x=tots[i];
-      const v=i>0?varPct(x.tot,tots[i-1].tot):null;
+      const vTot=i>0?varPct(x.tot,tots[i-1].tot):null;
+      const vLL=i>0?varPct(x.LL,tots[i-1].LL):null;
+      const isAt=x.isAtual;
       const tip=el.querySelector('#area-tip');
-      tip.innerHTML=`<b>${fmtMes(x.m)}</b>Total: <b>${N(x.tot)}</b><br>LT: ${N(x.LT)} &nbsp;·&nbsp; LL: ${N(x.LL)}${v!==null?`<br><span class="hvar ${clsVar(v)}">${fmtVar(v)} vs mês anterior</span>`:''}`;
+      tip.innerHTML=`<b style="font-size:.85rem">${fmtMes(x.m)}${isAt?' <span style="color:var(--ok);font-size:.7rem">em andamento</span>':''}</b>`+
+        `Total: <b>${N(x.tot)}</b>${vTot!==null?` <span class="hvar ${clsVar(vTot)}">${fmtVar(vTot)}</span>`:''}` +
+        `<br>LT: <b style="color:var(--y)">${N(x.LT)}</b> &nbsp;·&nbsp; LL: <b style="color:var(--bl)">${N(x.LL)}</b>${vLL!==null?` <span class="hvar ${clsVar(vLL)}" style="font-size:.68rem">${fmtVar(vLL)} LL</span>`:''}`;
       const rect=el.querySelector('.area-chart').getBoundingClientRect();
       const dr=dot.getBoundingClientRect();
       tip.style.display='block';
       requestAnimationFrame(()=>{
-        tip.style.left=Math.max(0,dr.left-rect.left-tip.offsetWidth/2+7)+'px';
-        tip.style.top=Math.max(0,dr.top-rect.top-tip.offsetHeight-10)+'px';
+        const tipW=tip.offsetWidth, tipH=tip.offsetHeight;
+        let left=dr.left-rect.left-tipW/2+dot.r?.baseVal?.value||7;
+        let top=dr.top-rect.top-tipH-12;
+        if(left<0)left=0;
+        if(left+tipW>rect.width)left=rect.width-tipW;
+        if(top<0)top=dr.top-rect.top+16;
+        tip.style.left=left+'px';
+        tip.style.top=top+'px';
       });
     });
     dot.addEventListener('mouseleave',()=>{const t=el.querySelector('#area-tip');if(t)t.style.display='none';});
-  });
-
-  // Botão Aplicar período
-  el.querySelector('#hf-apply')?.addEventListener('click',()=>{
-    F.mes1=el.querySelector('#hf-de').value;
-    F.mes2=el.querySelector('#hf-ate').value;
-    tPage=0;buildSidebarFilters();render();
-  });
-  // Limpar período
-  el.querySelector('#hf-clear')?.addEventListener('click',()=>{F.mes1='';F.mes2='';tPage=0;buildSidebarFilters();render();});
-  el.querySelector('#hf-desel')?.addEventListener('click',()=>{F.mes1='';F.mes2='';tPage=0;buildSidebarFilters();render();});
-  // Mês fechado
-  el.querySelector('#hf-fechado')?.addEventListener('click',()=>{
-    const m=mesFechado;
-    if(F.mes1===m&&F.mes2===m){F.mes1='';F.mes2='';}
-    else{F.mes1=m;F.mes2=m;}
-    tPage=0;buildSidebarFilters();render();
   });
 }
 
