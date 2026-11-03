@@ -1082,9 +1082,9 @@ function renderHist(rs,el){
 
   // ── SVG ─────────────────────────────────────────────────────────────────
   const n=tots.length;
-  // Margens laterais maiores para acomodar labels do primeiro e último mês
-  const colStep=Math.round(900/(n||1));
-  const W=900, H=290, PL=Math.min(55,colStep*0.55), PR=Math.min(55,colStep*0.55), PT=95, PB=32;
+  // PL/PR fixos grandes o suficiente para o label do primeiro/último mês não cortar
+  // PT alto para comportar: %var(10) + número(14) + LT(14) + gap(10) + %varLL(10) + LL(14) = ~72px acima do ponto
+  const W=900, H=310, PL=58, PR=58, PT=115, PB=32;
   const cW=W-PL-PR, cH=H-PT-PB;
   const xs=i=>PL+i/(n-1||1)*cW;
   // Escala usa mxEscala (apenas meses fechados) → mês atual não achata o gráfico
@@ -1138,48 +1138,54 @@ function renderHist(rs,el){
     const txW=isSel?'800':'600';
     const anchor=i===0?'start':i===n-1?'end':'middle';
 
-    // ── Bloco Total (3 linhas, cima para baixo): %var, número, LT xxx
-    // Altura do bloco: ~38px (10+14+14)
-    // Base do bloco = cyTot - 4 (ponto fica logo abaixo do "LT xxx")
-    // Nunca deve ultrapassar o topo do SVG (y < 10)
-    const BH=42; // altura total do bloco
-    const baseTot=Math.max(cyTot-4, PT-BH+4); // se ponto está muito alto, comprime
-    const yLT=baseTot;
-    const yNum=baseTot-14;
-    const yVar=baseTot-28;
+    // ── Bloco TOTAL (de cima para baixo, todas acima do ponto amarelo):
+    //   linha1: %varTot   (font 10, cor up/dn)
+    //   linha2: número    (font 13, branco/bold)
+    //   linha3: %varLT    (font 10, cor up/dn)  ← NEW: % do LT junto do LT
+    //   linha4: LT xxx    (font 10, amarelo)     ← ponto amarelo fica logo abaixo
+    // Altura do bloco: 10+4 + 13+4 + 10+4 + 10 = ~55px acima do ponto
+    const BLK=58;
+    // posição base = ponto total - gap pequeno; nunca ultrapassa topo
+    const pTot=Math.max(cyTot-4, PT-BLK+4);
+    const yLT   = pTot;           // "LT 1.600" — logo acima do ponto
+    const yVarLT= pTot-13;        // "-1.5%" logo acima do LT
+    const yNum  = pTot-27;        // "2.634" número total
+    const yVar  = pTot-41;        // "-2.1%" variação do total
 
-    let varTotLbl='';
+    let varTotLbl='', varLTLbl='';
     if(i>0){
-      const v=varPct(x.tot,tots[i-1].tot);
-      varTotLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(10,yVar).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="10" font-weight="800">${fmtVar(v)}</text>`;
+      const vT=varPct(x.tot,tots[i-1].tot);
+      varTotLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(10,yVar).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(vT)}" font-size="10" font-weight="800">${fmtVar(vT)}</text>`;
+      const vLT=varPct(x.LT,tots[i-1].LT);
+      varLTLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(23,yVarLT).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(vLT)}" font-size="9" font-weight="800">${fmtVar(vLT)}</text>`;
     }
     const totLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(22,yNum).toFixed(1)}" text-anchor="${anchor}" fill="var(--tx)" font-size="13" font-weight="900">${N(x.tot)}</text>`;
     const ltLbl =`<text x="${cx.toFixed(1)}" y="${Math.max(36,yLT).toFixed(1)}" text-anchor="${anchor}" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
 
-    // ── Bloco LL: detecta colisão com bloco Total
-    const gap=cyLL-cyTot; // positivo = LL está mais baixo que Total (esperado)
-    let varLLLbl='', llLbl='';
-    // Espaço disponível entre linha LL e fundo = PT+cH - cyLL
+    // ── Bloco LL: %varLL + "LL xxx" acima da linha azul
+    // Se gap entre linhas < 50px, empurra LL para baixo da linha azul para não sobrepor
+    const gap=cyLL-cyTot;
     const spaceBelow=PT+cH-cyLL;
-    if(gap<44 || spaceBelow<28){
-      // Pouco espaço entre as linhas → LL fica ACIMA da linha azul com deslocamento extra
-      const baseLL=Math.max(cyLL-5, Math.max(36,yLT)+18);
+    let varLLLbl='', llLbl='';
+    if(gap<50 || spaceBelow<28){
+      // Coloca LL ABAIXO da linha azul
+      const baseLL=Math.min(cyLL+16, PT+cH-4);
+      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
       if(i>0){
         const v=varPct(x.LL,tots[i-1].LL);
-        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL-14).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL+12).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
       }
-      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
     } else {
-      // Espaço suficiente → LL acima da linha azul normalmente
-      const baseLL=cyLL-5;
+      // Espaço suficiente → LL acima da linha azul
+      const baseLL=cyLL-6;
+      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
       if(i>0){
         const v=varPct(x.LL,tots[i-1].LL);
-        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL-14).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL-13).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
       }
-      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
     }
 
-    return varTotLbl+totLbl+ltLbl+varLLLbl+llLbl;
+    return varTotLbl+totLbl+varLTLbl+ltLbl+varLLLbl+llLbl;
   }).join('');
 
   // Pontos
