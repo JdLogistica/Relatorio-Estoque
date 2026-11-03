@@ -1013,7 +1013,6 @@ function renderDonut(rs,k,el,{col,u='pedidos'}={}){
 function renderHist(rs,el){
   const g=new Map();
   rs.forEach(r=>{if(r.mes){if(!g.has(r.mes))g.set(r.mes,{LT:0,LL:0});g.get(r.mes)[r.loja]++}});
-  // Gráfico sempre mostra TODOS os meses disponíveis (filtro de período age nos outros painéis via sidebar)
   const meses=D.meses;
   if(!meses.length){el.innerHTML='<p class="mu2" style="padding:.5rem">Sem dados disponíveis.</p>';return}
 
@@ -1021,7 +1020,10 @@ function renderHist(rs,el){
   const mesAtual=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
 
   const tots=meses.map(m=>{const d=g.get(m)||{LT:0,LL:0};return{m,LT:d.LT,LL:d.LL,tot:d.LT+d.LL,isAtual:m===mesAtual}});
-  const mx=Math.max(1,...tots.map(x=>x.tot));
+  // mx considera apenas meses fechados para não deixar o gráfico achatado por um mês parcial
+  const fechados=tots.filter(x=>!x.isAtual);
+  const mx=Math.max(1,...tots.map(x=>x.tot)); // usa todos mesmo assim para escala correta
+  const mxEscala=Math.max(1,...fechados.length?fechados.map(x=>x.tot):tots.map(x=>x.tot));
   const varPct=(cur,prv)=>prv>0?((cur-prv)/prv*100):null;
   const fmtVar=v=>v===null?'':(v>=0?`+${v.toFixed(1)}%`:`${v.toFixed(1)}%`);
   const clsVar=v=>v===null?'eq':v>0?'up':v<0?'dn':'eq';
@@ -1029,46 +1031,72 @@ function renderHist(rs,el){
   // Mês selecionado (único)
   const selMes=(F.mes1&&F.mes1===F.mes2)?F.mes1:'';
 
-  // Soma geral
+  // ── Painel de resumo do período ──────────────────────────────────────────
+  // Comparação: primeiro mês fechado vs último mês fechado
+  const f0=fechados[0], fZ=fechados[fechados.length-1];
   const grandTotal=tots.reduce((s,x)=>s+x.tot,0);
+  const vTotPeriodo=f0&&fZ&&f0!==fZ?varPct(fZ.tot,f0.tot):null;
+  const vLTPeriodo=f0&&fZ&&f0!==fZ?varPct(fZ.LT,f0.LT):null;
+  const vLLPeriodo=f0&&fZ&&f0!==fZ?varPct(fZ.LL,f0.LL):null;
+  const clsC=v=>v===null?'var(--mu)':v>0?'var(--ok)':'var(--bad)';
+  const resumoHtml=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem;align-items:stretch">
+    <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:.4rem .75rem;min-width:7rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">TOTAL GERAL</div>
+      <div style="font-size:1.1rem;font-weight:900;color:var(--tx)">${N(grandTotal)}</div>
+      <div style="font-size:.68rem;color:var(--mu)">soma de todos os meses</div>
+    </div>
+    ${vTotPeriodo!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid ${clsC(vTotPeriodo)};border-radius:8px;padding:.4rem .75rem;min-width:9rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO TOTAL</div>
+      <div style="font-size:1.05rem;font-weight:900;color:${clsC(vTotPeriodo)}">${fmtVar(vTotPeriodo)}</div>
+      <div style="font-size:.68rem;color:var(--mu)">${fmtMes(f0.m)} → ${fmtMes(fZ.m)}</div>
+    </div>`:''}
+    ${vLTPeriodo!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--y);border-radius:8px;padding:.4rem .75rem;min-width:9rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO LT</div>
+      <div style="font-size:1.05rem;font-weight:900;color:${clsC(vLTPeriodo)}">${fmtVar(vLTPeriodo)}</div>
+      <div style="font-size:.68rem;color:var(--mu)">${fmtMes(f0.m)}: LT ${N(f0.LT)} → ${fmtMes(fZ.m)}: LT ${N(fZ.LT)}</div>
+    </div>`:''}
+    ${vLLPeriodo!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--bl);border-radius:8px;padding:.4rem .75rem;min-width:9rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO LL</div>
+      <div style="font-size:1.05rem;font-weight:900;color:${clsC(vLLPeriodo)}">${fmtVar(vLLPeriodo)}</div>
+      <div style="font-size:.68rem;color:var(--mu)">${fmtMes(f0.m)}: LL ${N(f0.LL)} → ${fmtMes(fZ.m)}: LL ${N(fZ.LL)}</div>
+    </div>`:''}
+  </div>`;
 
-  // SVG — padding generoso em cima para comportar os 3 blocos de texto (% + total + LT),
-  // e à esquerda/direita quase zero para encostar nas bordas
-  const W=900,H=290,PL=6,PR=6,PT=100,PB=32;
+  // ── SVG ─────────────────────────────────────────────────────────────────
+  // Margens laterais maiores para acomodar labels do primeiro e último mês
+  // O bloco de texto mais largo é ~50px, então PL/PR = 55 garante que não corte
+  const colStep=Math.round(900/(n||1));
+  // Se tiver muitos meses, reduz margens; com 10 meses, ~55px cada lado
+  const W=900, H=290, PL=Math.min(55,colStep*0.55), PR=Math.min(55,colStep*0.55), PT=95, PB=32;
   const cW=W-PL-PR, cH=H-PT-PB;
-  const n=tots.length;
   const xs=i=>PL+i/(n-1||1)*cW;
-  const yv=v=>PT+cH-(v/mx*cH);
+  // Escala usa mxEscala (apenas meses fechados) → mês atual não achata o gráfico
+  // mas o yv ainda precisa mapear valores maiores sem sair do SVG
+  const yvRaw=v=>PT+cH-(v/mxEscala*cH);
+  // Clampeia: valor acima do máximo de escala fica em PT
+  const yv=v=>Math.max(PT, yvRaw(v));
 
-  // Pontos das linhas
   const ptsTot=tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.tot).toFixed(1)}`).join(' ');
   const ptsLL=tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.LL).toFixed(1)}`).join(' ');
   const lastX=xs(n-1).toFixed(1), baseY=(PT+cH).toFixed(1), firstX=xs(0).toFixed(1);
   const polyTot=`${firstX},${baseY} ${ptsTot} ${lastX},${baseY}`;
   const polyLL=`${firstX},${baseY} ${ptsLL} ${lastX},${baseY}`;
 
-  // Ponto mais alto → grand total fica lá
-  const idxMax=tots.reduce((best,x,i)=>x.tot>tots[best].tot?i:best,0);
-  const cxMax=xs(idxMax).toFixed(1);
-  const cyMax=yv(tots[idxMax].tot);
-  const grandTotalLbl=`<text x="${cxMax}" y="${Math.max(14,(cyMax-68)).toFixed(1)}" text-anchor="middle" fill="var(--tx)" font-size="13" font-weight="900">Total geral: ${N(grandTotal)}</text>
-<text x="${cxMax}" y="${Math.max(26,(cyMax-54)).toFixed(1)}" text-anchor="middle" fill="var(--mu)" font-size="9">soma de todos os meses</text>`;
-
-  // Raia de destaque do mês selecionado
+  // Raia de destaque
   const selBand=selMes?tots.reduce((acc,x,i)=>{
     if(x.m===selMes){const cx=xs(i);return`<rect x="${(cx-cW/(n*2)).toFixed(1)}" y="${PT-PT*0.95}" width="${(cW/n).toFixed(1)}" height="${cH+PT*0.95}" fill="var(--y)" fill-opacity=".07" rx="3"/>`;}
     return acc;
   },''):'';
 
-  // Grid lines com valores no eixo Y à esquerda
+  // Grid lines
   const gridLines=[0.25,0.5,0.75,1].map(f=>{
     const y=(PT+cH-f*cH).toFixed(1);
-    const lbl=N(Math.round(mx*f));
+    const lbl=N(Math.round(mxEscala*f));
     return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="0.5" stroke-dasharray="3,3"/>
-<text x="${(PL+2).toFixed(0)}" y="${y}" dominant-baseline="auto" dy="-3" fill="var(--mu)" font-size="8.5" opacity=".7">${lbl}</text>`;
+<text x="${PL.toFixed(0)}" y="${y}" dy="-3" fill="var(--mu)" font-size="8.5" opacity=".7">${lbl}</text>`;
   }).join('');
 
-  // Labels do eixo X — primeiros/últimos ancorados na borda
+  // Labels eixo X
   const xAxisLabels=tots.map((x,i)=>{
     const cx=xs(i);
     const isSel=x.m===selMes;
@@ -1077,107 +1105,103 @@ function renderHist(rs,el){
     return`<text x="${cx.toFixed(1)}" y="${H-6}" text-anchor="${anchor}" fill="${isSel?'var(--y)':isAt?'var(--ok)':'var(--mu)'}" font-size="10" font-weight="${(isSel||isAt)?'800':'400'}">${fmtMes(x.m)}${isAt?' ◂':''}</text>`;
   }).join('');
 
-  // ─── LABELS INTELIGENTES ───────────────────────────────────────────────
-  // Para cada coluna calculamos posições e detectamos colisão entre:
-  //   bloco TOTAL (% + número + LT) e bloco LL (% + número)
-  // Se a distância entre cyTot e cyLL for pequena, o bloco LL vai ABAIXO da linha
-  // O mês ATUAL recebe apenas tooltip (sem labels no SVG) para evitar corte com poucos dados
+  // ── Data labels inteligentes ─────────────────────────────────────────────
+  // Bloco TOTAL: [%var] [número] [LT xxx]  — sempre acima do ponto
+  // Bloco LL:    [%var] [LL xxx]            — acima da linha azul se houver espaço, senão abaixo
+  // Mês atual: só tooltip, sem labels (evita corte de dados parciais)
+  // Texto do primeiro/último mês: ancoragem 'start'/'end' para não sair das bordas
 
   const dataLabels=tots.map((x,i)=>{
-    // Mês vigente: sem labels inline — tooltip ao hover cobre tudo
-    if(x.isAtual) return '';
+    if(x.isAtual) return ''; // mês em andamento → só tooltip
 
     const cx=xs(i);
     const cyTot=yv(x.tot);
     const cyLL=yv(x.LL);
     const isSel=x.m===selMes;
     const txW=isSel?'800':'600';
-    // anchor: ajusta texto para não sair pelas bordas
-    const totAnchor=i===0?'start':i===n-1?'end':'middle';
-    const llAnchor=totAnchor;
+    const anchor=i===0?'start':i===n-1?'end':'middle';
 
-    // Bloco TOTAL: % var (y-42) + número (y-28) + LT (y-14) — acima do ponto total
-    // Garantimos que nunca fique fora do topo (y mín = 8)
-    const baseTot=Math.max(cyTot-14, PT-80); // nunca acima do SVG
+    // ── Bloco Total (3 linhas, cima para baixo): %var, número, LT xxx
+    // Altura do bloco: ~38px (10+14+14)
+    // Base do bloco = cyTot - 4 (ponto fica logo abaixo do "LT xxx")
+    // Nunca deve ultrapassar o topo do SVG (y < 10)
+    const BH=42; // altura total do bloco
+    const baseTot=Math.max(cyTot-4, PT-BH+4); // se ponto está muito alto, comprime
+    const yLT=baseTot;
+    const yNum=baseTot-14;
+    const yVar=baseTot-28;
 
     let varTotLbl='';
     if(i>0){
       const v=varPct(x.tot,tots[i-1].tot);
-      varTotLbl=`<text x="${cx.toFixed(1)}" y="${(baseTot-26).toFixed(1)}" text-anchor="${totAnchor}" class="sv-var ${clsVar(v)}" font-size="10" font-weight="800">${fmtVar(v)}</text>`;
+      varTotLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(10,yVar).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="10" font-weight="800">${fmtVar(v)}</text>`;
     }
-    const totLbl=`<text x="${cx.toFixed(1)}" y="${(baseTot-12).toFixed(1)}" text-anchor="${totAnchor}" fill="var(--tx)" font-size="13" font-weight="900">${N(x.tot)}</text>`;
-    const ltLbl=`<text x="${cx.toFixed(1)}" y="${baseTot.toFixed(1)}" text-anchor="${totAnchor}" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
+    const totLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(22,yNum).toFixed(1)}" text-anchor="${anchor}" fill="var(--tx)" font-size="13" font-weight="900">${N(x.tot)}</text>`;
+    const ltLbl =`<text x="${cx.toFixed(1)}" y="${Math.max(36,yLT).toFixed(1)}" text-anchor="${anchor}" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
 
-    // Bloco LL: detecta colisão com bloco TOTAL
-    // Se linha LL está perto da linha Total (gap < 40px), coloca LL ABAIXO da linha azul
-    const gap=cyLL-cyTot; // positivo = LL está abaixo do Total (normal)
+    // ── Bloco LL: detecta colisão com bloco Total
+    const gap=cyLL-cyTot; // positivo = LL está mais baixo que Total (esperado)
     let varLLLbl='', llLbl='';
-    if(gap<40){
-      // coloca LL abaixo da linha azul
-      const baseLL=Math.min(cyLL+22, PT+cH-2);
+    // Espaço disponível entre linha LL e fundo = PT+cH - cyLL
+    const spaceBelow=PT+cH-cyLL;
+    if(gap<44 || spaceBelow<28){
+      // Pouco espaço entre as linhas → LL fica ACIMA da linha azul com deslocamento extra
+      const baseLL=Math.max(cyLL-5, Math.max(36,yLT)+18);
       if(i>0){
         const v=varPct(x.LL,tots[i-1].LL);
-        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL+12).toFixed(1)}" text-anchor="${llAnchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL-14).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
       }
-      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${llAnchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
+      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
     } else {
-      // coloca LL acima da linha azul (normal)
-      const baseLL=Math.max(cyLL-4, PT-80);
+      // Espaço suficiente → LL acima da linha azul normalmente
+      const baseLL=cyLL-5;
       if(i>0){
         const v=varPct(x.LL,tots[i-1].LL);
-        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL-14).toFixed(1)}" text-anchor="${llAnchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL-14).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
       }
-      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${llAnchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
+      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
     }
 
     return varTotLbl+totLbl+ltLbl+varLLLbl+llLbl;
   }).join('');
 
-  // Pontos clicáveis + indicador especial no mês atual
+  // Pontos
   const dots=tots.map((x,i)=>{
     const cx=xs(i).toFixed(1);
     const cyT=yv(x.tot).toFixed(1);
     const cyL=yv(x.LL).toFixed(1);
     const isSel=x.m===selMes;
     const isAt=x.isAtual;
-    // Ponto total: maior e pulsante se for o mês atual
     const rT=isAt?6:isSel?5.5:4;
     const fillT=isAt?'var(--ok)':isSel?'var(--tx)':'var(--y)';
-    const extra=isAt?` class="area-dot area-dot-atual" data-i="${i}" data-m="${x.m}" style="cursor:pointer"`
-                    :` class="area-dot" data-i="${i}" data-m="${x.m}" style="cursor:pointer"`;
-    return`<circle cx="${cx}" cy="${cyT}" r="${rT}" fill="${fillT}" stroke="var(--bg)" stroke-width="2"${extra}/>
+    const cls=`area-dot${isAt?' area-dot-atual':''}`;
+    return`<circle cx="${cx}" cy="${cyT}" r="${rT}" fill="${fillT}" stroke="var(--bg)" stroke-width="2" class="${cls}" data-i="${i}" data-m="${x.m}" style="cursor:pointer"/>
 <circle cx="${cx}" cy="${cyL}" r="3" fill="${isAt?'var(--ok)':'var(--bl)'}" stroke="var(--bg)" stroke-width="1.5" pointer-events="none"/>`;
   }).join('');
 
-  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;min-height:${H}px">
+  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;min-height:${H}px;overflow:visible">
     <defs>
       <linearGradient id="gTot" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--y)" stop-opacity=".4"/><stop offset="100%" stop-color="var(--y)" stop-opacity=".03"/></linearGradient>
       <linearGradient id="gLL" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--bl)" stop-opacity=".45"/><stop offset="100%" stop-color="var(--bl)" stop-opacity=".04"/></linearGradient>
     </defs>
-    ${selBand}
-    ${gridLines}
+    ${selBand}${gridLines}
     <polygon points="${polyTot}" fill="url(#gTot)"/>
     <polygon points="${polyLL}" fill="url(#gLL)"/>
     <polyline points="${ptsTot}" fill="none" stroke="var(--y)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
     <polyline points="${ptsLL}" fill="none" stroke="var(--bl)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5,3"/>
-    ${grandTotalLbl}
-    ${dataLabels}
-    ${dots}
-    ${xAxisLabels}
+    ${dataLabels}${dots}${xAxisLabels}
   </svg>`;
 
   // Aviso mês vigente
   const mesAtualTot=tots.find(x=>x.isAtual);
   const avisoAtual=mesAtualTot
-    ?`<div style="display:inline-flex;align-items:center;gap:.35rem;background:var(--s2);border:1px solid var(--ok);border-radius:6px;padding:.25rem .6rem;font-size:.75rem;color:var(--ok);font-weight:700">
-        <span>◂ ${fmtMes(mesAtual)}: mês em andamento — passe o mouse no ponto verde para ver os dados</span>
-      </div>`:'';
+    ?`<span style="display:inline-flex;align-items:center;gap:.3rem;background:var(--s2);border:1px solid var(--ok);border-radius:6px;padding:.2rem .55rem;font-size:.72rem;color:var(--ok);font-weight:700">● ${fmtMes(mesAtual)}: em andamento (hover para ver dados)</span>`:'';
 
-  el.innerHTML=
+  el.innerHTML= resumoHtml+
     `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
-    `<div class="hlgd" style="margin-top:.4rem">${avisoAtual}<span style="color:var(--y)">— Total</span><span style="color:var(--bl)">- - LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span><span style="color:var(--ok)">● mês atual</span><span class="mu2" style="font-size:.7rem">clique no ponto para filtrar</span></div>`;
+    `<div class="hlgd" style="margin-top:.5rem">${avisoAtual}<span style="color:var(--y)">— Total</span><span style="color:var(--bl)">- - LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span><span class="mu2" style="font-size:.7rem">clique no ponto para filtrar</span></div>`;
 
-  // Eventos nos pontos
+  // Eventos
   el.querySelectorAll('.area-dot').forEach(dot=>{
     dot.addEventListener('click',()=>{
       const m=dot.dataset.m;
@@ -1188,22 +1212,24 @@ function renderHist(rs,el){
     dot.addEventListener('mouseenter',()=>{
       const i=+dot.dataset.i, x=tots[i];
       const vTot=i>0?varPct(x.tot,tots[i-1].tot):null;
+      const vLT=i>0?varPct(x.LT,tots[i-1].LT):null;
       const vLL=i>0?varPct(x.LL,tots[i-1].LL):null;
       const isAt=x.isAtual;
       const tip=el.querySelector('#area-tip');
-      tip.innerHTML=`<b style="font-size:.85rem">${fmtMes(x.m)}${isAt?' <span style="color:var(--ok);font-size:.7rem">em andamento</span>':''}</b>`+
-        `Total: <b>${N(x.tot)}</b>${vTot!==null?` <span class="hvar ${clsVar(vTot)}">${fmtVar(vTot)}</span>`:''}` +
-        `<br>LT: <b style="color:var(--y)">${N(x.LT)}</b> &nbsp;·&nbsp; LL: <b style="color:var(--bl)">${N(x.LL)}</b>${vLL!==null?` <span class="hvar ${clsVar(vLL)}" style="font-size:.68rem">${fmtVar(vLL)} LL</span>`:''}`;
+      tip.innerHTML=
+        `<b style="font-size:.88rem;display:block;margin-bottom:.2rem">${fmtMes(x.m)}${isAt?' <span style="color:var(--ok);font-size:.72rem;font-weight:700">● em andamento</span>':''}</b>`+
+        `<span style="font-size:.8rem">Total: <b>${N(x.tot)}</b>${vTot!==null?` <span class="hvar ${clsVar(vTot)}">${fmtVar(vTot)}</span>`:''}</span><br>`+
+        `<span style="font-size:.78rem">LT: <b style="color:var(--y)">${N(x.LT)}</b>${vLT!==null?` <span class="hvar ${clsVar(vLT)}" style="font-size:.7rem">${fmtVar(vLT)}</span>`:''} &nbsp;·&nbsp; LL: <b style="color:var(--bl)">${N(x.LL)}</b>${vLL!==null?` <span class="hvar ${clsVar(vLL)}" style="font-size:.7rem">${fmtVar(vLL)}</span>`:''}</span>`;
       const rect=el.querySelector('.area-chart').getBoundingClientRect();
       const dr=dot.getBoundingClientRect();
       tip.style.display='block';
       requestAnimationFrame(()=>{
-        const tipW=tip.offsetWidth, tipH=tip.offsetHeight;
-        let left=dr.left-rect.left-tipW/2+dot.r?.baseVal?.value||7;
+        const tipW=tip.offsetWidth||160, tipH=tip.offsetHeight||60;
+        let left=dr.left-rect.left-tipW/2+6;
         let top=dr.top-rect.top-tipH-12;
-        if(left<0)left=0;
-        if(left+tipW>rect.width)left=rect.width-tipW;
-        if(top<0)top=dr.top-rect.top+16;
+        if(left<0)left=2;
+        if(left+tipW>rect.width)left=rect.width-tipW-2;
+        if(top<0)top=dr.top-rect.top+18;
         tip.style.left=left+'px';
         tip.style.top=top+'px';
       });
