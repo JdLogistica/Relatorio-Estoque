@@ -1086,50 +1086,128 @@ function renderDonut(rs,k,el,{col,u='pedidos'}={}){
 }
 
 function renderHistDia(rs,el){
+  const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div>`;
   const g=new Map();
   rs.forEach(r=>{if(r.dia){if(!g.has(r.dia))g.set(r.dia,{LT:0,LL:0});g.get(r.dia)[r.loja]++}});
-  if(!g.size){el.innerHTML=`<div style="display:flex;gap:.5rem;margin-bottom:.4rem"><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div><p class="mu2" style="padding:.5rem">Sem dados para o período.</p>`;
-    el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));return;}
+  if(!g.size){
+    el.innerHTML=toggleHtml+`<p class="mu2" style="padding:.5rem">Sem dados para o período.</p>`;
+    el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));return;
+  }
   const dias=Array.from(g.keys()).sort();
   const tots=dias.map(d=>{const v=g.get(d);return{m:d,LT:v.LT,LL:v.LL,tot:v.LT+v.LL};});
   const mx=Math.max(1,...tots.map(x=>x.tot));
   const fmtDia=d=>d?d.slice(8)+'/'+d.slice(5,7):'';
   const n=tots.length;
-  const W=900,H=260,PL=50,PR=50,PT=50,PB=32;
-  const cW=W-PL-PR,cH=H-PT-PB;
+  // Layout: PT grande para caber labels acima dos pontos
+  const W=900,H=300,PL=55,PR=55,PT=70,PB=36;
+  const cW=W-PL-PR, cH=H-PT-PB;
   const xs=i=>PL+i/(n-1||1)*cW;
-  const barW=Math.max(2,Math.min(14,Math.floor(cW/(n||1)*0.75)));
-  const bars=tots.map((x,i)=>{
+  const yv=v=>PT+cH-(v/mx*cH);
+
+  // ── Gradients ───────────────────────────────────────────────────────────
+  const defs=`<defs>
+    <linearGradient id="dg-tot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5c518" stop-opacity=".35"/>
+      <stop offset="100%" stop-color="#f5c518" stop-opacity=".03"/>
+    </linearGradient>
+    <linearGradient id="dg-ll" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5bafd6" stop-opacity=".28"/>
+      <stop offset="100%" stop-color="#5bafd6" stop-opacity=".03"/>
+    </linearGradient>
+  </defs>`;
+
+  // ── Polyline points ──────────────────────────────────────────────────────
+  const ptsTot=tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.tot).toFixed(1)}`).join(' ');
+  const ptsLL =tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.LL).toFixed(1)}`).join(' ');
+  const base=`${(W-PR).toFixed(1)},${(PT+cH).toFixed(1)} ${PL},${(PT+cH).toFixed(1)}`;
+
+  // ── Area fills ──────────────────────────────────────────────────────────
+  const areaTot=`<polygon points="${ptsTot} ${base}" fill="url(#dg-tot)"/>`;
+  const areaLL =`<polygon points="${ptsLL} ${base}" fill="url(#dg-ll)"/>`;
+
+  // ── Lines ───────────────────────────────────────────────────────────────
+  const lineTot=`<polyline points="${ptsTot}" fill="none" stroke="#f5c518" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const lineLL =`<polyline points="${ptsLL}"  fill="none" stroke="#5bafd6" stroke-width="1.5" stroke-dasharray="5 3" stroke-linejoin="round" stroke-linecap="round"/>`;
+
+  // ── Labels de valor sobre cada ponto (total e LT/LL) ────────────────────
+  // Mostrar todos se n≤20, senão apenas cada step
+  const lblStep=n<=20?1:Math.ceil(n/20);
+  const dataLbls=tots.map((x,i)=>{
+    if(i%lblStep!==0&&i!==n-1)return'';
     const cx=xs(i);
-    const hLL=x.LL/mx*cH, hLT=x.LT/mx*cH;
-    const yLL=PT+cH-hLL, yLT=yLL-hLT;
-    return`<rect x="${(cx-barW/2).toFixed(1)}" y="${yLT.toFixed(1)}" width="${barW}" height="${(hLL+hLT).toFixed(1)}" fill="var(--y)" opacity=".8" rx="1"/>`+
-           `<rect x="${(cx-barW/2).toFixed(1)}" y="${yLL.toFixed(1)}" width="${barW}" height="${hLL.toFixed(1)}" fill="var(--bl)" opacity=".85" rx="1"/>`;
+    const cyTot=yv(x.tot);
+    const cyLL=yv(x.LL);
+    const anchor=i===0?'start':i===n-1?'end':'middle';
+    // Total acima da linha amarela
+    const totLbl=`<text x="${cx.toFixed(1)}" y="${(cyTot-14).toFixed(1)}" text-anchor="${anchor}" font-size="10" font-weight="800" fill="#f5c518">${x.tot}</text>`;
+    // LT/LL juntos um pouco acima do ponto total (linha menor)
+    const ltllLbl=`<text x="${cx.toFixed(1)}" y="${(cyTot-4).toFixed(1)}" text-anchor="${anchor}" font-size="8.5" fill="var(--mu)">LT ${x.LT} · LL ${x.LL}</text>`;
+    // Ponto LL indicador (pequeno triângulo/círculo)
+    const llDot=`<circle cx="${cx.toFixed(1)}" cy="${cyLL.toFixed(1)}" r="3" fill="#5bafd6" opacity=".9"/>`;
+    const totDot=`<circle cx="${cx.toFixed(1)}" cy="${cyTot.toFixed(1)}" r="3.5" fill="#f5c518"/>`;
+    return totLbl+ltllLbl+llDot+totDot;
   }).join('');
-  const step=Math.max(1,Math.floor(n/14));
+
+  // Pontos em todos os dias (menor, sem label)
+  const dots=tots.map((x,i)=>{
+    const cx=xs(i), cyTot=yv(x.tot), cyLL=yv(x.LL);
+    return`<circle class="dia-dot" cx="${cx.toFixed(1)}" cy="${cyTot.toFixed(1)}" r="3" fill="#f5c518" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:pointer"/>`+
+           `<circle cx="${cx.toFixed(1)}" cy="${cyLL.toFixed(1)}" r="2.5" fill="#5bafd6" opacity=".7"/>`;
+  }).join('');
+
+  // ── Hover rects invisíveis (captura mouse em toda largura da coluna) ─────
+  const colW=n>1?(cW/(n-1)):cW;
+  const hoverRects=tots.map((x,i)=>{
+    const cx=xs(i);
+    const left=Math.max(PL,cx-colW/2);
+    const right=Math.min(W-PR,cx+colW/2);
+    return`<rect class="dia-bar" x="${left.toFixed(1)}" y="${PT}" width="${(right-left).toFixed(1)}" height="${cH}" fill="transparent" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:crosshair"/>`;
+  }).join('');
+
+  // ── Linha de grade horizontal suave ─────────────────────────────────────
+  const gridLines=[0.25,0.5,0.75,1].map(f=>{
+    const y=yv(mx*f).toFixed(1);
+    const val=Math.round(mx*f);
+    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="1" opacity=".4"/>`+
+           `<text x="${(PL-4)}" y="${y}" text-anchor="end" font-size="8.5" fill="var(--mu)" dominant-baseline="middle">${val}</text>`;
+  }).join('');
+
+  // ── Eixo X labels ────────────────────────────────────────────────────────
+  const step=Math.max(1,Math.floor(n/16));
   const xlbls=tots.map((x,i)=>{
     if(i%step!==0&&i!==n-1)return'';
     const anchor=i===0?'start':i===n-1?'end':'middle';
-    return`<text x="${xs(i).toFixed(1)}" y="${H-6}" text-anchor="${anchor}" font-size="9" fill="var(--mu)">${fmtDia(x.m)}</text>`;
+    return`<text x="${xs(i).toFixed(1)}" y="${H-8}" text-anchor="${anchor}" font-size="9" fill="var(--mu)">${fmtDia(x.m)}</text>`;
   }).join('');
-  const tips=tots.map((x,i)=>`<rect class="dia-bar" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" x="${(xs(i)-Math.max(barW,8)/2).toFixed(1)}" y="${PT}" width="${Math.max(barW,8)}" height="${cH}" fill="transparent" style="cursor:pointer"/>`).join('');
-  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">${bars}${xlbls}${tips}<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1"/></svg>`;
-  const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div>`;
-  el.innerHTML=toggleHtml+`<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
-    `<div class="hlgd" style="margin-top:.4rem"><span style="color:var(--y)">■ LT</span><span style="color:var(--bl)">■ LL</span><span class="mu2" style="font-size:.7rem">passe o mouse para ver detalhes</span></div>`;
+
+  // ── Baseline ─────────────────────────────────────────────────────────────
+  const baseline=`<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1"/>`;
+
+  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">
+    ${defs}${gridLines}${areaTot}${areaLL}${lineTot}${lineLL}${dataLbls}${dots}${hoverRects}${xlbls}${baseline}
+  </svg>`;
+
+  el.innerHTML=toggleHtml+
+    `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
+    `<div class="hlgd" style="margin-top:.4rem"><span style="color:#f5c518">— Total</span><span style="color:#5bafd6">- - LL</span><span class="mu2" style="font-size:.7rem">passe o mouse para detalhes</span></div>`;
+
   el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
   el.querySelectorAll('.dia-bar').forEach(b=>{
     b.addEventListener('mouseenter',()=>{
       const tip=el.querySelector('#area-tip');
-      tip.innerHTML=`<b style="font-size:.82rem">${fmtDia(b.dataset.m)}</b><br><span style="font-size:.78rem">Total: <b>${b.dataset.tot}</b> &nbsp; LT: <b style="color:var(--y)">${b.dataset.lt}</b> &nbsp; LL: <b style="color:var(--bl)">${b.dataset.ll}</b></span>`;
+      const fmtD=b.dataset.m?`${fmtDia(b.dataset.m)} (${b.dataset.m})`:'';
+      tip.innerHTML=`<b style="font-size:.85rem;display:block;margin-bottom:.2rem">${fmtD}</b>`+
+        `<span style="font-size:.8rem">Total: <b>${b.dataset.tot}</b></span><br>`+
+        `<span style="font-size:.78rem">LT: <b style="color:#f5c518">${b.dataset.lt}</b> &nbsp;·&nbsp; LL: <b style="color:#5bafd6">${b.dataset.ll}</b></span>`;
       const rc=el.querySelector('.area-chart').getBoundingClientRect();
-      const br=b.getBoundingClientRect();
+      const cx=parseFloat(xs(+b.dataset.i));
+      const scaleX=rc.width/W;
       tip.style.display='block';
       requestAnimationFrame(()=>{
-        const tw=tip.offsetWidth||160,th=tip.offsetHeight||50;
-        let lf=br.left-rc.left-tw/2+barW/2;let tp2=br.top-rc.top-th-8;
-        if(lf<0)lf=2;if(lf+tw>rc.width)lf=rc.width-tw-2;if(tp2<0)tp2=br.top-rc.top+20;
-        tip.style.left=lf+'px';tip.style.top=tp2+'px';
+        const tw=tip.offsetWidth||160,th=tip.offsetHeight||60;
+        let lf=cx*scaleX-tw/2; let tp2=-th-10;
+        if(lf<0)lf=2; if(lf+tw>rc.width)lf=rc.width-tw-2;
+        tip.style.left=lf+'px'; tip.style.top=tp2+'px';
       });
     });
     b.addEventListener('mouseleave',()=>{const t=el.querySelector('#area-tip');if(t)t.style.display='none';});
