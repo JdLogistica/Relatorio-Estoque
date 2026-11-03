@@ -1119,7 +1119,8 @@ function renderHist(rs,el){
     const isSel=x.m===selMes;
     const isAt=x.isAtual;
     const anchor=i===0?'start':i===n-1?'end':'middle';
-    return`<text x="${cx.toFixed(1)}" y="${H-6}" text-anchor="${anchor}" fill="${isSel?'var(--y)':isAt?'var(--ok)':'var(--mu)'}" font-size="10" font-weight="${(isSel||isAt)?'800':'400'}">${fmtMes(x.m)}${isAt?' ◂':''}</text>`;
+    // cursor:pointer e data-m para clique filtrar
+    return`<text x="${cx.toFixed(1)}" y="${H-6}" text-anchor="${anchor}" fill="${isSel?'var(--y)':isAt?'var(--ok)':'var(--mu)'}" font-size="10" font-weight="${(isSel||isAt)?'800':'400'}" class="area-xlbl" data-i="${i}" data-m="${x.m}" style="cursor:pointer">${fmtMes(x.m)}${isAt?' ◂':''}</text>`;
   }).join('');
 
   // ── Data labels inteligentes ─────────────────────────────────────────────
@@ -1136,7 +1137,12 @@ function renderHist(rs,el){
     const cyLL=yv(x.LL);
     const isSel=x.m===selMes;
     const txW=isSel?'800':'600';
-    const anchor=i===0?'start':i===n-1?'end':'middle';
+    // Para o primeiro e último mês, centraliza o bloco sobre o ponto usando offset
+    // anchor 'start' → texto vai para direita, 'end' → vai para esquerda
+    // Usamos 'middle' em todos mas ajustamos o x para não sair da borda
+    const anchor='middle';
+    // Clamp x para não sair das bordas do SVG (mínimo 70px da borda, máximo W-70)
+    const cxLbl=Math.min(Math.max(cx, 70), W-70);
 
     // ── Bloco TOTAL (de cima para baixo, todas acima do ponto amarelo):
     //   linha1: %varTot   (font 10, cor up/dn)
@@ -1155,33 +1161,30 @@ function renderHist(rs,el){
     let varTotLbl='', varLTLbl='';
     if(i>0){
       const vT=varPct(x.tot,tots[i-1].tot);
-      varTotLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(10,yVar).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(vT)}" font-size="10" font-weight="800">${fmtVar(vT)}</text>`;
+      varTotLbl=`<text x="${cxLbl.toFixed(1)}" y="${Math.max(10,yVar).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(vT)}" font-size="10" font-weight="800">${fmtVar(vT)}</text>`;
       const vLT=varPct(x.LT,tots[i-1].LT);
-      varLTLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(23,yVarLT).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(vLT)}" font-size="9" font-weight="800">${fmtVar(vLT)}</text>`;
+      varLTLbl=`<text x="${cxLbl.toFixed(1)}" y="${Math.max(23,yVarLT).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(vLT)}" font-size="9" font-weight="800">${fmtVar(vLT)}</text>`;
     }
-    const totLbl=`<text x="${cx.toFixed(1)}" y="${Math.max(22,yNum).toFixed(1)}" text-anchor="${anchor}" fill="var(--tx)" font-size="13" font-weight="900">${N(x.tot)}</text>`;
-    const ltLbl =`<text x="${cx.toFixed(1)}" y="${Math.max(36,yLT).toFixed(1)}" text-anchor="${anchor}" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
+    const totLbl=`<text x="${cxLbl.toFixed(1)}" y="${Math.max(22,yNum).toFixed(1)}" text-anchor="${anchor}" fill="var(--tx)" font-size="13" font-weight="900">${N(x.tot)}</text>`;
+    const ltLbl =`<text x="${cxLbl.toFixed(1)}" y="${Math.max(36,yLT).toFixed(1)}" text-anchor="${anchor}" fill="var(--y)" font-size="10" font-weight="${txW}">LT ${N(x.LT)}</text>`;
 
-    // ── Bloco LL: %varLL + "LL xxx" acima da linha azul
-    // Se gap entre linhas < 50px, empurra LL para baixo da linha azul para não sobrepor
+    // ── Bloco LL
     const gap=cyLL-cyTot;
     const spaceBelow=PT+cH-cyLL;
     let varLLLbl='', llLbl='';
     if(gap<50 || spaceBelow<28){
-      // Coloca LL ABAIXO da linha azul
       const baseLL=Math.min(cyLL+16, PT+cH-4);
-      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
+      llLbl=`<text x="${cxLbl.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
       if(i>0){
         const v=varPct(x.LL,tots[i-1].LL);
-        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL+12).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+        varLLLbl=`<text x="${cxLbl.toFixed(1)}" y="${(baseLL+12).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
       }
     } else {
-      // Espaço suficiente → LL acima da linha azul
       const baseLL=cyLL-6;
-      llLbl=`<text x="${cx.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
+      llLbl=`<text x="${cxLbl.toFixed(1)}" y="${baseLL.toFixed(1)}" text-anchor="${anchor}" fill="var(--bl)" font-size="10" font-weight="${txW}">LL ${N(x.LL)}</text>`;
       if(i>0){
         const v=varPct(x.LL,tots[i-1].LL);
-        varLLLbl=`<text x="${cx.toFixed(1)}" y="${(baseLL-13).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
+        varLLLbl=`<text x="${cxLbl.toFixed(1)}" y="${(baseLL-13).toFixed(1)}" text-anchor="${anchor}" class="sv-var ${clsVar(v)}" font-size="9" font-weight="800">${fmtVar(v)}</text>`;
       }
     }
 
@@ -1258,6 +1261,17 @@ function renderHist(rs,el){
       });
     });
     dot.addEventListener('mouseleave',()=>{const t=el.querySelector('#area-tip');if(t)t.style.display='none';});
+  });
+
+  // Clique no nome do mês (eixo X) → filtra todos os painéis
+  el.querySelectorAll('.area-xlbl').forEach(lbl=>{
+    lbl.addEventListener('click',()=>{
+      const m=lbl.dataset.m;
+      if(!m) return;
+      if(F.mes1===m&&F.mes2===m){F.mes1='';F.mes2='';}
+      else{F.mes1=m;F.mes2=m;}
+      tPage=0;buildSidebarFilters();render();
+    });
   });
 }
 
