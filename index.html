@@ -224,6 +224,13 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 .sb .fa{display:flex;gap:.5rem}
 .sb .fa .bt{flex:1}
 /* mes picker calendar */
+.hist-tog{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:.22rem .65rem;font-size:.75rem;font-weight:700;color:var(--mu);cursor:pointer;transition:all .12s}
+.hist-tog:hover{border-color:var(--y);color:var(--tx)}
+.hist-tog-on{background:var(--y);color:#000;border-color:var(--y)}
+.dt-range-wrap{display:grid;gap:.3rem;width:100%}
+.dt-lbl{display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--mu);font-weight:700;text-transform:uppercase}
+.dt-inp{flex:1;background:var(--sf);border:1px solid var(--bd);border-radius:7px;padding:.3rem .5rem;color:var(--tx);font-size:.8rem;min-width:0}
+.dt-inp::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.6;cursor:pointer}
 .mes-picker-wrap{display:grid;gap:.3rem;width:100%}
 .mes-picker-label{font-size:.75rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
 .mes-picker-sel{font-size:.82rem;color:var(--y);font-weight:700;padding:.35rem .6rem;background:var(--sf);border:1px solid var(--bd);border-radius:8px;min-height:1.9rem;line-height:1.2}
@@ -939,7 +946,8 @@ if(Array.isArray(D.rows)){
 if(!D.meses){
   D.meses=[...new Set(rows.map(r=>r.mes).filter(Boolean))].sort();
 }
-const F={q:'',loja:'',mes1:'',mes2:'',vend:'',cli:'',sit:'',tp2:'',urg:'',canc:''};
+const F={q:'',loja:'',mes1:'',mes2:'',dt1:'',dt2:'',vend:'',cli:'',sit:'',tp2:'',urg:'',canc:''};
+let histMode='mes'; // 'mes' | 'dia'
 let tSort=null,tPage=0;
 const P=30;
 
@@ -999,6 +1007,11 @@ function buildSidebarFilters(){
     `<label class="fl">Loja<select id="floja"><option value="">Ambas</option><option value="LT"${F.loja==='LT'?' selected':''}>LT — Lojão dos Tratores</option><option value="LL"${F.loja==='LL'?' selected':''}>LL — LL Tratores</option></select></label>`+
     `<div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"><button id="sb-fechado" class="bt" style="flex:1;font-size:.78rem;padding:.3rem .6rem;background:${isMesFechado?'var(--y)':'var(--s2)'};color:${isMesFechado?'#000':'var(--tx)'};border:1px solid ${isMesFechado?'var(--y)':'var(--bd)'};border-radius:6px;cursor:pointer;white-space:nowrap" type="button">📅 Mês fechado${mesFechadoSB?' ('+fmtMes(mesFechadoSB)+')':''}</button></div>`+
     renderMesPicker(meses)+
+    `<div class="fl dt-range-wrap"><div class="mes-picker-label">Período por dia</div>`+
+    `<div style="display:grid;gap:.35rem">`+
+    `<label class="dt-lbl">De<input type="date" id="fdt1" value="${F.dt1}" class="dt-inp"></label>`+
+    `<label class="dt-lbl">Até<input type="date" id="fdt2" value="${F.dt2}" class="dt-inp"></label>`+
+    `</div></div>`+
     `<label class="fl">Vendedor<select id="fvend"><option value="">Todos</option>${uniq('vend').map(v=>`<option${F.vend===v?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`+
     `<label class="fl">Tipo de entrega<select id="ftp2"><option value="">Todos</option>${['RETIRA','BALCÃO','ENTREGA','TRANSPORTADORA','NÃO SEPARAR'].map(v=>`<option${F.tp2===v?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`+
     `<label class="fl">Situação<select id="fsit"><option value="">Todas</option>${uniq('sit').map(v=>`<option${F.sit===v?' selected':''}>${esc(v)}</option>`).join('')}</select></label>`+
@@ -1020,6 +1033,8 @@ function filtered(){
   if(F.loja)rs=rs.filter(r=>r.loja===F.loja);
   if(F.mes1)rs=rs.filter(r=>r.mes>=F.mes1);
   if(F.mes2)rs=rs.filter(r=>r.mes<=F.mes2);
+  if(F.dt1)rs=rs.filter(r=>r.dia>=F.dt1);
+  if(F.dt2)rs=rs.filter(r=>r.dia<=F.dt2);
   if(F.vend)rs=rs.filter(r=>r.vend===F.vend);
   if(F.cli)rs=rs.filter(r=>r.cli===F.cli);
   if(F.sit)rs=rs.filter(r=>r.sit===F.sit);
@@ -1070,7 +1085,59 @@ function renderDonut(rs,k,el,{col,u='pedidos'}={}){
       return`<button class="${on?'on':''}" data-fk="${k}" data-fv="${esc(k2)}"><i style="background:${c}"></i><span>${esc(k2)}</span><b>${N(v)} · ${PCT(v,tot)}</b></button>`}).join('')+'</div></div>';
 }
 
+function renderHistDia(rs,el){
+  const g=new Map();
+  rs.forEach(r=>{if(r.dia){if(!g.has(r.dia))g.set(r.dia,{LT:0,LL:0});g.get(r.dia)[r.loja]++}});
+  if(!g.size){el.innerHTML=`<div style="display:flex;gap:.5rem;margin-bottom:.4rem"><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div><p class="mu2" style="padding:.5rem">Sem dados para o período.</p>`;
+    el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));return;}
+  const dias=Array.from(g.keys()).sort();
+  const tots=dias.map(d=>{const v=g.get(d);return{m:d,LT:v.LT,LL:v.LL,tot:v.LT+v.LL};});
+  const mx=Math.max(1,...tots.map(x=>x.tot));
+  const fmtDia=d=>d?d.slice(8)+'/'+d.slice(5,7):'';
+  const n=tots.length;
+  const W=900,H=260,PL=50,PR=50,PT=50,PB=32;
+  const cW=W-PL-PR,cH=H-PT-PB;
+  const xs=i=>PL+i/(n-1||1)*cW;
+  const barW=Math.max(2,Math.min(14,Math.floor(cW/(n||1)*0.75)));
+  const bars=tots.map((x,i)=>{
+    const cx=xs(i);
+    const hLL=x.LL/mx*cH, hLT=x.LT/mx*cH;
+    const yLL=PT+cH-hLL, yLT=yLL-hLT;
+    return`<rect x="${(cx-barW/2).toFixed(1)}" y="${yLT.toFixed(1)}" width="${barW}" height="${(hLL+hLT).toFixed(1)}" fill="var(--y)" opacity=".8" rx="1"/>`+
+           `<rect x="${(cx-barW/2).toFixed(1)}" y="${yLL.toFixed(1)}" width="${barW}" height="${hLL.toFixed(1)}" fill="var(--bl)" opacity=".85" rx="1"/>`;
+  }).join('');
+  const step=Math.max(1,Math.floor(n/14));
+  const xlbls=tots.map((x,i)=>{
+    if(i%step!==0&&i!==n-1)return'';
+    const anchor=i===0?'start':i===n-1?'end':'middle';
+    return`<text x="${xs(i).toFixed(1)}" y="${H-6}" text-anchor="${anchor}" font-size="9" fill="var(--mu)">${fmtDia(x.m)}</text>`;
+  }).join('');
+  const tips=tots.map((x,i)=>`<rect class="dia-bar" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" x="${(xs(i)-Math.max(barW,8)/2).toFixed(1)}" y="${PT}" width="${Math.max(barW,8)}" height="${cH}" fill="transparent" style="cursor:pointer"/>`).join('');
+  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">${bars}${xlbls}${tips}<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1"/></svg>`;
+  const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div>`;
+  el.innerHTML=toggleHtml+`<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
+    `<div class="hlgd" style="margin-top:.4rem"><span style="color:var(--y)">■ LT</span><span style="color:var(--bl)">■ LL</span><span class="mu2" style="font-size:.7rem">passe o mouse para ver detalhes</span></div>`;
+  el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
+  el.querySelectorAll('.dia-bar').forEach(b=>{
+    b.addEventListener('mouseenter',()=>{
+      const tip=el.querySelector('#area-tip');
+      tip.innerHTML=`<b style="font-size:.82rem">${fmtDia(b.dataset.m)}</b><br><span style="font-size:.78rem">Total: <b>${b.dataset.tot}</b> &nbsp; LT: <b style="color:var(--y)">${b.dataset.lt}</b> &nbsp; LL: <b style="color:var(--bl)">${b.dataset.ll}</b></span>`;
+      const rc=el.querySelector('.area-chart').getBoundingClientRect();
+      const br=b.getBoundingClientRect();
+      tip.style.display='block';
+      requestAnimationFrame(()=>{
+        const tw=tip.offsetWidth||160,th=tip.offsetHeight||50;
+        let lf=br.left-rc.left-tw/2+barW/2;let tp2=br.top-rc.top-th-8;
+        if(lf<0)lf=2;if(lf+tw>rc.width)lf=rc.width-tw-2;if(tp2<0)tp2=br.top-rc.top+20;
+        tip.style.left=lf+'px';tip.style.top=tp2+'px';
+      });
+    });
+    b.addEventListener('mouseleave',()=>{const t=el.querySelector('#area-tip');if(t)t.style.display='none';});
+  });
+}
+
 function renderHist(rs,el){
+  if(histMode==='dia'){return renderHistDia(rs,el);}
   const g=new Map();
   rs.forEach(r=>{if(r.mes){if(!g.has(r.mes))g.set(r.mes,{LT:0,LL:0});g.get(r.mes)[r.loja]++}});
   const meses=D.meses;
@@ -1265,9 +1332,11 @@ function renderHist(rs,el){
   const avisoAtual=mesAtualTot
     ?`<span style="display:inline-flex;align-items:center;gap:.3rem;background:var(--s2);border:1px solid var(--ok);border-radius:6px;padding:.2rem .55rem;font-size:.72rem;color:var(--ok);font-weight:700">● ${fmtMes(mesAtual)}: em andamento (hover para ver dados)</span>`:'';
 
-  el.innerHTML= resumoHtml+
+  const toggleHtmlMes=`<div style="display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog hist-tog-on" data-hm="mes">Mensal</button><button class="hist-tog" data-hm="dia">Diário</button></div>`;
+  el.innerHTML= toggleHtmlMes+resumoHtml+
     `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
     `<div class="hlgd" style="margin-top:.5rem">${avisoAtual}<span style="color:var(--y)">— Total</span><span style="color:var(--bl)">- - LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span><span class="mu2" style="font-size:.7rem">clique no ponto para filtrar</span></div>`;
+  el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
 
   // Eventos
   el.querySelectorAll('.area-dot').forEach(dot=>{
@@ -1442,6 +1511,8 @@ document.addEventListener('input',e=>{
   const id=e.target.id;
   if(id==='fq'){F.q=e.target.value;tPage=0;render()}
   else if(id==='floja'){F.loja=e.target.value;tPage=0;render()}
+  else if(id==='fdt1'){F.dt1=e.target.value;tPage=0;buildSidebarFilters();render();}
+  else if(id==='fdt2'){F.dt2=e.target.value;tPage=0;buildSidebarFilters();render();}
   /* mes picker handled via click delegation */
   else if(id==='fvend'){F.vend=e.target.value;tPage=0;render()}
   else if(id==='ftp2'){F.tp2=e.target.value;tPage=0;render()}
