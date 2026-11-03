@@ -1063,10 +1063,9 @@ function renderHist(rs,el){
   </div>`;
 
   // ── SVG ─────────────────────────────────────────────────────────────────
+  const n=tots.length;
   // Margens laterais maiores para acomodar labels do primeiro e último mês
-  // O bloco de texto mais largo é ~50px, então PL/PR = 55 garante que não corte
   const colStep=Math.round(900/(n||1));
-  // Se tiver muitos meses, reduz margens; com 10 meses, ~55px cada lado
   const W=900, H=290, PL=Math.min(55,colStep*0.55), PR=Math.min(55,colStep*0.55), PT=95, PB=32;
   const cW=W-PL-PR, cH=H-PT-PB;
   const xs=i=>PL+i/(n-1||1)*cW;
