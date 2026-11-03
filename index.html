@@ -152,10 +152,17 @@ main{padding:1rem 0 2.5rem}
 .p80{padding:.3rem .5rem;border-top:2px dashed var(--bad);color:var(--bad);font-size:.73rem;font-weight:700;margin:.2rem 0}
 .pt{margin:0 0 .5rem;color:var(--mu);font-size:.84rem}.pt b{color:var(--tx)}
 /* histograma mensal */
-.hg{display:flex;gap:2px;align-items:flex-end;height:9rem;overflow-x:auto;padding:.3rem 0}
-.hg .col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:1px;flex:1;min-width:2.4rem;cursor:pointer;border-radius:4px 4px 0 0;padding:.1rem .1rem 0}
-.hg .col:hover,.hg .col.on{background:var(--s2)}.hg .b{width:100%;border-radius:2px 2px 0 0}
-.hg small{font-size:.62rem;color:var(--mu);white-space:nowrap}
+.hg2{display:flex;gap:3px;align-items:flex-end;overflow-x:auto;padding:.4rem 0 0;min-height:12rem}
+.hg2 .col{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1 0 2.6rem;min-width:2.6rem;max-width:5rem;cursor:pointer;border-radius:4px 4px 0 0;padding:.2rem .1rem 0;position:relative}
+.hg2 .col:hover,.hg2 .col.on{background:var(--s2)}
+.hg2 .hbars{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:1px;width:100%;height:7rem}
+.hg2 .b{width:82%;border-radius:2px 2px 0 0;min-height:2px}
+.hg2 .htot{display:block;font-size:.65rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--tx);line-height:1.1;text-align:center}
+.hg2 small{font-size:.58rem;color:var(--mu);white-space:nowrap;text-align:center;margin-top:1px}
+.hvar{display:block;font-size:.6rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;text-align:center;min-height:.85rem}
+.hvar.up{color:var(--ok)}.hvar.dn{color:var(--bad)}.hvar.eq{color:var(--mu)}
+.hlgd{display:flex;gap:.8rem;margin-top:.5rem;font-size:.75rem;flex-wrap:wrap;align-items:center}
+.hlgd .up{color:var(--ok)}.hlgd .dn{color:var(--bad)}
 /* donut */
 .dn{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
 .dw{position:relative;width:8.5rem;height:8.5rem;flex:none}.dw svg{width:100%;height:100%;transform:rotate(-90deg)}
@@ -245,6 +252,62 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 #sect-home.active{display:block}
 .hd-home-title{font-style:italic;font-weight:800;font-size:1.1rem}
 .hd-home-sub{color:var(--mu);font-size:.78rem}
+
+/* ===== Responsividade geral ===== */
+/* Wrap principal */
+.wrap{width:100%;max-width:72rem;margin:0 auto;padding:0 1rem;box-sizing:border-box}
+/* Seções home */
+@media(max-width:480px){
+  .home-grid{grid-template-columns:1fr;gap:.85rem;padding:1rem 0}
+  .home-card{padding:1.1rem 1.2rem}
+  .home-card .ic{font-size:2rem}
+  .home-card h2{font-size:1.1rem}
+  .home-import{flex-direction:column;align-items:flex-start;padding:.9rem 1rem}
+  .home-import>div:last-child{width:100%;display:flex;gap:.5rem}
+  .home-import>div:last-child .bt{flex:1;text-align:center}
+}
+/* KPIs em celular: 2 colunas no mínimo */
+@media(max-width:420px){
+  .kp{grid-template-columns:repeat(2,1fr)}
+}
+/* Gráficos: sempre 1 coluna em tela muito pequena */
+@media(max-width:420px){
+  .cg,.ch{grid-template-columns:1fr}
+  .pn.w2{grid-column:1}
+}
+/* Tabela: compacta em mobile */
+@media(max-width:600px){
+  table{font-size:.78rem}
+  th,td{padding:.3rem .4rem}
+}
+/* Tabs: scroll horizontal sem quebrar layout */
+.tabs{-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+/* Sidebar filtros: ocupa largura total em mobile */
+@media(max-width:420px){
+  .sb{width:100%;max-width:100%}
+  .fl{min-width:100%}
+}
+/* Hist gráfico: em telas muito pequenas diminui colunas */
+@media(max-width:360px){
+  .hg2 .col{min-width:2rem;max-width:3.5rem}
+  .hg2 small{font-size:.5rem}
+  .hvar{font-size:.52rem}
+}
+/* Botão Atualizar e Selecionar Pasta */
+@media(max-width:480px){
+  #btn-pasta,#btn-atualizar{font-size:.8rem;padding:.4rem .7rem}
+}
+/* Back button */
+.back-btn{margin:1rem 0 0;display:inline-flex;align-items:center;gap:.4rem;background:none;border:1px solid var(--ln);border-radius:6px;padding:.35rem .8rem;font-size:.85rem;cursor:pointer;color:var(--tx)}
+.back-btn:hover{border-color:var(--y);color:var(--y)}
+/* Legenda donuts: quebra em mobile */
+@media(max-width:420px){
+  .dn{flex-direction:column}
+  .dw{width:7rem;height:7rem}
+}
+/* Pareto SVG: scroll horizontal */
+.pa{overflow-x:auto;-webkit-overflow-scrolling:touch}
 </style>
 </head>
 <body>
@@ -768,7 +831,7 @@ function toggle(tab,k,v){const s=S[tab];s.sel[k]=s.sel[k]===v?'':v;s.pg=0;cur!==
 
 document.addEventListener('click',e=>{
  const t=e.target;let b;
- if(b=t.closest('#tabs [data-tab]'))return go(b.dataset.tab);
+ if(b=t.closest('#e-tabs [data-tab]'))return go(b.dataset.tab);
  if(b=t.closest('[data-go]'))return go(b.dataset.go);
  if(b=t.closest('[data-v]'))return toggle(b.closest('.pn').dataset.tab,b.dataset.k,b.dataset.v);
  if(b=t.closest('.hc')){const s=S.inv,on=s.sel.ru==b.dataset.r&&s.sel.pr==b.dataset.c;s.sel.ru=on?'':b.dataset.r;s.sel.pr=on?'':b.dataset.c;s.pg=0;syncFilters();return render()}
@@ -808,8 +871,37 @@ const FMT_DT=s=>s?s.split('-').reverse().join('/'):'—';
 const MESES_PT=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const fmtMes=s=>{const[y,m]=s.split('-');return MESES_PT[+m]+' '+y.slice(2)};
 
-// --- estado global ---
-let rows=D.rows,cur='ov';
+// --- Normaliza a estrutura de dados: aceita {rows,meses,...} (encriptado) ou {pedidos:[...]} (xlsx importado) ---
+let rows, cur='ov';
+if(Array.isArray(D.rows)){
+  // Formato do arquivo encriptado: já processado com campos normalizados
+  rows = D.rows;
+}else if(Array.isArray(D.pedidos)){
+  // Formato do botão Atualizar: raw XLSX, normaliza aqui
+  const tp2Norm=s=>{s=String(s||'').toUpperCase().trim();if(!s||s==='0'||s==='NONE')return'NÃO SEPARAR';if(s.startsWith('RETIRA'))return'RETIRA';if(s.includes('BALCÃO')||s.includes('BALCAO'))return'BALCÃO';if(s.includes('ENTREGA'))return'ENTREGA';if(s.includes('NÃO SEP')||s.includes('NAO SEP'))return'NÃO SEPARAR';return'TRANSPORTADORA'};
+  const parseDate=v=>{if(!v)return'';if(v instanceof Date){const y=v.getFullYear(),m=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');return`${y}-${m}-${d}`}const s=String(v);const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(m2){const yr=m2[3].length===2?'20'+m2[3]:m2[3];return`${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`}return s.slice(0,10)||''};
+  rows = D.pedidos.map(r=>({
+    id:  r['Pedido']||r['pedido']||'',
+    cli: r['Cliente']||r['cliente']||'',
+    vend:r['Vendedor']||r['vendedor']||'',
+    conf:r['Conferente']||r['conferente']||'',
+    tp:  r['Transportadora']||r['transportadora']||'',
+    tp2: tp2Norm(r['Transportadora']||r['transportadora']||''),
+    sit: r['Situacao']||r['Situação']||r['situacao']||'',
+    urg: String(r['Urgente?']||r['urgente']||'').toUpperCase().startsWith('S'),
+    canc:String(r['Situacao']||r['Situação']||'').toLowerCase().includes('cancel'),
+    dia: parseDate(r['Emissao']||r['Emissão']||r['emissao']||''),
+    exp: parseDate(r['Dt Expedido']||r['dt_expedido']||''),
+    loja:r['loja']||D.loja||'',
+    mes: (parseDate(r['Emissao']||r['Emissão']||r['emissao']||'')||'').slice(0,7),
+  })).filter(r=>r.id);
+}else{
+  rows=[];
+}
+// Garante D.meses (lista de meses únicos ordenados)
+if(!D.meses){
+  D.meses=[...new Set(rows.map(r=>r.mes).filter(Boolean))].sort();
+}
 const F={q:'',loja:'',mes1:'',mes2:'',vend:'',cli:'',sit:'',tp2:'',urg:'',canc:''};
 let tSort=null,tPage=0;
 const P=30;
@@ -897,13 +989,38 @@ function renderDonut(rs,k,el,{col,u='pedidos'}={}){
 }
 
 function renderHist(rs,el){
-  const g=new Map();rs.forEach(r=>{if(r.mes)g.set(r.mes,(g.get(r.mes)||{LT:0,LL:0})[r.loja]++,g.get(r.mes))});
+  // Agrupa pedidos por mês
+  const g=new Map();
   rs.forEach(r=>{if(r.mes){if(!g.has(r.mes))g.set(r.mes,{LT:0,LL:0});g.get(r.mes)[r.loja]++}});
   const meses=D.meses.filter(m=>(!F.mes1||m>=F.mes1)&&(!F.mes2||m<=F.mes2));
-  const mx=Math.max(1,...meses.map(m=>{const d=g.get(m)||{LT:0,LL:0};return d.LT+d.LL}));
-  el.innerHTML=`<div class="hg">`+meses.map(m=>{const d=g.get(m)||{LT:0,LL:0};const tot=d.LT+d.LL;const hLT=tot?d.LT/mx*100:0,hLL=tot?d.LL/mx*100:0;const on=F.mes1===m&&F.mes2===m;
-    return`<div class="col${on?' on':''}" data-m="${m}" title="${fmtMes(m)}: ${N(tot)} pedidos (LT: ${N(d.LT)}, LL: ${N(d.LL)})"><span class="b" style="height:${hLT}%;background:var(--y)"></span><span class="b" style="height:${hLL}%;background:var(--bl)"></span><small>${fmtMes(m)}</small></div>`}).join('')+'</div>'+
-    `<div style="display:flex;gap:.8rem;margin-top:.3rem;font-size:.75rem"><span style="color:var(--y)">■ LT</span><span style="color:var(--bl)">■ LL</span></div>`;
+  if(!meses.length){el.innerHTML='<p class="mu2" style="padding:.5rem">Sem dados para o período selecionado.</p>';return}
+
+  const tots=meses.map(m=>{const d=g.get(m)||{LT:0,LL:0};return{m,LT:d.LT,LL:d.LL,tot:d.LT+d.LL}});
+  const mx=Math.max(1,...tots.map(x=>x.tot));
+
+  // Variação percentual vs mês anterior
+  const varPct=(cur,prv)=>prv>0?((cur-prv)/prv*100):null;
+  const fmtVar=v=>v===null?'':(v>=0?`+${v.toFixed(1)}%`:`${v.toFixed(1)}%`);
+  const clsVar=v=>v===null?'':v>0?'up':v<0?'dn':'eq';
+
+  const cols2=tots.map((x,i)=>{
+    const prv=tots[i-1]?.tot??null;
+    const v=varPct(x.tot,prv);
+    const hLT=x.tot?x.LT/mx*100:0,hLL=x.tot?x.LL/mx*100:0;
+    const on=F.mes1===x.m&&F.mes2===x.m;
+    return`<div class="col${on?' on':''}" data-m="${x.m}" title="${fmtMes(x.m)}: ${N(x.tot)} pedidos (LT: ${N(x.LT)}, LL: ${N(x.LL)})">
+      ${v!==null?`<span class="hvar ${clsVar(v)}">${fmtVar(v)}</span>`:`<span class="hvar eq"></span>`}
+      <div class="hbars">
+        <span class="b" style="height:${hLT}%;background:var(--y)"></span>
+        <span class="b" style="height:${hLL}%;background:var(--bl)"></span>
+      </div>
+      <b class="htot">${N(x.tot)}</b>
+      <small>${fmtMes(x.m)}</small>
+    </div>`;
+  }).join('');
+
+  el.innerHTML=`<div class="hg2">${cols2}</div>`+
+    `<div class="hlgd"><span style="color:var(--y)">■ LT</span><span style="color:var(--bl)">■ LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span></div>`;
 }
 
 function renderTable(rs){
@@ -1003,7 +1120,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#sb-cl')||e.target.closest('#ov2'))return closeSB();
   if(b2=e.target.closest('#sb-nav [data-tab]')){closeSB();return go(b2.dataset.tab)}
   let b;
-  if(b=e.target.closest('#tabs [data-tab]'))return go(b.dataset.tab);
+  if(b=e.target.closest('#p-tabs [data-tab]'))return go(b.dataset.tab);
   if(b=e.target.closest('[data-fk]')){const k=b.dataset.fk,v=b.dataset.fv;if(F[k]===v)F[k]='';else F[k]=v;tPage=0;buildSidebarFilters();return render()}
   if(b=e.target.closest('.hg .col')){const m=b.dataset.m;if(F.mes1===m&&F.mes2===m){F.mes1='';F.mes2=''}else{F.mes1=m;F.mes2=m};tPage=0;buildSidebarFilters();return render()}
   if(b=e.target.closest('th[data-sk]')){const k=b.dataset.sk;tSort=tSort&&tSort[0]===k?[k,-tSort[1]]:[k,1];tPage=0;return render()}
