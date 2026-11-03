@@ -481,6 +481,8 @@ async function entrar(){
   }catch(x){
     er.textContent='Usuário ou senha incorretos (pedidos).';b.disabled=false;b.textContent='Entrar';return;
   }
+  // Salva sessão no sessionStorage (persiste em F5, some ao fechar a aba/janela)
+  try{sessionStorage.setItem('lt-u',u);sessionStorage.setItem('lt-p',pw);}catch(e){}
   q('lk').hidden=true;
   q('th').hidden=false;
   q('lp').value='';
@@ -488,6 +490,22 @@ async function entrar(){
   document.getElementById('sect-home').style.display='';
   document.getElementById('sect-home').classList.add('active');
 }
+
+// Auto-login: se havia sessão salva (aba ainda aberta), restaura sem pedir senha
+(async()=>{
+  try{
+    const su=sessionStorage.getItem('lt-u'), sp=sessionStorage.getItem('lt-p');
+    if(su&&sp){
+      try{_dE=unlock(su,sp,ENC_E);}catch(e){sessionStorage.removeItem('lt-u');sessionStorage.removeItem('lt-p');return;}
+      try{_dP=unlock(su,sp,ENC_P);}catch(e){sessionStorage.removeItem('lt-u');sessionStorage.removeItem('lt-p');return;}
+      document.getElementById('lk').hidden=true;
+      document.getElementById('th').hidden=false;
+      openSection('home');
+      document.getElementById('sect-home').style.display='';
+      document.getElementById('sect-home').classList.add('active');
+    }
+  }catch(e){}
+})();
 
 document.getElementById('lb').addEventListener('click',entrar);
 document.getElementById('lf').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT')entrar()});
