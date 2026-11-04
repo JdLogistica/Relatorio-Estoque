@@ -289,6 +289,18 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 #imp-file{display:none}
 .imp-status{font-size:.82rem;color:var(--ok);font-weight:600;margin-top:.3rem}
 .imp-status.err{color:var(--bad)}
+/* Upload cards */
+.imp-file-label{display:flex;align-items:center;gap:.7rem;background:var(--sf);border:1.5px dashed var(--ln);border-radius:var(--r);padding:.7rem .9rem;cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
+.imp-file-label:hover{border-color:var(--y);background:var(--s2)}
+.imp-file-label.done{border-style:solid;border-color:var(--ok)}
+.imp-file-label.loading{border-color:var(--bl);border-style:solid}
+.imp-file-label.err{border-color:var(--bad);border-style:solid}
+.imp-file-label input[type=file]{display:none}
+.imp-file-icon{font-size:1.4rem;flex:none}
+.imp-file-info{flex:1;min-width:0;display:grid;gap:.1rem}
+.imp-file-info strong{font-size:.88rem;font-weight:700}
+.imp-file-info small{font-size:.75rem;color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imp-file-btn{flex:none;background:var(--y);color:#0a0a0a;border-radius:6px;padding:.3rem .7rem;font-size:.78rem;font-weight:700;white-space:nowrap}
 .back-btn{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--ln);background:var(--s2);padding:.35rem .8rem;border-radius:8px;font-weight:600;font-size:.88rem;cursor:pointer;margin-bottom:.8rem}
 .back-btn:hover{border-color:var(--y)}
 #sect-e, #sect-p{display:none}
@@ -337,10 +349,6 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 @media(max-width:360px){
   .area-labels span{font-size:.5rem}
   .hvar{font-size:.52rem}
-}
-/* Botão Atualizar e Selecionar Pasta */
-@media(max-width:480px){
-  #btn-pasta,#btn-atualizar{font-size:.8rem;padding:.4rem .7rem}
 }
 /* Back button */
 .back-btn{margin:1rem 0 0;display:inline-flex;align-items:center;gap:.4rem;background:none;border:1px solid var(--ln);border-radius:6px;padding:.35rem .8rem;font-size:.85rem;cursor:pointer;color:var(--tx)}
@@ -411,19 +419,36 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
       <span class="tag">PEDDOSLT + PEDIDOSLL</span>
     </button>
   </div>
-  <div class="home-import" style="margin-top:.5rem">
-    <span class="ic">📂</span>
-    <div style="flex:1;min-width:12rem">
-      <h3>Planilhas de pedidos</h3>
-      <p>Selecione a pasta onde estão os arquivos <strong>PEDDOSLT.xlsx</strong> e <strong>PEDIDOSLL.xlsx</strong>, depois clique em Atualizar para carregar os dados.</p>
-      <div id="imp-status" class="imp-status" style="display:none"></div>
+  <div class="home-import" style="margin-top:.5rem;flex-direction:column;gap:.85rem">
+    <div style="display:flex;align-items:flex-start;gap:.75rem">
+      <span class="ic">📂</span>
+      <div style="flex:1;min-width:12rem">
+        <h3>Planilhas de pedidos</h3>
+        <p>Selecione cada arquivo individualmente. Os dados são enviados ao servidor automaticamente após o login.</p>
+      </div>
     </div>
-    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
-      <button class="bt" id="btn-pasta" onclick="selecionarPasta()">📁 Selecionar Pasta</button>
-      <button class="bt" id="btn-atualizar" onclick="atualizarPasta()" disabled style="background:var(--mu);border-color:var(--mu)">🔄 Atualizar Dados</button>
-      <!-- fallback para browsers sem File System Access API -->
-      <input type="file" id="imp-files" accept=".xlsx,.xls" multiple style="display:none">
+    <!-- Dois inputs independentes, um por loja -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.6rem">
+      <label class="imp-file-label" id="lbl-lt">
+        <input type="file" id="imp-lt" accept=".xlsx,.xls" onchange="importarArquivo(this,'LT')">
+        <span class="imp-file-icon">📄</span>
+        <span class="imp-file-info">
+          <strong>Loja LT</strong>
+          <small id="nm-lt">PEDDOSLT.xlsx</small>
+        </span>
+        <span class="imp-file-btn">Escolher arquivo</span>
+      </label>
+      <label class="imp-file-label" id="lbl-ll">
+        <input type="file" id="imp-ll" accept=".xlsx,.xls" onchange="importarArquivo(this,'LL')">
+        <span class="imp-file-icon">📄</span>
+        <span class="imp-file-info">
+          <strong>Loja LL</strong>
+          <small id="nm-ll">PEDIDOSLL.xlsx</small>
+        </span>
+        <span class="imp-file-btn">Escolher arquivo</span>
+      </label>
     </div>
+    <div id="imp-status" class="imp-status" style="display:none"></div>
   </div>
 </main>
 
@@ -612,9 +637,7 @@ try{
   document.getElementById('th').textContent=document.documentElement.dataset.t==='dark'?'Tema claro':'Tema escuro';
 }catch(e){}
 
-// ---- Pasta de planilhas: File System Access API + fallback ----
-let _dirHandle = null;  // handle da pasta selecionada (File System Access API)
-let _pastaFiles = null; // fallback: FileList de <input webkitdirectory>
+// ---- Upload individual por arquivo (LT / LL) ----
 
 // Carrega SheetJS sob demanda
 async function loadXLSX(){
@@ -688,158 +711,77 @@ async function parseXLSX(file){
   });
 }
 
-// Lê os dois arquivos de qualquer fonte (_dirHandle ou _pastaFiles)
-// Retorna {pedidos:[], loja:'LT+LL'} ou null
-async function lerArquivosNaPasta(){
+// importarArquivo — chamado pelo onchange de cada input
+// Lê o arquivo, normaliza, envia ao Supabase e recarrega o dashboard
+async function importarArquivo(input, loja){
+  const file = input.files[0];
+  if(!file) return;
+
+  const lblId  = loja==='LT' ? 'lbl-lt' : 'lbl-ll';
+  const nmId   = loja==='LT' ? 'nm-lt'  : 'nm-ll';
+  const lbl    = document.getElementById(lblId);
+  const nm     = document.getElementById(nmId);
   const statusEl = document.getElementById('imp-status');
-  statusEl.style.display='';
-  statusEl.className='imp-status';
 
-  // --- Fonte: File System Access API ---
-  if(_dirHandle){
-    statusEl.textContent='🔍 Buscando arquivos na pasta...';
-    const nomes = ['PEDDOSLT.xlsx','PEDIDOSLL.xlsx'];
-    const found = [];
-    for await(const [name] of _dirHandle.entries()){
-      const nu = name.toUpperCase();
-      if(nu==='PEDDOSLT.XLSX'||nu==='PEDIDOSLL.XLSX') found.push(name);
+  // Visual: loading
+  lbl.className = 'imp-file-label loading';
+  nm.textContent = file.name;
+  statusEl.style.display = '';
+  statusEl.className = 'imp-status';
+  statusEl.textContent = `📖 Lendo ${file.name}...`;
+
+  try{
+    // 1. Verifica login
+    const {data:{session}} = await _sb.auth.getSession();
+    if(!session){
+      lbl.className = 'imp-file-label err';
+      statusEl.textContent = '❌ Você precisa estar logado para importar os dados.';
+      statusEl.className = 'imp-status err';
+      input.value = '';
+      return;
     }
-    if(found.length===0){
-      statusEl.textContent='⚠️ Nenhuma planilha encontrada na pasta. Verifique se os arquivos se chamam PEDDOSLT.xlsx ou PEDIDOSLL.xlsx';
-      statusEl.className='imp-status err';
-      return null;
-    }
+
+    // 2. Lê planilha
     await loadXLSX();
-    let allPedidos=[];
-    for(const name of found){
-      statusEl.textContent=`📖 Lendo ${name}...`;
-      const fh = await _dirHandle.getFileHandle(name);
-      const file = await fh.getFile();
-      const rows = await parseXLSX(file);
-      const loja = name.toUpperCase().includes('LL') ? 'LL' : 'LT';
-      rows.forEach(r=>{ r.loja=loja; });
-      allPedidos = allPedidos.concat(rows);
+    const rows = await parseXLSX(file);
+    if(rows.length === 0){
+      lbl.className = 'imp-file-label err';
+      statusEl.textContent = `⚠️ ${file.name}: nenhuma linha encontrada. Verifique o arquivo.`;
+      statusEl.className = 'imp-status err';
+      input.value = '';
+      return;
     }
-    statusEl.textContent=`✅ ${allPedidos.length} pedidos carregados de ${found.length} arquivo(s): ${found.join(', ')}`;
-    return {pedidos:allPedidos.slice(0,50000),loja:'LT+LL'};
-  }
+    rows.forEach(r=>{ r.loja = loja; });
+    nm.textContent = `${file.name} — ${rows.length} pedidos`;
 
-  // --- Fonte: fallback <input> files ---
-  if(_pastaFiles && _pastaFiles.length>0){
-    await loadXLSX();
-    let allPedidos=[];
-    let nomes=[];
-    for(const file of Array.from(_pastaFiles)){
-      const nu = file.name.toUpperCase();
-      if(nu==='PEDDOSLT.XLSX'||nu==='PEDIDOSLL.XLSX'){
-        statusEl.textContent=`📖 Lendo ${file.name}...`;
-        const rows = await parseXLSX(file);
-        const loja = nu.includes('LL') ? 'LL' : 'LT';
-        rows.forEach(r=>{ r.loja=loja; });
-        allPedidos = allPedidos.concat(rows);
-        nomes.push(file.name);
-      }
-    }
-    if(allPedidos.length===0){
-      statusEl.textContent='⚠️ Nenhuma planilha PEDDOSLT.xlsx ou PEDIDOSLL.xlsx encontrada nos arquivos selecionados';
-      statusEl.className='imp-status err';
-      return null;
-    }
-    statusEl.textContent=`✅ ${allPedidos.length} pedidos carregados de ${nomes.length} arquivo(s): ${nomes.join(', ')}`;
-    return {pedidos:allPedidos.slice(0,50000),loja:'LT+LL'};
-  }
+    // 3. Envia ao Supabase
+    await enviarAoSupabase(rows, loja, statusEl);
 
-  statusEl.textContent='⚠️ Nenhuma pasta selecionada. Clique em 📁 Selecionar Pasta primeiro.';
-  statusEl.className='imp-status err';
-  return null;
-}
+    // Visual: sucesso
+    lbl.className = 'imp-file-label done';
 
-// Atualiza dashboard com novos dados
-function aplicarDadosPedidos(dados){
-  if(!dados) return;
-  _dP = dados;
-  _bootedP = false;
-  if(_curSection==='p'){
-    document.getElementById('p-kp').innerHTML='';
-    document.getElementById('cg').innerHTML='';
-    document.getElementById('p-tb').innerHTML='';
-    if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
-    _bootedP=true;
-    try{ bootP(_dP); }catch(e){
-      const st=document.getElementById('imp-status');
-      st.textContent='⚠️ Erro ao renderizar: '+e.message;
-      st.className='imp-status err';
+    // 4. Recarrega dados do banco e atualiza dashboard
+    statusEl.textContent = '🔄 Recarregando dados do servidor...';
+    const pedidosRows = await carregarPedidosSupa();
+    _dP = { rows: pedidosRows };
+    _bootedP = false;
+    if(_curSection==='p'){
+      const pa=document.getElementById('p-app');
+      if(pa) pa.innerHTML='';
+      if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
+      _bootedP=true;
+      bootP(_dP);
     }
+    statusEl.textContent = `✅ ${file.name} importado! ${pedidosRows.length} pedidos no banco.`;
+    statusEl.className = 'imp-status';
+
+  }catch(e){
+    lbl.className = 'imp-file-label err';
+    statusEl.textContent = '❌ Erro: ' + e.message;
+    statusEl.className = 'imp-status err';
+    input.value = '';
   }
 }
-
-// Botão 1 — Selecionar Pasta
-async function selecionarPasta(){
-  const statusEl=document.getElementById('imp-status');
-  statusEl.style.display='';
-  statusEl.className='imp-status';
-
-  // File System Access API (Chrome/Edge 86+)
-  if(window.showDirectoryPicker){
-    try{
-      statusEl.textContent='⏳ Aguardando seleção da pasta...';
-      _dirHandle = await window.showDirectoryPicker({mode:'read'});
-      _pastaFiles = null;
-      statusEl.textContent=`📁 Pasta selecionada: "${_dirHandle.name}". Clique em 🔄 Atualizar Dados para carregar.`;
-      const btnA=document.getElementById('btn-atualizar');
-      btnA.disabled=false;
-      btnA.style.background='';
-      btnA.style.borderColor='';
-    }catch(e){
-      if(e.name==='AbortError'){ statusEl.textContent='Seleção cancelada.'; }
-      else{ statusEl.textContent='❌ Erro: '+e.message; statusEl.className='imp-status err'; }
-    }
-    return;
-  }
-
-  // Fallback — abre input webkitdirectory (Firefox / Safari)
-  statusEl.textContent='⏳ Selecione a pasta com as planilhas...';
-  const inp=document.getElementById('imp-files');
-  inp.setAttribute('webkitdirectory','');
-  inp.setAttribute('multiple','');
-  inp.onchange=async function(){
-    _pastaFiles=this.files;
-    _dirHandle=null;
-    const nPasta = _pastaFiles[0]?.webkitRelativePath?.split('/')[0] || 'selecionados';
-    statusEl.textContent=`📁 "${nPasta}" — ${_pastaFiles.length} arquivo(s) detectado(s). Clique em 🔄 Atualizar Dados.`;
-    const btnA=document.getElementById('btn-atualizar');
-    btnA.disabled=false;
-    btnA.style.background='';
-    btnA.style.borderColor='';
-    this.value='';
-  };
-  inp.click();
-}
-
-// Normaliza data de xlsx para string YYYY-MM-DD
-function _parseDate(v){
-  if(!v) return null;
-  if(v instanceof Date){
-    const y=v.getFullYear(),m=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');
-    return `${y}-${m}-${d}`;
-  }
-  const s=String(v);
-  const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if(m2){const yr=m2[3].length===2?'20'+m2[3]:m2[3];return`${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`}
-  return s.slice(0,10)||null;
-}
-
-// Normaliza tp2
-function _tp2Norm(s){
-  s=String(s||'').toUpperCase().trim();
-  if(!s||s==='0'||s==='NONE') return 'NÃO SEPARAR';
-  if(s.startsWith('RETIRA')) return 'RETIRA';
-  if(s.includes('BALCÃO')||s.includes('BALCAO')) return 'BALCÃO';
-  if(s.includes('ENTREGA')) return 'ENTREGA';
-  if(s.includes('NÃO SEP')||s.includes('NAO SEP')) return 'NÃO SEPARAR';
-  return 'TRANSPORTADORA';
-}
-
 // Converte row bruta do xlsx para formato do Supabase
 // Nomes exatos das colunas: Pedido, Cliente, Transportadora, Situacao, Urgente?,
 //   Vendedor, Conferente, Emissao, Dt Expedido
@@ -903,51 +845,6 @@ async function enviarAoSupabase(pedidos, lojaDefault, statusEl){
   }
   statusEl.textContent=`✅ ${rows.length} pedidos sincronizados!`;
   statusEl.className='imp-status ok';
-}
-
-// Botão 2 — Atualizar Dados + Sincronizar Supabase
-async function atualizarPasta(){
-  const btnA=document.getElementById('btn-atualizar');
-  const statusEl=document.getElementById('imp-status');
-  btnA.disabled=true;
-  try{
-    const dados = await lerArquivosNaPasta();
-    if(!dados) return;
-
-    // Verifica sessão ativa
-    const {data:{session}} = await _sb.auth.getSession();
-    if(!session){
-      statusEl.textContent='❌ Você precisa estar logado para sincronizar os dados.';
-      statusEl.className='imp-status err';
-      return;
-    }
-
-    // Envia pro Supabase
-    const pedidos = dados.pedidos || dados.rows || [];
-    if(pedidos.length>0){
-      await enviarAoSupabase(pedidos, dados.loja||'', statusEl);
-    }
-
-    // Recarrega do Supabase para garantir consistência
-    statusEl.textContent='🔄 Recarregando dados do servidor...';
-    const pedidosRows = await carregarPedidosSupa();
-    _dP = { rows: pedidosRows };
-    _bootedP = false;
-    if(_curSection==='p'){
-      const pa=document.getElementById('p-app');
-      if(pa) pa.innerHTML='';
-      if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
-      _bootedP=true;
-      bootP(_dP);
-    }
-    statusEl.textContent=`✅ Dados atualizados! ${pedidosRows.length} pedidos carregados.`;
-    statusEl.className='imp-status ok';
-  }catch(e){
-    statusEl.textContent='❌ Erro: '+e.message;
-    statusEl.className='imp-status err';
-  }finally{
-    btnA.disabled=false;
-  }
 }
 
 
