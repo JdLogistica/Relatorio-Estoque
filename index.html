@@ -172,6 +172,7 @@ main{padding:1rem 0 2.5rem}
 .area-tooltip{position:absolute;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:.45rem .75rem;font-size:.76rem;pointer-events:none;white-space:nowrap;z-index:20;display:none;box-shadow:0 4px 16px rgba(0,0,0,.35);line-height:1.6}
 .area-tooltip b{font-size:.85rem;color:var(--tx)}
 @keyframes pulse-dot{0%,100%{r:6;opacity:1}50%{r:8;opacity:.7}}
+@keyframes spin{to{transform:rotate(360deg)}}
 .area-dot-atual{animation:pulse-dot 1.8s ease-in-out infinite}
 .hvar{display:inline-block;font-size:.62rem;font-weight:800;font-variant-numeric:tabular-nums}
 .hvar.up{color:var(--ok)}.hvar.dn{color:var(--bad)}.hvar.eq{color:var(--mu)}
@@ -925,28 +926,26 @@ async function parseCSV(file){
 }
 
 // Botão Atualizar dados — recarrega do Supabase sem fazer upload
-let _itensCache=[];
+// _itensDash: objeto com dados pré-agregados do server (kpis, top_produtos, top_marcas, por_loja)
+let _itensDash=null;
+let _itensDashLoja=undefined; // loja do último fetch
 
-async function carregarItensSupa(){
+async function carregarItensSupa(lojaFilter){
+  // Chama RPC que retorna apenas dados agregados — muito mais rápido que baixar 68k linhas
   try{
-    let all=[]; let from=0; const PAGE=1000;
-    while(true){
-      const {data,error}=await _sb.from('itens').select('*').range(from,from+PAGE-1);
-      if(error) throw error;
-      if(!data||data.length===0) break;
-      all=all.concat(data);
-      if(data.length<PAGE) break;
-      from+=PAGE;
-    }
-    _itensCache=all;
-    console.log('[itens] carregados:',all.length);
+    const p = lojaFilter !== undefined ? lojaFilter : null;
+    const {data,error}=await _sb.rpc('get_itens_dashboard',{p_loja: p});
+    if(error) throw error;
+    _itensDash = data || null;
+    _itensDashLoja = lojaFilter;
+    console.log('[itens] dashboard carregado via RPC');
   }catch(e){ console.warn('[carregarItensSupa]',e.message); }
 }
 
 function renderIfItens(){
-  if(typeof cur!=='undefined'&&(cur==='itens'||cur==='sp'||cur==='tempos')){
-    if(typeof go==='function') go(cur);
-  }
+  // Busca o cur interno do bootP via evento customizado
+  const ev=new CustomEvent('itens:check-render');
+  document.dispatchEvent(ev);
 }
 
 async function importarItens(input, lojaHint){
@@ -1031,6 +1030,7 @@ async function importarItens(input, lojaHint){
     }
     if(lbl) lbl.className='imp-card done';
     if(st){st.textContent=valid.length+' itens sincronizados!';st.className='imp-status ok';}
+    _itensDash=null; // força recarregamento via RPC na próxima visita ao tab
     await carregarItensSupa(); renderIfItens();
   }catch(err){
     console.error('[importarItens]',err);
@@ -1055,12 +1055,10 @@ async function atualizarDados(){
       const pa=document.getElementById('p-app');
       if(pa) pa.innerHTML='';
       if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
-      await carregarItensSupa();
-    _bootedP=true; bootP(_dP);
+      _itensDash=null; // força recarregamento quando abrir aba itens
+      _bootedP=true; bootP(_dP);
     }
     st.className='imp-status ok';
-    // also load itens
-    await carregarItensSupa();
     st.textContent=`✅ Dados atualizados — ${pedidosRows.length} pedidos carregados.`;
   }catch(e){
     st.className='imp-status err';
@@ -1308,111 +1306,138 @@ function go(tab){
 function toggle(tab,k,v){const s=S[tab];s.sel[k]=s.sel[k]===v?'':v;s.pg=0;cur!==tab?go(tab):(syncFilters(),render())}
 
 // ═══════════════════════════════════════════════════════
-// ITENS TAB
+// ITENS TAB — usa dados pré-agregados do server (RPC)
 // ═══════════════════════════════════════════════════════
-function renderItensTab(itens, pedidosRs){
-  if(!itens||itens.length===0){
-    ['itens-kp','c-itens-pareto','c-itens-marca','c-itens-cli','c-itens-receita-marca','c-itens-receita'].forEach(id=>{
-      const el=$('#'+id); if(el) el.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados — importe os arquivos ITENS</p>';
+function renderItensTab(dash){
+  const noData='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados — importe os arquivos ITENS ou aguarde o carregamento</p>';
+  if(!dash){
+    ['itens-kp','c-itens-pareto','c-itens-marca','c-itens-loja','c-itens-receita-marca','c-itens-receita'].forEach(id=>{
+      const el=$('#'+id); if(el) el.innerHTML=noData;
     });
     return;
   }
 
-  // Filter by selected pedidos (use pedidosRs ids as allowlist)
-  const allowIds=new Set(pedidosRs.map(r=>String(r.id)+r.loja));
-  const filtered=itens.filter(x=>allowIds.has(String(x.pedido_id)+x.loja));
-  const src=filtered.length>0?filtered:itens;
+  const kpis=dash.kpis||{};
+  const topProd=(dash.top_produtos||[]);
+  const topMarca=(dash.top_marcas||[]);
+  const porLoja=(dash.por_loja||[]);
 
   // ── KPIs ─────────────────────────────────────────────
-  const totalQtde=src.reduce((a,x)=>a+(+x.qtde||0),0);
-  const totalReceita=src.reduce((a,x)=>a+(+x.total||0),0);
-  const pedidosComItens=new Set(src.map(x=>x.pedido_id+x.loja)).size;
-  const mediaItensPedido=pedidosComItens>0?(src.length/pedidosComItens).toFixed(1):0;
-  // avg per day
-  const diasComItens=new Set(src.map(x=>x.entrega||x.mes).filter(Boolean)).size;
-  const mediaItensDia=diasComItens>0?(src.length/diasComItens).toFixed(1):0;
   const kpEl=$('#itens-kp');
   if(kpEl) kpEl.innerHTML=
-    `<div class="k"><div class="kl">Total de linhas</div><div class="kv">${N(src.length)}</div></div>`+
-    `<div class="k"><div class="kl">Qtde total</div><div class="kv">${N(Math.round(totalQtde))}</div></div>`+
-    `<div class="k"><div class="kl">Receita total</div><div class="kv">R$ ${BRL(totalReceita)}</div></div>`+
-    `<div class="k"><div class="kl">Pedidos c/ itens</div><div class="kv">${N(pedidosComItens)}</div></div>`+
-    `<div class="k"><div class="kl">Média itens/pedido</div><div class="kv">${mediaItensPedido}</div></div>`+
-    `<div class="k"><div class="kl">Média itens/dia</div><div class="kv">${mediaItensDia}</div></div>`;
+    `<div class="k"><div class="kl">Total de linhas</div><div class="kv">${N(kpis.total_itens||0)}</div></div>`+
+    `<div class="k"><div class="kl">Qtde total</div><div class="kv">${N(kpis.total_qtde||0)}</div></div>`+
+    `<div class="k"><div class="kl">Receita total</div><div class="kv">R$ ${BRL(kpis.total_receita||0)}</div></div>`+
+    `<div class="k"><div class="kl">Pedidos c/ itens</div><div class="kv">${N(kpis.total_pedidos||0)}</div></div>`+
+    `<div class="k"><div class="kl">Média itens/pedido</div><div class="kv">${kpis.media_itens_pedido||0}</div></div>`+
+    `<div class="k"><div class="kl">Ticket médio</div><div class="kv">R$ ${BRL(kpis.ticket_medio||0)}</div></div>`;
 
-  // ── Helper: agrupa por campo ──────────────────────────
-  function aggField(arr, key, valKey){
-    const m={};
-    arr.forEach(x=>{
-      const k=x[key]||'(vazio)';
-      if(!m[k]) m[k]={k,v:0};
-      m[k].v+=(valKey?+x[valKey]||0:1);
-    });
-    return Object.values(m).sort((a,b)=>b.v-a.v);
+  // ── Pareto top produtos (por qtde) ───────────────────
+  const paEl=$('#c-itens-pareto');
+  if(paEl){
+    if(topProd.length===0){paEl.innerHTML=noData;}
+    else{
+      const max=topProd[0].cnt||1;
+      const cumTotal=topProd.reduce((a,x)=>a+(+x.cnt||0),0);
+      let cumSoFar=0;
+      const rows=topProd.slice(0,30).map(x=>{
+        const pct=Math.round((x.cnt||0)/max*100);
+        cumSoFar+=(+x.cnt||0);
+        const cumPct=Math.round(cumSoFar/cumTotal*100);
+        return`<div style="display:grid;grid-template-columns:12rem 1fr 5rem 4rem;align-items:center;gap:.4rem;margin-bottom:.22rem">
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')}">${esc((x.descricao||'(vazio)').substring(0,30))}</span>
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:13px">
+            <div style="width:${pct}%;height:100%;background:var(--ok);border-radius:3px"></div>
+          </div>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.cnt)}</span>
+          <span style="font-size:.7rem;color:${cumPct<=80?'var(--y)':'var(--mu)'};text-align:right">${cumPct}%</span>
+        </div>`;
+      }).join('');
+      paEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
+    }
   }
 
-  // ── Pareto descricao ──────────────────────────────────
-  const paEl=$('#c-itens-pareto');
-  if(paEl) renderBars(src,'descricao',paEl,{pr:true,top:30,label:'produtos'});
-
-  // ── Marca ─────────────────────────────────────────────
+  // ── Top marcas ────────────────────────────────────────
   const maEl=$('#c-itens-marca');
-  if(maEl) renderBars(src,'marca',maEl,{pr:true,top:15,label:'marcas'});
+  if(maEl){
+    if(topMarca.length===0){maEl.innerHTML=noData;}
+    else{
+      const max=topMarca[0].cnt||1;
+      const rows=topMarca.slice(0,15).map(x=>{
+        const pct=Math.round((x.cnt||0)/max*100);
+        return`<div style="display:grid;grid-template-columns:9rem 1fr 5rem;align-items:center;gap:.4rem;margin-bottom:.22rem">
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.marca||'')}">${esc((x.marca||'Sem marca').substring(0,22))}</span>
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:13px">
+            <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
+          </div>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.cnt)}</span>
+        </div>`;
+      }).join('');
+      maEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
+    }
+  }
 
-  // ── Receita por produto ───────────────────────────────
+  // ── Receita por produto (top 20) ──────────────────────
   const recEl=$('#c-itens-receita');
   if(recEl){
-    const byProd=aggField(src,'descricao','total').slice(0,20);
-    renderBarsRaw(byProd,recEl,{label:'produtos',prefix:'R$ ',fmt:(v)=>BRL(v)});
+    const byRec=[...topProd].sort((a,b)=>(b.receita||0)-(a.receita||0)).slice(0,20);
+    if(byRec.length===0){recEl.innerHTML=noData;}
+    else{
+      const maxR=byRec[0].receita||1;
+      const rows=byRec.map(x=>{
+        const pct=Math.round((x.receita||0)/maxR*100);
+        return`<div style="display:grid;grid-template-columns:12rem 1fr 8rem;align-items:center;gap:.4rem;margin-bottom:.22rem">
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')}">${esc((x.descricao||'(vazio)').substring(0,30))}</span>
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:13px">
+            <div style="width:${pct}%;height:100%;background:var(--y);border-radius:3px"></div>
+          </div>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita||0)}</span>
+        </div>`;
+      }).join('');
+      recEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
+    }
   }
 
   // ── Receita por marca ─────────────────────────────────
   const recMEl=$('#c-itens-receita-marca');
   if(recMEl){
-    const byMarca=aggField(src,'marca','total').slice(0,15);
-    renderBarsRaw(byMarca,recMEl,{label:'marcas',prefix:'R$ ',fmt:(v)=>BRL(v)});
+    const byMarcaRec=[...topMarca].sort((a,b)=>(b.receita||0)-(a.receita||0));
+    if(byMarcaRec.length===0){recMEl.innerHTML=noData;}
+    else{
+      const maxM=byMarcaRec[0].receita||1;
+      const rows=byMarcaRec.map(x=>{
+        const pct=Math.round((x.receita||0)/maxM*100);
+        return`<div style="display:grid;grid-template-columns:9rem 1fr 8rem;align-items:center;gap:.4rem;margin-bottom:.22rem">
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.marca||'')}">${esc((x.marca||'Sem marca').substring(0,22))}</span>
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:13px">
+            <div style="width:${pct}%;height:100%;background:var(--y);border-radius:3px"></div>
+          </div>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita||0)}</span>
+        </div>`;
+      }).join('');
+      recMEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
+    }
   }
 
-  // ── Matriz cliente × item ─────────────────────────────
-  const cliEl=$('#c-itens-cli');
-  if(cliEl){
-    // Merge with pedidos to get client
-    const pedMap={};
-    pedidosRs.forEach(p=>pedMap[p.id+'_'+p.loja]=p.cli||'');
-    const topProds=aggField(src,'descricao').slice(0,12).map(x=>x.k);
-    // Count per client per product
-    const cliProd={};
-    src.forEach(x=>{
-      const cli=pedMap[x.pedido_id+'_'+x.loja]||'(s/cli)';
-      const prod=x.descricao||'(vazio)';
-      if(!topProds.includes(prod)) return;
-      const ck=cli+'|||'+prod;
-      cliProd[ck]=(cliProd[ck]||0)+1;
-    });
-    // top 10 clients
-    const cliTotal={};
-    Object.keys(cliProd).forEach(k=>{const [c]=k.split('|||');cliTotal[c]=(cliTotal[c]||0)+cliProd[k];});
-    const topClis=Object.entries(cliTotal).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>x[0]);
-    if(topClis.length===0||topProds.length===0){cliEl.innerHTML='<p style="color:var(--mu);padding:1rem">Dados insuficientes</p>';return;}
-    // Build HTML table
-    const thStyle='font-size:.7rem;font-weight:700;color:var(--mu);padding:.3rem .5rem;white-space:nowrap;border-bottom:1px solid var(--bd)';
-    const tdStyle='font-size:.72rem;text-align:center;padding:.25rem .4rem;border-bottom:1px solid var(--bd)';
-    let tbl='<table style="border-collapse:collapse;min-width:100%"><thead><tr>';
-    tbl+=`<th style="${thStyle};text-align:left">Cliente</th>`;
-    topProds.forEach(p=>{ tbl+=`<th style="${thStyle}">${esc(p.substring(0,20))}</th>`; });
-    tbl+='</tr></thead><tbody>';
-    topClis.forEach((cli,i)=>{
-      const bg=i%2===0?'var(--bg)':'var(--s2)';
-      tbl+=`<tr style="background:${bg}"><td style="${tdStyle};text-align:left;white-space:nowrap">${esc(cli.substring(0,25))}</td>`;
-      topProds.forEach(p=>{
-        const v=cliProd[cli+'|||'+p]||0;
-        const col=v>0?`background:color-mix(in srgb,var(--y) ${Math.min(80,v*8)}%,var(--bg))`:'';
-        tbl+=`<td style="${tdStyle};${col}">${v||''}</td>`;
-      });
-      tbl+='</tr>';
-    });
-    tbl+='</tbody></table>';
-    cliEl.innerHTML=tbl;
+  // ── Distribuição por loja ─────────────────────────────
+  const lojaEl=$('#c-itens-loja');
+  if(lojaEl){
+    if(porLoja.length===0){lojaEl.innerHTML=noData;}
+    else{
+      const maxL=porLoja[0].cnt||1;
+      const rows=porLoja.map(x=>{
+        const pct=Math.round((x.cnt||0)/maxL*100);
+        return`<div style="display:grid;grid-template-columns:5rem 1fr 5rem 8rem;align-items:center;gap:.5rem;margin-bottom:.3rem">
+          <span style="font-size:.8rem;font-weight:600;color:var(--tx)">${esc(x.loja||'')}</span>
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:14px">
+            <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
+          </div>
+          <span style="font-size:.76rem;color:var(--mu)">${N(x.cnt)} itens</span>
+          <span style="font-size:.76rem;color:var(--mu)">R$ ${BRL(x.receita||0)}</span>
+        </div>`;
+      }).join('');
+      lojaEl.innerHTML=`<div style="padding:.5rem 0">${rows}</div>`;
+    }
   }
 }
 
@@ -2371,7 +2396,7 @@ function render(){
     renderBars(rs,'mes',$('#c-mes'),{top:15,label:'meses'});
   }
   // ── Itens tab ───────────────────────────────────────────
-  if(cur==='itens') renderItensTab(_itensCache, rs);
+  if(cur==='itens') renderItensTab(_itensDash);
   // ── Tempos tab ──────────────────────────────────────────
   if(cur==='tempos') renderTemposTab(rs);
   renderTable(rs);
@@ -2411,17 +2436,21 @@ async function go(tab){
       `<article class="pn w2"><h3>Pedidos por mês</h3><div id="c-mes"></div></article>`;
   }
   if(tab==='itens'){
+    const spin='<div style="text-align:center;padding:3rem;color:var(--mu)"><div style="display:inline-block;width:2rem;height:2rem;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="margin-top:.75rem;font-size:.85rem">Carregando dados de itens...</p></div>';
     cg.innerHTML=
       `<div class="kp" id="itens-kp"></div>`+
       `<div class="vend-row">
-        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Itens mais vendidos (Pareto 80/20)</h3><div id="c-itens-pareto"></div></article>
-        <article class="pn vend-col-sm"><h3>Itens por marca</h3><div id="c-itens-marca"></div></article>
+        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Itens mais vendidos (Pareto 80/20)</h3><div id="c-itens-pareto">${spin}</div></article>
+        <article class="pn vend-col-sm"><h3>Itens por marca</h3><div id="c-itens-marca">${spin}</div></article>
       </div>`+
-      `<article class="pn w2"><h3>Qual cliente compra qual item (top 15 itens × top clientes)</h3><div id="c-itens-cli" style="overflow-x:auto"></div></article>`+
+      `<article class="pn w2"><h3>Distribuição por loja</h3><div id="c-itens-loja">${spin}</div></article>`+
       `<div class="vend-row">
-        <article class="pn vend-col-sm"><h3>Receita por marca</h3><div id="c-itens-receita-marca"></div></article>
-        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Receita por produto (top 20)</h3><div id="c-itens-receita"></div></article>
+        <article class="pn vend-col-sm"><h3>Receita por marca</h3><div id="c-itens-receita-marca">${spin}</div></article>
+        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Receita por produto (top 20)</h3><div id="c-itens-receita">${spin}</div></article>
       </div>`;
+    // Carrega dados pré-agregados via RPC (rápido: 1 chamada vs 69)
+    carregarItensSupa().then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
+    return; // render() será chamado após promise
   } else if(tab==='tempos'){
     cg.innerHTML=
       `<div class="kp" id="tempos-kp"></div>`+
@@ -2476,6 +2505,11 @@ document.addEventListener('input',e=>{
   else if(id==='fsit'){F.sit=e.target.value;tPage=0;render()}
   else if(id==='furg'){F.urg=e.target.value;tPage=0;render()}
 });
+// Listener para renderIfItens() do escopo global — resolve bug do cur errado
+document.addEventListener('itens:check-render',()=>{
+  if(cur==='itens'||cur==='sp'||cur==='tempos') go(cur);
+});
+
 $('#th').textContent=document.documentElement.dataset.t==='dark'?'Tema claro':'Tema escuro';
 const h0=location.hash.slice(1);go(['ov','vend','cli','transp','hist','itens','tempos'].includes(h0)?h0:'ov');
 }
