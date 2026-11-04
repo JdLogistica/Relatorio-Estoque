@@ -634,19 +634,30 @@ async function parseXLSX(file){
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
 
-  // Detecta linha de cabeçalho (padrão: idx 7, com fallback automático)
-  let headerIdx = 7;
-  for(let i=0;i<Math.min(15,rows.length);i++){
-    if(rows[i].some(c=>String(c).toLowerCase().includes('pedido')||String(c).toLowerCase().includes('vend')||String(c).toLowerCase().includes('cliente'))){
+  // Detecta linha de cabeçalho (procura até linha 20)
+  let headerIdx = -1;
+  for(let i=0;i<Math.min(20,rows.length);i++){
+    const row = rows[i];
+    const txt = row.map(c=>String(c).toLowerCase()).join('|');
+    if(txt.includes('pedido')||txt.includes('cliente')||txt.includes('vendedor')){
       headerIdx=i; break;
     }
   }
+  if(headerIdx===-1) headerIdx=0; // fallback: usa primeira linha
+
   const headers = rows[headerIdx].map(h=>String(h).trim());
-  // pula linha de cabeçalho + linha em branco (idx+1)
-  const dataRows = rows.slice(headerIdx+2).filter(r=>r.some(c=>c!==''));
+  console.log('[DEBUG] parseXLSX headers encontrados (linha '+headerIdx+'):', headers);
+
+  // Pula cabeçalho; se a linha seguinte for em branco, pula também
+  let startIdx = headerIdx+1;
+  if(startIdx < rows.length && !rows[startIdx].some(c=>c!=='')){
+    startIdx++;
+  }
+  const dataRows = rows.slice(startIdx).filter(r=>r.some(c=>c!==''));
+  console.log('[DEBUG] parseXLSX dataRows:', dataRows.length, '| 1ª linha:', JSON.stringify(dataRows[0]));
   return dataRows.map(row=>{
     const obj={};
-    headers.forEach((h,i)=>{ obj[h]=row[i]??''; });
+    headers.forEach((h,i)=>{ if(h) obj[h]=row[i]??''; });
     return obj;
   });
 }
@@ -843,11 +854,21 @@ async function enviarAoSupabase(pedidos, lojaDefault, statusEl){
     return;
   }
 
+  // DEBUG: mostra as primeiras colunas do 1º row para diagnóstico
+  if(rows.length>0){
+    const amostra=rows[0];
+    console.log('[DEBUG] 1ª linha normalizada:', JSON.stringify(amostra));
+    console.log('[DEBUG] Total de rows válidas:', rows.length);
+  }
+
   statusEl.textContent=`📤 Enviando ${rows.length} pedidos ao Supabase...`;
   for(let i=0;i<rows.length;i+=BATCH){
     const batch=rows.slice(i,i+BATCH);
     const {error}=await _sb.from('pedidos').upsert(batch,{onConflict:'id,loja'});
-    if(error) throw new Error('Erro Supabase (upsert): '+error.message);
+    if(error){
+      console.error('[DEBUG] Erro upsert:', error);
+      throw new Error('Erro Supabase (upsert): '+error.message);
+    }
     ok+=batch.length;
     statusEl.textContent=`📤 Enviando... ${ok}/${rows.length}`;
   }
