@@ -779,37 +779,79 @@ async function selecionarPasta(){
   inp.click();
 }
 
+// Normaliza data de xlsx para string YYYY-MM-DD
+function _parseDate(v){
+  if(!v) return null;
+  if(v instanceof Date){
+    const y=v.getFullYear(),m=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  const s=String(v);
+  const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(m2){const yr=m2[3].length===2?'20'+m2[3]:m2[3];return`${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`}
+  return s.slice(0,10)||null;
+}
+
+// Normaliza tp2
+function _tp2Norm(s){
+  s=String(s||'').toUpperCase().trim();
+  if(!s||s==='0'||s==='NONE') return 'NÃO SEPARAR';
+  if(s.startsWith('RETIRA')) return 'RETIRA';
+  if(s.includes('BALCÃO')||s.includes('BALCAO')) return 'BALCÃO';
+  if(s.includes('ENTREGA')) return 'ENTREGA';
+  if(s.includes('NÃO SEP')||s.includes('NAO SEP')) return 'NÃO SEPARAR';
+  return 'TRANSPORTADORA';
+}
+
+// Converte row bruta do xlsx para formato do Supabase
+function _normalizarRow(r, lojaDefault){
+  const id = String(r['Pedido']||r['pedido']||r.id||r.nr_pedido||'').trim();
+  const loja = String(r['loja']||r.loja||lojaDefault||'').trim();
+  const dia  = _parseDate(r['Emissao']||r['Emissão']||r['emissao']||r.dia||'');
+  const exp  = _parseDate(r['Dt Expedido']||r['dt_expedido']||r.exp||'');
+  const sit  = String(r['Situacao']||r['Situação']||r['situacao']||r.sit||'').trim();
+  const tp   = String(r['Transportadora']||r['transportadora']||r.tp||'').trim();
+  return {
+    id,
+    loja,
+    cli:  String(r['Cliente']||r['cliente']||r.cli||'').trim(),
+    vend: String(r['Vendedor']||r['vendedor']||r.vend||'').trim(),
+    conf: String(r['Conferente']||r['conferente']||r.conf||'').trim(),
+    tp,
+    tp2:  _tp2Norm(r['Transportadora']||r['transportadora']||r.tp2||tp),
+    sit,
+    urg:  !!(r['Urgente?'] ? String(r['Urgente?']).toUpperCase().startsWith('S') : (r.urg||false)),
+    canc: !!(r.canc || sit.toLowerCase().includes('cancel')),
+    dia:  dia || null,
+    exp:  exp || null,
+  };
+}
+
 // Envia pedidos ao Supabase em lotes
-async function enviarAoSupabase(pedidos, statusEl){
+async function enviarAoSupabase(pedidos, lojaDefault, statusEl){
   const BATCH = 500;
   let ok = 0;
-  // Busca service_role via anon não pode fazer upsert — usamos RPC ou insert via service_role
-  // Como temos só anon key no frontend, deletamos e reinserimos via upsert com policy aberta p/ auth
-  // Precisamos de uma policy de insert para usuários autenticados
-  const rows = pedidos.map(r=>({
-    id:   String(r.id||r.pedido||r.nr_pedido||'').trim(),
-    loja: r.loja,
-    cli:  String(r.cli||r.cliente||'').trim(),
-    vend: String(r.vend||r.vendedor||'').trim(),
-    conf: String(r.conf||r.conferente||'').trim(),
-    tp:   String(r.tp||r.transportadora||'').trim(),
-    tp2:  String(r.tp2||'').trim(),
-    sit:  String(r.sit||r.situacao||r.situação||'').trim(),
-    urg:  !!(r.urg||String(r.urgente||'').toUpperCase().startsWith('S')),
-    canc: !!(r.canc||String(r.sit||'').toLowerCase().includes('cancel')),
-    dia:  r.dia||null,
-    exp:  r.exp||null,
-  })).filter(r=>r.id);
+
+  // Normaliza: aceita tanto rows brutas do xlsx quanto rows já normalizadas
+  const rows = pedidos
+    .map(r => _normalizarRow(r, lojaDefault))
+    .filter(r => r.id && r.loja);
+
+  if(rows.length === 0){
+    statusEl.textContent='⚠️ Nenhum pedido válido para enviar (verifique a coluna "Pedido" na planilha).';
+    statusEl.className='imp-status err';
+    return;
+  }
 
   statusEl.textContent=`📤 Enviando ${rows.length} pedidos ao Supabase...`;
   for(let i=0;i<rows.length;i+=BATCH){
     const batch=rows.slice(i,i+BATCH);
     const {error}=await _sb.from('pedidos').upsert(batch,{onConflict:'id,loja'});
-    if(error) throw new Error('Erro Supabase: '+error.message);
+    if(error) throw new Error('Erro Supabase (upsert): '+error.message);
     ok+=batch.length;
     statusEl.textContent=`📤 Enviando... ${ok}/${rows.length}`;
   }
-  statusEl.textContent=`✅ ${rows.length} pedidos sincronizados com sucesso!`;
+  statusEl.textContent=`✅ ${rows.length} pedidos sincronizados!`;
   statusEl.className='imp-status ok';
 }
 
@@ -821,13 +863,35 @@ async function atualizarPasta(){
   try{
     const dados = await lerArquivosNaPasta();
     if(!dados) return;
-    // Envia pro Supabase primeiro
+
+    // Verifica sessão ativa
+    const {data:{session}} = await _sb.auth.getSession();
+    if(!session){
+      statusEl.textContent='❌ Você precisa estar logado para sincronizar os dados.';
+      statusEl.className='imp-status err';
+      return;
+    }
+
+    // Envia pro Supabase
     const pedidos = dados.pedidos || dados.rows || [];
     if(pedidos.length>0){
-      await enviarAoSupabase(pedidos, statusEl);
+      await enviarAoSupabase(pedidos, dados.loja||'', statusEl);
     }
-    // Depois aplica localmente
-    aplicarDadosPedidos(dados);
+
+    // Recarrega do Supabase para garantir consistência
+    statusEl.textContent='🔄 Recarregando dados do servidor...';
+    const pedidosRows = await carregarPedidosSupa();
+    _dP = { rows: pedidosRows };
+    _bootedP = false;
+    if(_curSection==='p'){
+      const pa=document.getElementById('p-app');
+      if(pa) pa.innerHTML='';
+      if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
+      _bootedP=true;
+      bootP(_dP);
+    }
+    statusEl.textContent=`✅ Dados atualizados! ${pedidosRows.length} pedidos carregados.`;
+    statusEl.className='imp-status ok';
   }catch(e){
     statusEl.textContent='❌ Erro: '+e.message;
     statusEl.className='imp-status err';
