@@ -1203,7 +1203,7 @@ function renderDonut(rs,k,el,{col,u='pedidos'}={}){
 }
 
 function renderHistDia(rs,el){
-  const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div>`;
+  const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.3rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog" data-hm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-hm="dia">Diário</button></div>`;
   const g=new Map();
   rs.forEach(r=>{if(r.dia){if(!g.has(r.dia))g.set(r.dia,{LT:0,LL:0});g.get(r.dia)[r.loja]++}});
   if(!g.size){
@@ -1226,7 +1226,7 @@ function renderHistDia(rs,el){
   const n=tots.length;
 
   // ── Painel de resumo gerencial ─────────────────────────────────────────
-  const resumo=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.6rem">
+  const resumo=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.2rem">
     <div class="dia-kpi"><span>Total período</span><b>${totPer}</b></div>
     <div class="dia-kpi" style="border-color:#f5c518"><span>LT</span><b style="color:#f5c518">${ltPer}</b></div>
     <div class="dia-kpi" style="border-color:#5bafd6"><span>LL</span><b style="color:#5bafd6">${llPer}</b></div>
@@ -1371,7 +1371,7 @@ function renderHistDia(rs,el){
   </div>`;
 
   el.innerHTML=toggleHtml+resumo+
-    `<div class="area-chart" style="position:relative;margin:0 -0.5rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
+    `<div class="area-chart" style="position:relative;margin:0 -0.5rem;margin-top:.05rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
     legenda+graf2;
 
   el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
@@ -1468,7 +1468,7 @@ function renderHist(rs,el){
       <div style="font-size:1.05rem;font-weight:900;color:${clsC(mmLL)}">${fmtMM(mmLL)}</div>
       <div style="font-size:.68rem;color:var(--mu)">${mmLabel}</div></div>`:'',
   ].filter(Boolean).join('');
-  const resumoHtml=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem;align-items:stretch">
+  const resumoHtml=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.25rem;align-items:stretch">
     <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:.4rem .75rem;min-width:7rem">
       <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">TOTAL GERAL</div>
       <div style="font-size:1.1rem;font-weight:900;color:var(--tx)">${N(grandTotal)}</div>
@@ -1620,9 +1620,9 @@ function renderHist(rs,el){
   const avisoAtual=mesAtualTot
     ?`<span style="display:inline-flex;align-items:center;gap:.3rem;background:var(--s2);border:1px solid var(--ok);border-radius:6px;padding:.2rem .55rem;font-size:.72rem;color:var(--ok);font-weight:700">● ${fmtMes(mesAtual)}: em andamento (hover para ver dados)</span>`:'';
 
-  const toggleHtmlMes=`<div style="display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog hist-tog-on" data-hm="mes">Mensal</button><button class="hist-tog" data-hm="dia">Diário</button></div>`;
+  const toggleHtmlMes=`<div style="display:flex;gap:.5rem;margin-bottom:.35rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog hist-tog-on" data-hm="mes">Mensal</button><button class="hist-tog" data-hm="dia">Diário</button></div>`;
   el.innerHTML= toggleHtmlMes+resumoHtml+
-    `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
+    `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible;margin-top:.1rem">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
     `<div class="hlgd" style="margin-top:.5rem">${avisoAtual}<span style="color:var(--y)">— Total</span><span style="color:var(--bl)">- - LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span><span class="mu2" style="font-size:.7rem">clique no ponto para filtrar</span></div>`;
   el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
 
