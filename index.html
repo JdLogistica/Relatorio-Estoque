@@ -964,6 +964,7 @@ async function importarItens(input, lojaHint){
   const st =document.getElementById('imp-itens-status');
   if(lbl) lbl.className='imp-card loading';
   if(st){st.style.display='';st.className='imp-status';st.textContent='Lendo arquivo...';}
+  await loadXLSX();
   try{
     const rows=await new Promise((res,rej)=>{
       const reader=new FileReader();
