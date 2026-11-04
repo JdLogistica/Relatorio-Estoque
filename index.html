@@ -1626,41 +1626,67 @@ function renderHist(rs,el){
 
   // ── Painel de resumo do período ──────────────────────────────────────────
   const grandTotal=tots.reduce((s,x)=>s+x.tot,0);
-  // Crescimento M/M com período padronizado (mesmo cálculo dos KPIs do topo)
-  // Mês atual até dia D vs mês anterior até dia D
+  // Crescimento: compara período selecionado com período equivalente anterior
+  // Se filtro = mês único → compara mês inteiro vs mês anterior inteiro
+  // Se filtro = mês atual (parcial) → compara dias 1-D vs mesmo período do mês anterior
+  // Se sem filtro → usa mês atual parcial vs mês anterior mesmo período
   let mmTot=null,mmLT=null,mmLL=null,mmLabel='',mmDia=0;
+  const MNMS2=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   try{
-    const mesAtualMM=mesAtual;
-    const d2mm=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);
-    const mesAntMM=`${d2mm.getFullYear()}-${String(d2mm.getMonth()+1).padStart(2,'0')}`;
-    const rAtMM=rs.filter(r=>r.mes===mesAtualMM);
-    const rAnMM=rs.filter(r=>r.mes===mesAntMM);
-    if(rAtMM.length>0&&rAnMM.length>0){
-      const diasAt=rAtMM.map(r=>+(r.dia||'').slice(8,10)||0);
-      mmDia=Math.max(...diasAt);
-      const rAnFilt=rAnMM.filter(r=>+(r.dia||'').slice(8,10)<=mmDia);
-      const tA=rAtMM.length,tB=rAnFilt.length;
-      const ltA=rAtMM.filter(r=>r.loja==='LT').length,ltB=rAnFilt.filter(r=>r.loja==='LT').length;
-      const llA=rAtMM.filter(r=>r.loja==='LL').length,llB=rAnFilt.filter(r=>r.loja==='LL').length;
-      const MNMS2=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-      if(tB>0){mmTot=(tA-tB)/tB*100;mmLT=ltB>0?(ltA-ltB)/ltB*100:null;mmLL=llB>0?(llA-llB)/llB*100:null;mmLabel=`vs ${MNMS2[+mesAntMM.slice(5,7)-1]} 1–${mmDia}`;}
+    const fmtMesLabel=(ym,d1,d2)=>{
+      const mn=MNMS2[+ym.slice(5,7)-1];
+      return d1===1&&d2===null?mn:(d1===1?`${mn} 1–${d2}`:`${mn} ${d1}–${d2}`);
+    };
+    const prevMes=(ym)=>{const[y,m]=ym.split('-').map(Number);return m===1?`${y-1}-12`:`${y}-${String(m-1).padStart(2,'0')}`};
+
+    if(selMes){
+      // Mês único selecionado: mês completo vs mês anterior completo
+      const mesAt=selMes;
+      const mesAn=prevMes(mesAt);
+      const rAt=rs.filter(r=>r.mes===mesAt);
+      const rAn=rs.filter(r=>r.mes===mesAn);
+      if(rAt.length>0&&rAn.length>0){
+        const tA=rAt.length,tB=rAn.length;
+        const ltA=rAt.filter(r=>r.loja==='LT').length,ltB=rAn.filter(r=>r.loja==='LT').length;
+        const llA=rAt.filter(r=>r.loja==='LL').length,llB=rAn.filter(r=>r.loja==='LL').length;
+        if(tB>0){mmTot=(tA-tB)/tB*100;mmLT=ltB>0?(ltA-ltB)/ltB*100:null;mmLL=llB>0?(llA-llB)/llB*100:null;}
+        mmLabel=`${fmtMesLabel(mesAt,1,null)} vs ${fmtMesLabel(mesAn,1,null)}`;
+      }
+    }else{
+      // Sem filtro de mês único (ou range): usa mês atual parcial vs mesmo período do anterior
+      const mesAt=mesAtual;
+      const mesAn=prevMes(mesAt);
+      const rAt=rs.filter(r=>r.mes===mesAt);
+      const rAn=rs.filter(r=>r.mes===mesAn);
+      if(rAt.length>0&&rAn.length>0){
+        const diasAt=rAt.map(r=>+(r.dia||'').slice(8,10)||0);
+        mmDia=Math.max(...diasAt);
+        const rAnFilt=rAn.filter(r=>+(r.dia||'').slice(8,10)<=mmDia);
+        const tA=rAt.length,tB=rAnFilt.length;
+        const ltA=rAt.filter(r=>r.loja==='LT').length,ltB=rAnFilt.filter(r=>r.loja==='LT').length;
+        const llA=rAt.filter(r=>r.loja==='LL').length,llB=rAnFilt.filter(r=>r.loja==='LL').length;
+        const mn_at=MNMS2[+mesAt.slice(5,7)-1];
+        const mn_an=MNMS2[+mesAn.slice(5,7)-1];
+        if(tB>0){mmTot=(tA-tB)/tB*100;mmLT=ltB>0?(ltA-ltB)/ltB*100:null;mmLL=llB>0?(llA-llB)/llB*100:null;}
+        mmLabel=`${mn_at} dias 1–${mmDia} vs ${mn_an} dias 1–${mmDia}`;
+      }
     }
   }catch(e){}
   const clsC=v=>v===null?'var(--mu)':v>0?'var(--ok)':'var(--bad)';
   const fmtMM=v=>v===null?'–':(v>=0?`+${v.toFixed(1)}%`:`${v.toFixed(1)}%`);
   const mmCards=[
-    mmTot!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid ${clsC(mmTot)};border-radius:8px;padding:.4rem .75rem;min-width:9rem">
+    mmTot!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid ${clsC(mmTot)};border-radius:8px;padding:.4rem .75rem;min-width:10rem">
       <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO TOTAL</div>
       <div style="font-size:1.05rem;font-weight:900;color:${clsC(mmTot)}">${fmtMM(mmTot)}</div>
-      <div style="font-size:.68rem;color:var(--mu)">${mmLabel}</div></div>`:'',
-    mmLT!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--y);border-radius:8px;padding:.4rem .75rem;min-width:9rem">
-      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO LT</div>
+      <div style="font-size:.7rem;color:var(--mu);margin-top:.1rem">${mmLabel}</div></div>`:'',
+    mmLT!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--y);border-radius:8px;padding:.4rem .75rem;min-width:10rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO <span style="color:var(--y)">LT</span></div>
       <div style="font-size:1.05rem;font-weight:900;color:${clsC(mmLT)}">${fmtMM(mmLT)}</div>
-      <div style="font-size:.68rem;color:var(--mu)">${mmLabel}</div></div>`:'',
-    mmLL!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--bl);border-radius:8px;padding:.4rem .75rem;min-width:9rem">
-      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO LL</div>
+      <div style="font-size:.7rem;color:var(--mu);margin-top:.1rem">${mmLabel}</div></div>`:'',
+    mmLL!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--bl);border-radius:8px;padding:.4rem .75rem;min-width:10rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO <span style="color:var(--bl)">LL</span></div>
       <div style="font-size:1.05rem;font-weight:900;color:${clsC(mmLL)}">${fmtMM(mmLL)}</div>
-      <div style="font-size:.68rem;color:var(--mu)">${mmLabel}</div></div>`:'',
+      <div style="font-size:.7rem;color:var(--mu);margin-top:.1rem">${mmLabel}</div></div>`:'',
   ].filter(Boolean).join('');
   const resumoHtml=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.25rem;align-items:stretch">
     <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:.4rem .75rem;min-width:7rem">
@@ -1916,9 +1942,9 @@ function render(){
     renderDonut(rs,'tp2',$('#c-tp2'),{col:{RETIRA:'var(--y)',BALCÃO:'var(--bl)',ENTREGA:'var(--ok)',TRANSPORTADORA:'var(--bad)','NÃO SEPARAR':'var(--mu)'}});
     renderDonut(rs,'sit',$('#c-sit'),{col:{'10-Expedido':'var(--ok)','2-Parado':'var(--bad)','9-Aguardando coleta/despacho':'var(--y)'}});
   }else if(cur==='vend'){
-    renderBars(rs,'vend',$('#c-vend'),{pr:true,label:'vendedores'});
     renderDonut(rs,'loja',$('#c-lv'),{col:{LT:'var(--y)',LL:'var(--bl)'}});
     renderBars(rs,'conf',$('#c-conf'),{top:12,label:'conferentes'});
+    renderBars(rs,'vend',$('#c-vend'),{pr:true,label:'vendedores'});
   }else if(cur==='cli'){
     renderBars(rs,'cli',$('#c-cli'),{pr:true,top:20,label:'clientes'});
   }else if(cur==='transp'){
@@ -1944,9 +1970,10 @@ function go(tab){
       `<article class="pn"><h3>Tipo de pedido</h3><div id="c-tp2"></div></article>`+
       `<article class="pn"><h3>Situação dos pedidos</h3><div id="c-sit"></div></article>`;
   }else if(tab==='vend'){
-    cg.innerHTML=`<article class="pn w2"><h3>Pedidos por vendedor (Pareto 80/20)</h3><div id="c-vend"></div></article>`+
+    cg.innerHTML=
       `<article class="pn"><h3>Vendedor por loja</h3><div id="c-lv"></div></article>`+
-      `<article class="pn"><h3>Pedidos por conferente</h3><div id="c-conf"></div></article>`;
+      `<article class="pn"><h3>Pedidos por conferente</h3><div id="c-conf"></div></article>`+
+      `<article class="pn w2"><h3>Pedidos por vendedor (Pareto 80/20)</h3><div id="c-vend"></div></article>`;
   }else if(tab==='cli'){
     cg.innerHTML=`<article class="pn w2"><h3>Clientes com mais pedidos (Pareto 80/20)</h3><div id="c-cli"></div></article>`;
   }else if(tab==='transp'){
