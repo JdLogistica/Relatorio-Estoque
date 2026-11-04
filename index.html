@@ -779,13 +779,58 @@ async function selecionarPasta(){
   inp.click();
 }
 
-// Botão 2 — Atualizar Dados
+// Envia pedidos ao Supabase em lotes
+async function enviarAoSupabase(pedidos, statusEl){
+  const BATCH = 500;
+  let ok = 0;
+  // Busca service_role via anon não pode fazer upsert — usamos RPC ou insert via service_role
+  // Como temos só anon key no frontend, deletamos e reinserimos via upsert com policy aberta p/ auth
+  // Precisamos de uma policy de insert para usuários autenticados
+  const rows = pedidos.map(r=>({
+    id:   String(r.id||r.pedido||r.nr_pedido||'').trim(),
+    loja: r.loja,
+    cli:  String(r.cli||r.cliente||'').trim(),
+    vend: String(r.vend||r.vendedor||'').trim(),
+    conf: String(r.conf||r.conferente||'').trim(),
+    tp:   String(r.tp||r.transportadora||'').trim(),
+    tp2:  String(r.tp2||'').trim(),
+    sit:  String(r.sit||r.situacao||r.situação||'').trim(),
+    urg:  !!(r.urg||String(r.urgente||'').toUpperCase().startsWith('S')),
+    canc: !!(r.canc||String(r.sit||'').toLowerCase().includes('cancel')),
+    dia:  r.dia||null,
+    exp:  r.exp||null,
+  })).filter(r=>r.id);
+
+  statusEl.textContent=`📤 Enviando ${rows.length} pedidos ao Supabase...`;
+  for(let i=0;i<rows.length;i+=BATCH){
+    const batch=rows.slice(i,i+BATCH);
+    const {error}=await _sb.from('pedidos').upsert(batch,{onConflict:'id,loja'});
+    if(error) throw new Error('Erro Supabase: '+error.message);
+    ok+=batch.length;
+    statusEl.textContent=`📤 Enviando... ${ok}/${rows.length}`;
+  }
+  statusEl.textContent=`✅ ${rows.length} pedidos sincronizados com sucesso!`;
+  statusEl.className='imp-status ok';
+}
+
+// Botão 2 — Atualizar Dados + Sincronizar Supabase
 async function atualizarPasta(){
   const btnA=document.getElementById('btn-atualizar');
+  const statusEl=document.getElementById('imp-status');
   btnA.disabled=true;
   try{
     const dados = await lerArquivosNaPasta();
+    if(!dados) return;
+    // Envia pro Supabase primeiro
+    const pedidos = dados.pedidos || dados.rows || [];
+    if(pedidos.length>0){
+      await enviarAoSupabase(pedidos, statusEl);
+    }
+    // Depois aplica localmente
     aplicarDadosPedidos(dados);
+  }catch(e){
+    statusEl.textContent='❌ Erro: '+e.message;
+    statusEl.className='imp-status err';
   }finally{
     btnA.disabled=false;
   }
