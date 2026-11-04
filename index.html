@@ -999,8 +999,7 @@ async function importarItens(input, lojaHint){
     const itens=[];
     Object.entries(byPedido).forEach(([pid,rlist])=>{
       rlist.forEach((r,seq)=>{
-        const rawP=String(r['Produto']||r['produto']||'').replace(/^[\s
-]+|_x000D_/g,'').trim();
+        const rawP=String(r['Produto']||r['produto']||'').replace(/_x000D_/g,'').trim();
         const entDate=xlSerialToDate(r['Entrega']||r['entrega']||null)||null;
         const mes=entDate?entDate.substring(0,7):null;
         const descKey=r['Descrição']||r['Descricao']||r['descricao']||r['DESCRICAO']||'';
