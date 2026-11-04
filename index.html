@@ -289,18 +289,31 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 #imp-file{display:none}
 .imp-status{font-size:.82rem;color:var(--ok);font-weight:600;margin-top:.3rem}
 .imp-status.err{color:var(--bad)}
-/* Upload cards */
-.imp-file-label{display:flex;align-items:center;gap:.7rem;background:var(--sf);border:1.5px dashed var(--ln);border-radius:var(--r);padding:.7rem .9rem;cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
-.imp-file-label:hover{border-color:var(--y);background:var(--s2)}
-.imp-file-label.done{border-style:solid;border-color:var(--ok)}
-.imp-file-label.loading{border-color:var(--bl);border-style:solid}
-.imp-file-label.err{border-color:var(--bad);border-style:solid}
-.imp-file-label input[type=file]{display:none}
-.imp-file-icon{font-size:1.4rem;flex:none}
-.imp-file-info{flex:1;min-width:0;display:grid;gap:.1rem}
-.imp-file-info strong{font-size:.88rem;font-weight:700}
-.imp-file-info small{font-size:.75rem;color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.imp-file-btn{flex:none;background:var(--y);color:#0a0a0a;border-radius:6px;padding:.3rem .7rem;font-size:.78rem;font-weight:700;white-space:nowrap}
+/* ── Bloco de importação ── */
+.imp-bloco{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1.1rem 1.3rem;display:grid;gap:.85rem;border-left:4px solid var(--ok)}
+.imp-header{display:flex;gap:.8rem;align-items:flex-start}
+.imp-icon{font-size:1.6rem;flex:none;line-height:1}
+.imp-title{margin:0 0 .15rem;font-size:.95rem;font-weight:700}
+.imp-desc{margin:0;color:var(--mu);font-size:.78rem;line-height:1.45}
+.imp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.55rem}
+.imp-card{display:flex;align-items:center;gap:.75rem;background:var(--s2);border:1.5px dashed var(--ln);border-radius:8px;padding:.65rem .9rem;cursor:pointer;transition:border-color .15s;user-select:none}
+.imp-card:hover{border-color:var(--y)}
+.imp-card.done{border-style:solid;border-color:var(--ok)}
+.imp-card.loading{border-style:solid;border-color:var(--bl);opacity:.8;pointer-events:none}
+.imp-card.err{border-style:solid;border-color:var(--bad)}
+.imp-card input[type=file]{display:none}
+.imp-card-left{display:flex;align-items:center;gap:.6rem;flex:1;min-width:0}
+.imp-card-icon{font-size:1.3rem;flex:none}
+.imp-card-left div{display:grid;gap:.05rem;min-width:0}
+.imp-card-left strong{font-size:.85rem;font-weight:700}
+.imp-card-left small{font-size:.72rem;color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:11rem}
+.imp-card-btn{flex:none;background:var(--y);color:#0a0a0a;border-radius:6px;padding:.3rem .75rem;font-size:.78rem;font-weight:700;white-space:nowrap}
+.imp-footer{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.imp-refresh-btn{margin-left:auto}
+.imp-status{font-size:.82rem;font-weight:600;flex:1}
+.imp-status.ok{color:var(--ok)}
+.imp-status.err{color:var(--bad)}
+.imp-no-admin{background:var(--s2);border-radius:8px;padding:.6rem .9rem;font-size:.82rem;color:var(--mu);text-align:center}
 .back-btn{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--ln);background:var(--s2);padding:.35rem .8rem;border-radius:8px;font-weight:600;font-size:.88rem;cursor:pointer;margin-bottom:.8rem}
 .back-btn:hover{border-color:var(--y)}
 #sect-e, #sect-p{display:none}
@@ -419,36 +432,49 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
       <span class="tag">PEDDOSLT + PEDIDOSLL</span>
     </button>
   </div>
-  <div class="home-import" style="margin-top:.5rem;flex-direction:column;gap:.85rem">
-    <div style="display:flex;align-items:flex-start;gap:.75rem">
-      <span class="ic">📂</span>
-      <div style="flex:1;min-width:12rem">
-        <h3>Planilhas de pedidos</h3>
-        <p>Selecione cada arquivo individualmente. Os dados são enviados ao servidor automaticamente após o login.</p>
+  <!-- ═══ Bloco de importação de planilhas ═══ -->
+  <div class="imp-bloco" id="imp-bloco">
+    <div class="imp-header">
+      <span class="imp-icon">📂</span>
+      <div>
+        <h3 class="imp-title">Planilhas de pedidos</h3>
+        <p class="imp-desc">Importe os arquivos de cada filial. Formatos aceitos: <strong>.xlsx, .xls, .csv</strong>. O nome do arquivo deve conter <strong>LT</strong> ou <strong>LL</strong> para identificar a filial.</p>
       </div>
     </div>
-    <!-- Dois inputs independentes, um por loja -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.6rem">
-      <label class="imp-file-label" id="lbl-lt">
-        <input type="file" id="imp-lt" accept=".xlsx,.xls" onchange="importarArquivo(this,'LT')">
-        <span class="imp-file-icon">📄</span>
-        <span class="imp-file-info">
-          <strong>Loja LT</strong>
-          <small id="nm-lt">PEDDOSLT.xlsx</small>
-        </span>
-        <span class="imp-file-btn">Escolher arquivo</span>
-      </label>
-      <label class="imp-file-label" id="lbl-ll">
-        <input type="file" id="imp-ll" accept=".xlsx,.xls" onchange="importarArquivo(this,'LL')">
-        <span class="imp-file-icon">📄</span>
-        <span class="imp-file-info">
-          <strong>Loja LL</strong>
-          <small id="nm-ll">PEDIDOSLL.xlsx</small>
-        </span>
-        <span class="imp-file-btn">Escolher arquivo</span>
-      </label>
+    <!-- Área de upload — visível só para admin, se não admin mostra aviso -->
+    <div id="imp-upload-area">
+      <div class="imp-cards">
+        <label class="imp-card" id="lbl-lt">
+          <input type="file" id="imp-lt" accept=".xlsx,.xls,.csv" onchange="importarArquivo(this,'LT')">
+          <div class="imp-card-left">
+            <span class="imp-card-icon">🗂️</span>
+            <div>
+              <strong>Filial LT</strong>
+              <small id="nm-lt">Nenhum arquivo selecionado</small>
+            </div>
+          </div>
+          <span class="imp-card-btn">Importar</span>
+        </label>
+        <label class="imp-card" id="lbl-ll">
+          <input type="file" id="imp-ll" accept=".xlsx,.xls,.csv" onchange="importarArquivo(this,'LL')">
+          <div class="imp-card-left">
+            <span class="imp-card-icon">🗂️</span>
+            <div>
+              <strong>Filial LL</strong>
+              <small id="nm-ll">Nenhum arquivo selecionado</small>
+            </div>
+          </div>
+          <span class="imp-card-btn">Importar</span>
+        </label>
+      </div>
     </div>
-    <div id="imp-status" class="imp-status" style="display:none"></div>
+    <!-- Barra de status + botão atualizar -->
+    <div class="imp-footer">
+      <div id="imp-status" class="imp-status" style="display:none"></div>
+      <button class="bt imp-refresh-btn" id="btn-atualizar" onclick="atualizarDados()">
+        🔄 Atualizar dados
+      </button>
+    </div>
   </div>
 </main>
 
@@ -561,6 +587,8 @@ function abrirDashboard(){
   openSection('home');
   document.getElementById('sect-home').style.display='';
   document.getElementById('sect-home').classList.add('active');
+  // Mostra ou oculta área de upload conforme perfil
+  renderImportArea();
 }
 
 const DOMINIO_AUTH='@empresa.local';
@@ -711,57 +739,116 @@ async function parseXLSX(file){
   });
 }
 
+// ── Verifica se usuário logado é admin ──────────────────────────────────────
+let _isAdmin = null; // cache da sessão
+
+async function checkAdmin(){
+  if(_isAdmin !== null) return _isAdmin;
+  const {data:{session}} = await _sb.auth.getSession();
+  if(!session){ _isAdmin=false; return false; }
+  const {data} = await _sb.from('usuarios_auth')
+    .select('admin')
+    .eq('email', session.user.email)
+    .eq('ativo', true)
+    .single();
+  _isAdmin = !!(data && data.admin);
+  return _isAdmin;
+}
+
+// Mostra/oculta área de upload conforme perfil do usuário logado
+async function renderImportArea(){
+  const area = document.getElementById('imp-upload-area');
+  if(!area) return;
+  const admin = await checkAdmin();
+  if(admin){
+    area.innerHTML = `
+      <div class="imp-cards">
+        <label class="imp-card" id="lbl-lt">
+          <input type="file" id="imp-lt" accept=".xlsx,.xls,.csv" onchange="importarArquivo(this,'LT')">
+          <div class="imp-card-left">
+            <span class="imp-card-icon">🗂️</span>
+            <div><strong>Filial LT</strong><small id="nm-lt">Nenhum arquivo selecionado</small></div>
+          </div>
+          <span class="imp-card-btn">Importar</span>
+        </label>
+        <label class="imp-card" id="lbl-ll">
+          <input type="file" id="imp-ll" accept=".xlsx,.xls,.csv" onchange="importarArquivo(this,'LL')">
+          <div class="imp-card-left">
+            <span class="imp-card-icon">🗂️</span>
+            <div><strong>Filial LL</strong><small id="nm-ll">Nenhum arquivo selecionado</small></div>
+          </div>
+          <span class="imp-card-btn">Importar</span>
+        </label>
+      </div>`;
+  } else {
+    area.innerHTML = `<p class="imp-no-admin">🔒 Apenas administradores podem importar planilhas.</p>`;
+  }
+}
+
+// Detecta a loja pelo nome do arquivo (ex: PedidosLT.xlsx → 'LT')
+function detectarLoja(filename){
+  const u = filename.toUpperCase();
+  if(u.includes('LL')) return 'LL';
+  if(u.includes('LT')) return 'LT';
+  return null;
+}
+
 // importarArquivo — chamado pelo onchange de cada input
-// Lê o arquivo, normaliza, envia ao Supabase e recarrega o dashboard
-async function importarArquivo(input, loja){
+async function importarArquivo(input, lojaHint){
   const file = input.files[0];
   if(!file) return;
 
-  const lblId  = loja==='LT' ? 'lbl-lt' : 'lbl-ll';
-  const nmId   = loja==='LT' ? 'nm-lt'  : 'nm-ll';
-  const lbl    = document.getElementById(lblId);
-  const nm     = document.getElementById(nmId);
-  const statusEl = document.getElementById('imp-status');
+  // Detecta loja pelo nome do arquivo; lojaHint é fallback
+  const loja = detectarLoja(file.name) || lojaHint;
+  if(!loja){
+    alert('Não foi possível identificar a filial pelo nome do arquivo.\nO nome deve conter "LT" ou "LL".');
+    input.value=''; return;
+  }
 
-  // Visual: loading
-  lbl.className = 'imp-file-label loading';
-  nm.textContent = file.name;
-  statusEl.style.display = '';
-  statusEl.className = 'imp-status';
-  statusEl.textContent = `📖 Lendo ${file.name}...`;
+  const lblId = loja==='LT' ? 'lbl-lt' : 'lbl-ll';
+  const nmId  = loja==='LT' ? 'nm-lt'  : 'nm-ll';
+  const lbl   = document.getElementById(lblId);
+  const nm    = document.getElementById(nmId);
+  const st    = document.getElementById('imp-status');
+
+  // Verifica admin (dupla checagem server-side via RLS)
+  const admin = await checkAdmin();
+  if(!admin){
+    st.style.display=''; st.className='imp-status err';
+    st.textContent='❌ Apenas administradores podem importar planilhas.';
+    input.value=''; return;
+  }
+
+  if(lbl) lbl.className='imp-card loading';
+  if(nm)  nm.textContent=file.name;
+  st.style.display=''; st.className='imp-status';
+  st.textContent=`📖 Lendo ${file.name}...`;
 
   try{
-    // 1. Verifica login
-    const {data:{session}} = await _sb.auth.getSession();
-    if(!session){
-      lbl.className = 'imp-file-label err';
-      statusEl.textContent = '❌ Você precisa estar logado para importar os dados.';
-      statusEl.className = 'imp-status err';
-      input.value = '';
-      return;
-    }
-
-    // 2. Lê planilha
     await loadXLSX();
-    const rows = await parseXLSX(file);
-    if(rows.length === 0){
-      lbl.className = 'imp-file-label err';
-      statusEl.textContent = `⚠️ ${file.name}: nenhuma linha encontrada. Verifique o arquivo.`;
-      statusEl.className = 'imp-status err';
-      input.value = '';
-      return;
+
+    let rows;
+    if(file.name.toLowerCase().endsWith('.csv')){
+      rows = await parseCSV(file);
+    } else {
+      rows = await parseXLSX(file);
     }
-    rows.forEach(r=>{ r.loja = loja; });
-    nm.textContent = `${file.name} — ${rows.length} pedidos`;
 
-    // 3. Envia ao Supabase
-    await enviarAoSupabase(rows, loja, statusEl);
+    if(!rows || rows.length===0){
+      if(lbl) lbl.className='imp-card err';
+      st.className='imp-status err';
+      st.textContent=`⚠️ Nenhum dado encontrado em ${file.name}.`;
+      input.value=''; return;
+    }
+    rows.forEach(r=>{ r.loja=loja; });
+    if(nm) nm.textContent=`${file.name} — ${rows.length} pedidos`;
 
-    // Visual: sucesso
-    lbl.className = 'imp-file-label done';
+    st.textContent=`📤 Enviando ${rows.length} pedidos (Filial ${loja})...`;
+    await enviarAoSupabase(rows, loja, st);
+    if(lbl) lbl.className='imp-card done';
 
-    // 4. Recarrega dados do banco e atualiza dashboard
-    statusEl.textContent = '🔄 Recarregando dados do servidor...';
+    // Recarrega dashboard
+    st.textContent='🔄 Recarregando dados...';
     const pedidosRows = await carregarPedidosSupa();
     _dP = { rows: pedidosRows };
     _bootedP = false;
@@ -769,19 +856,73 @@ async function importarArquivo(input, loja){
       const pa=document.getElementById('p-app');
       if(pa) pa.innerHTML='';
       if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
-      _bootedP=true;
-      bootP(_dP);
+      _bootedP=true; bootP(_dP);
     }
-    statusEl.textContent = `✅ ${file.name} importado! ${pedidosRows.length} pedidos no banco.`;
-    statusEl.className = 'imp-status';
+    st.className='imp-status ok';
+    st.textContent=`✅ ${file.name} importado! ${pedidosRows.length} pedidos no banco.`;
 
   }catch(e){
-    lbl.className = 'imp-file-label err';
-    statusEl.textContent = '❌ Erro: ' + e.message;
-    statusEl.className = 'imp-status err';
-    input.value = '';
+    if(lbl) lbl.className='imp-card err';
+    st.className='imp-status err';
+    st.textContent='❌ Erro: '+e.message;
+    input.value='';
   }
 }
+
+// Lê CSV e retorna array de objetos (mesma interface de parseXLSX)
+async function parseCSV(file){
+  const text = await file.text();
+  const lines = text.split(/\r?\n/).filter(l=>l.trim());
+  if(lines.length<2) return [];
+  // Detecta separador (;  ou ,)
+  const sep = (lines[0].split(';').length > lines[0].split(',').length) ? ';' : ',';
+  const headers = lines[0].split(sep).map(h=>h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line=>{
+    const vals = line.split(sep).map(v=>v.replace(/^"|"$/g,'').trim());
+    const obj={};
+    headers.forEach((h,i)=>{ if(h) obj[h]=vals[i]??''; });
+    return obj;
+  });
+}
+
+// Botão Atualizar dados — recarrega do Supabase sem fazer upload
+async function atualizarDados(){
+  const btn = document.getElementById('btn-atualizar');
+  const st  = document.getElementById('imp-status');
+  btn.disabled=true;
+  st.style.display=''; st.className='imp-status';
+  st.textContent='🔄 Buscando dados atualizados...';
+  try{
+    const pedidosRows = await carregarPedidosSupa();
+    _dP = { rows: pedidosRows };
+    _bootedP = false;
+    if(_curSection==='p'){
+      const pa=document.getElementById('p-app');
+      if(pa) pa.innerHTML='';
+      if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
+      _bootedP=true; bootP(_dP);
+    }
+    st.className='imp-status ok';
+    st.textContent=`✅ Dados atualizados — ${pedidosRows.length} pedidos carregados.`;
+  }catch(e){
+    st.className='imp-status err';
+    st.textContent='❌ Erro ao atualizar: '+e.message;
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+// Normaliza categoria de transporte
+function _tp2Norm(tp){
+  const s = String(tp||'').toUpperCase().trim();
+  if(!s||s==='0'||s==='NONE') return 'NÃO SEPARAR';
+  if(s.startsWith('RETIRA')) return 'RETIRA';
+  if(s.includes('BALCÃO')||s.includes('BALCAO')) return 'BALCÃO';
+  if(s.includes('ENTREGA')) return 'ENTREGA';
+  if(s.includes('NÃO SEP')||s.includes('NAO SEP')) return 'NÃO SEPARAR';
+  return 'TRANSPORTADORA';
+}
+
 // Converte row bruta do xlsx para formato do Supabase
 // Nomes exatos das colunas: Pedido, Cliente, Transportadora, Situacao, Urgente?,
 //   Vendedor, Conferente, Emissao, Dt Expedido
