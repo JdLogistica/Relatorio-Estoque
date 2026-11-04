@@ -7,6 +7,15 @@
 <title>Lojão dos Tratores · Painel Gerencial</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23FFC500'/%3E%3Ctext x='16' y='23' font-size='18' font-weight='900' font-style='italic' text-anchor='middle' font-family='Arial' fill='%230a0a0a'%3ELT%3C/text%3E%3C/svg%3E">
 <script>try{document.documentElement.dataset.t=localStorage.getItem('lt-tema')||'dark'}catch(e){document.documentElement.dataset.t='dark'}</script>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ── Configuração Supabase ───────────────────────────────────────────────────
+// Substitua pelos valores do seu projeto (Settings → API no painel Supabase)
+const SUPA_URL = 'https://SEU_PROJETO.supabase.co';
+const SUPA_ANON_KEY = 'SUA_ANON_KEY_AQUI';
+const _sb = supabase.createClient(SUPA_URL, SUPA_ANON_KEY);
+</script>
 <style>
 
 :root{--bg:#0a0a0a;--hd:#000;--sf:#151515;--s2:#1f1f1f;--ln:#2c2c2c;--bd:#2c2c2c;--tx:#f4f3ee;--mu:#a09f98;--y:#FFC500;--on:#0a0a0a;--bad:#ff6b5e;--ok:#46c28b;--bl:#5aa9ff;--r:10px;color-scheme:dark}
@@ -356,6 +365,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
     </div>
     <button class="hbtn" id="hbtn" type="button" hidden>☰ <span>Filtros &amp; Menu</span><span id="fnb" class="nb" hidden></span></button>
     <button id="th" class="bt" type="button" hidden>Tema</button>
+    <button id="btn-sair" class="bt" type="button" hidden style="background:transparent;border-color:var(--bd);color:var(--mu);font-size:.8rem" onclick="async function f(){await _sb.auth.signOut();location.reload()}f()">Sair</button>
   </div>
   <nav class="tabs" id="e-tabs" role="tablist" aria-label="Seções Estoque" hidden></nav>
   <nav class="tabs" id="p-tabs" role="tablist" aria-label="Seções Pedidos" hidden></nav>
@@ -366,7 +376,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
   <div id="lf" role="group" aria-label="Login">
     <h2>Acesso restrito</h2>
     <p>Painel Gerencial · Estoque &amp; Pedidos</p>
-    <label class="fl">Usuário<input id="lu" autocomplete="username"></label>
+    <label class="fl">E-mail<input id="lu" type="email" autocomplete="email" inputmode="email" placeholder="seu@email.com"></label>
     <label class="fl">Senha<input id="lp" type="password" autocomplete="current-password"></label>
     <p class="er" id="le" role="alert"></p>
     <button class="bt" id="lb" type="button">Entrar</button>
@@ -492,46 +502,103 @@ function openSection(s){
   try{history.replaceState(null,'','#'+s)}catch(e){}
 }
 
-async function entrar(){
-  const q=s=>document.getElementById(s),b=q('lb'),er=q('le');
-  if(b.disabled)return;
-  if(!q('lu').value.trim()||!q('lp').value){er.textContent='Informe o usuário e a senha.';return}
-  er.textContent='';b.disabled=true;b.textContent='Verificando…';
-  await new Promise(r=>setTimeout(r,50));
-  let u=q('lu').value, pw=q('lp').value;
-  try{
-    _dE=unlock(u,pw,ENC_E);
-  }catch(x){
-    er.textContent='Usuário ou senha incorretos.';b.disabled=false;b.textContent='Entrar';return;
+// ── Carrega pedidos do Supabase (paginado, todas as páginas) ──────────────────
+async function carregarPedidosSupa(){
+  const PAGE = 1000;
+  let all = [], from = 0, hasMore = true;
+  while(hasMore){
+    const {data, error} = await _sb
+      .from('pedidos')
+      .select('id,loja,cli,vend,conf,tp,tp2,sit,urg,canc,dia,exp,mes')
+      .range(from, from + PAGE - 1)
+      .order('dia', {ascending:false});
+    if(error) throw error;
+    all = all.concat(data || []);
+    hasMore = (data && data.length === PAGE);
+    from += PAGE;
   }
-  try{
-    _dP=unlock(u,pw,ENC_P);
-  }catch(x){
-    er.textContent='Usuário ou senha incorretos (pedidos).';b.disabled=false;b.textContent='Entrar';return;
-  }
-  // Salva sessão no sessionStorage (persiste em F5, some ao fechar a aba/janela)
-  try{sessionStorage.setItem('lt-u',u);sessionStorage.setItem('lt-p',pw);}catch(e){}
-  q('lk').hidden=true;
-  q('th').hidden=false;
-  q('lp').value='';
+  // Normaliza tipos (booleanos vindos do Supabase já são bool, datas são strings)
+  return all.map(r=>({
+    ...r,
+    urg:  !!r.urg,
+    canc: !!r.canc,
+    exp:  r.exp || '',
+    dia:  r.dia || '',
+    mes:  r.mes || (r.dia ? r.dia.slice(0,7) : ''),
+  }));
+}
+
+function abrirDashboard(){
+  document.getElementById('lk').hidden=true;
+  document.getElementById('th').hidden=false;
+  const btnSair=document.getElementById('btn-sair');
+  if(btnSair) btnSair.hidden=false;
   openSection('home');
   document.getElementById('sect-home').style.display='';
   document.getElementById('sect-home').classList.add('active');
 }
 
-// Auto-login: se havia sessão salva (aba ainda aberta), restaura sem pedir senha
+async function entrar(){
+  const q=s=>document.getElementById(s),b=q('lb'),er=q('le');
+  if(b.disabled)return;
+  const email=q('lu').value.trim(), pw=q('lp').value;
+  if(!email||!pw){er.textContent='Informe o e-mail e a senha.';return}
+  er.textContent='';b.disabled=true;b.textContent='Verificando…';
+  try{
+    // 1. Autenticar no Supabase
+    const {data:authData, error:authErr} = await _sb.auth.signInWithPassword({email, password:pw});
+    if(authErr) throw authErr;
+    // 2. Verificar se email está na lista de autorizados
+    const {data:authOk, error:authOkErr} = await _sb
+      .from('usuarios_auth')
+      .select('ativo')
+      .eq('email', email)
+      .eq('ativo', true)
+      .single();
+    if(authOkErr || !authOk){
+      await _sb.auth.signOut();
+      throw new Error('Acesso não autorizado para este e-mail.');
+    }
+    // 3. Desencripta dados de estoque (ainda local) com e-mail como "usuário"
+    // Mantém compatibilidade: tenta unlock com email OU com o antigo usuário/senha
+    b.textContent='Carregando estoque…';
+    try{ _dE=unlock(email,pw,ENC_E); }catch(e){
+      // se não funcionar com email, estoque fica null (painel de estoque desabilitado)
+      _dE=null;
+    }
+    // 4. Carrega pedidos do Supabase
+    b.textContent='Carregando pedidos…';
+    const pedidosRows = await carregarPedidosSupa();
+    _dP = { rows: pedidosRows };
+    // 5. Entra no dashboard
+    q('lp').value='';
+    abrirDashboard();
+  }catch(x){
+    er.textContent = x.message==='Invalid login credentials'
+      ? 'E-mail ou senha incorretos.'
+      : (x.message || 'Erro ao entrar. Tente novamente.');
+    b.disabled=false; b.textContent='Entrar';
+  }
+}
+
+// Auto-login: restaura sessão Supabase se token ainda válido
 (async()=>{
   try{
-    const su=sessionStorage.getItem('lt-u'), sp=sessionStorage.getItem('lt-p');
-    if(su&&sp){
-      try{_dE=unlock(su,sp,ENC_E);}catch(e){sessionStorage.removeItem('lt-u');sessionStorage.removeItem('lt-p');return;}
-      try{_dP=unlock(su,sp,ENC_P);}catch(e){sessionStorage.removeItem('lt-u');sessionStorage.removeItem('lt-p');return;}
-      document.getElementById('lk').hidden=true;
-      document.getElementById('th').hidden=false;
-      openSection('home');
-      document.getElementById('sect-home').style.display='';
-      document.getElementById('sect-home').classList.add('active');
-    }
+    const {data:{session}} = await _sb.auth.getSession();
+    if(!session) return;
+    // Sessão válida — verifica autorização
+    const {data:authOk} = await _sb
+      .from('usuarios_auth')
+      .select('ativo')
+      .eq('email', session.user.email)
+      .eq('ativo', true)
+      .single();
+    if(!authOk) return;
+    // Carrega pedidos silenciosamente
+    const pedidosRows = await carregarPedidosSupa();
+    _dP = { rows: pedidosRows };
+    _dE = null; // estoque: sem senha disponível no auto-login
+    abrirDashboard();
   }catch(e){}
 })();
 
