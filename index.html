@@ -135,6 +135,9 @@ main{padding:1rem 0 2.5rem}
 .k span{color:var(--mu);font-size:.78rem;font-weight:600;display:block;margin-bottom:.15rem}
 .k b{display:block;font-size:clamp(1.1rem,2.2vw,1.75rem);line-height:1.2;font-style:italic;font-weight:800;font-variant-numeric:tabular-nums;word-break:break-all;overflow-wrap:anywhere}
 .k small{color:var(--mu);font-size:.75rem;display:block;margin-top:.1rem}
+.kpi-g{display:inline-block;margin-top:.35rem;font-size:.72rem;font-weight:700;padding:.1rem .4rem;border-radius:4px;background:rgba(255,255,255,.07);color:var(--mu)}
+.kpi-g.up{background:rgba(102,187,106,.15);color:#66bb6a}
+.kpi-g.dn{background:rgba(239,83,80,.13);color:#ef5350}
 /* grid de charts */
 .cg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:.75rem;margin-bottom:1rem}
 .pn{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:.9rem 1rem;min-width:0}
@@ -1057,14 +1060,55 @@ function kpis(rs){
   const canc=rs.filter(r=>r.canc).length;
   const lt=rs.filter(r=>r.loja==='LT').length;
   const ll=rs.filter(r=>r.loja==='LL').length;
+
+  // ── Crescimento M/M com período padronizado ─────────────────────
+  // Lógica: identifica o mês mais recente nos dados → calcula até qual
+  // dia vai (se em andamento, pega o dia máximo desse mês).
+  // Para o mês anterior, usa APENAS os dias 1 até o mesmo dia máximo.
+  // Assim compara "mês atual até dia N" vs "mês anterior até dia N".
+  let growTot=null, growLT=null, growLL=null, growLabel='';
+  try{
+    const hoje2=new Date();
+    // Mes atual e anterior como strings YYYY-MM
+    const mesA=`${hoje2.getFullYear()}-${String(hoje2.getMonth()+1).padStart(2,'0')}`;
+    const d2=new Date(hoje2.getFullYear(),hoje2.getMonth()-1,1);
+    const mesB=`${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}`;
+    // Registros dos dois meses
+    const rA=rs.filter(r=>r.mes===mesA);
+    const rB=rs.filter(r=>r.mes===mesB);
+    if(rA.length>0&&rB.length>0){
+      // Dia máximo com dados no mês atual
+      const diasA=rA.map(r=>+(r.dia||'').slice(8,10)||0);
+      const dMaxA=Math.max(...diasA); // ex: 15
+      // Filtra mês anterior até o mesmo dia
+      const rBfilt=rB.filter(r=>+(r.dia||'').slice(8,10)<=dMaxA);
+      const totA=rA.length, totB=rBfilt.length;
+      const ltA=rA.filter(r=>r.loja==='LT').length, ltB=rBfilt.filter(r=>r.loja==='LT').length;
+      const llA=rA.filter(r=>r.loja==='LL').length, llB=rBfilt.filter(r=>r.loja==='LL').length;
+      if(totB>0){
+        growTot=(totA-totB)/totB*100;
+        growLT=ltB>0?(ltA-ltB)/ltB*100:null;
+        growLL=llB>0?(llA-llB)/llB*100:null;
+        const mn=mesB.slice(0,7); const MNMS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        const nomeB=MNMS[+mesB.slice(5,7)-1];
+        growLabel=`vs ${nomeB} (1–${dMaxA})`;
+      }
+    }
+  }catch(e){}
+  const fmtG=v=>v===null?null:(v>=0?`+${v.toFixed(1)}%`:`${v.toFixed(1)}%`);
+  const clG=v=>v===null?'':(v>=0?' up':' dn');
+  const gTotHtml=growTot!==null?`<span class="kpi-g${clG(growTot)}">${fmtG(growTot)} ${growLabel}</span>`:'';
+  const gLTHtml=growLT!==null?`<span class="kpi-g${clG(growLT)}">${fmtG(growLT)} ${growLabel}</span>`:'';
+  const gLLHtml=growLL!==null?`<span class="kpi-g${clG(growLL)}">${fmtG(growLL)} ${growLabel}</span>`:'';
+
   return[
-    {l:'Total de pedidos',v:N(rs.length),s:'LT: '+N(lt)+' · LL: '+N(ll),c:''},
-    {l:'Expedidos',v:N(exp.length),s:PCT(exp.length,rs.length)+' do total',c:'ok'},
-    {l:'Urgentes',v:N(urg),s:PCT(urg,rs.length)+' do total',c:'wn'},
-    {l:'Cancelados',v:N(canc),s:PCT(canc,rs.length)+' do total',c:'bad'},
+    {l:'Total de pedidos',v:N(rs.length),s:'LT: '+N(lt)+' · LL: '+N(ll),c:'',g:gTotHtml},
+    {l:'Expedidos',v:N(exp.length),s:PCT(exp.length,rs.length)+' do total',c:'ok',g:''},
+    {l:'LT',v:N(lt),s:PCT(lt,rs.length)+' do total',c:'',g:gLTHtml},
+    {l:'LL',v:N(ll),s:PCT(ll,rs.length)+' do total',c:'',g:gLLHtml},
   ]
 }
-function kpHtml(a){return a.map(o=>`<div class="k ${o.c}"><span>${o.l}</span><b>${o.v}</b>${o.s?`<small>${o.s}</small>`:''}</div>`).join('')}
+function kpHtml(a){return a.map(o=>`<div class="k ${o.c}"><span>${o.l}</span><b>${o.v}</b>${o.s?`<small>${o.s}</small>`:''} ${o.g||''}</div>`).join('')}
 
 function aggCount(rs,k,top=12){const g=new Map();rs.forEach(r=>{const v=r[k]||'(vazio)';g.set(v,(g.get(v)||0)+1)});return[...g].sort((a,b)=>b[1]-a[1]).slice(0,top)}
 function aggPareto(rs,k){const g=new Map();rs.forEach(r=>{const v=r[k]||'(vazio)';g.set(v,(g.get(v)||0)+1)});const all=[...g].sort((a,b)=>b[1]-a[1]),tot=rs.length;let acc=0;all.forEach(x=>acc+=x[1]);let cu=0;const n80=all.findIndex(x=>{cu+=x[1];return cu/tot>=0.8})+1||all.length;return{all,tot,n80}}
@@ -1117,101 +1161,151 @@ function renderHistDia(rs,el){
   // ── Painel de resumo gerencial ─────────────────────────────────────────
   const resumo=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.6rem">
     <div class="dia-kpi"><span>Total período</span><b>${totPer}</b></div>
-    <div class="dia-kpi" style="border-color:#f5c518"><span>LT (Loja Trator)</span><b style="color:#f5c518">${ltPer}</b></div>
-    <div class="dia-kpi" style="border-color:#5bafd6"><span>LL (Loja Leão)</span><b style="color:#5bafd6">${llPer}</b></div>
+    <div class="dia-kpi" style="border-color:#f5c518"><span>LT</span><b style="color:#f5c518">${ltPer}</b></div>
+    <div class="dia-kpi" style="border-color:#5bafd6"><span>LL</span><b style="color:#5bafd6">${llPer}</b></div>
     <div class="dia-kpi" style="border-color:#66bb6a"><span>Pico: ${fmtDia(tots[pkIdx].m)}</span><b style="color:#66bb6a">${tots[pkIdx].tot}</b></div>
     <div class="dia-kpi"><span>Média/dia</span><b>${(totPer/n).toFixed(1)}</b></div>
   </div>`;
 
-  // ── Barras empilhadas categóricas ─────────────────────────────────────
-  // Layout: W fixo, barras com gap, LL na base (azul), LT em cima (amarelo)
-  // Total do dia no topo de cada barra, valores de cada filial dentro
-
-  const W=900,H=280,PL=42,PR=12,PT=28,PB=32;
+  // ══════════════════════════════════════════════════════════════════
+  // GRÁFICO 1 — Barras empilhadas diárias
+  // ══════════════════════════════════════════════════════════════════
+  const W=900,H=280,PL=42,PR=12,PT=28,PB=38;
   const cW=W-PL-PR, cH=H-PT-PB;
   const yv=v=>PT+cH-(v/mx*cH);
 
-  // Barras finas com gap mínimo para caber todos os dias
-  const gap=n>60?0:n>30?1:2;
-  const bw=Math.max(3, Math.floor((cW-(gap*(n-1)))/n));
-  const totalW=n*(bw+gap)-gap;
-  const bx=i=>PL + (cW-totalW)/2 + i*(bw+gap);
+  // Barras: largura automática para caber todos os n dias
+  const gap=n>90?0:n>45?1:2;
+  const bw=Math.max(2,(cW-(gap*Math.max(0,n-1)))/n);
+  const bx=i=>PL+i*(bw+gap);
 
-  // ── Grid Y ─────────────────────────────────────────────────────────
-  const gridN=4;
-  const gridLines=Array.from({length:gridN+1},(_,k)=>{
-    const f=k/gridN; const y=yv(mx*f).toFixed(1); const val=Math.round(mx*f);
+  // Grid Y com pontos nos milhares se mx>=1000
+  const fmtY=v=>v>=1000?(v/1000).toFixed(v%1000===0?0:1)+'k':String(v);
+  const gridLines=Array.from({length:5},(_,k)=>{
+    const f=k/4; const y=yv(mx*f).toFixed(1); const val=Math.round(mx*f);
     return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="1" opacity="${k===0?0:.3}"/>`+
-           (val>0?`<text x="${PL-4}" y="${y}" text-anchor="end" font-size="9" fill="var(--mu)" dominant-baseline="middle">${val}</text>`:'');
+      (val>0?`<text x="${PL-4}" y="${y}" text-anchor="end" font-size="8.5" fill="var(--mu)" dominant-baseline="middle">${fmtY(val)}</text>`:'');
   }).join('');
 
-  // ── Barras + labels ────────────────────────────────────────────────
-  const showInner=bw>=18; // valor+% dentro da fatia
-  const showTotal=bw>=8;  // total acima da barra
-  // Label X: espaçado para não sobrepor (mínimo 28px entre labels)
-  const minPxBetween=28;
-  const xStep=Math.max(1,Math.ceil(minPxBetween/(bw+gap)));
+  // Labels X alinhados ao centro da barra, espaçados
+  const pxPerBar=bw+gap;
+  const xStep=Math.max(1,Math.ceil(26/pxPerBar)); // ~26px mínimo entre labels
+
+  // Fonte adaptativa para total acima: diminui se barras estreitas
+  const fTot=bw>=20?9:bw>=12?8:7;
+  const showTotal=bw>=5;
+  const showInner=bw>=22;
 
   const bars=tots.map((x,i)=>{
-    const bLeft=bx(i).toFixed(1);
-    const bw2=bw.toFixed(1);
-    // segmento LL (base, azul)
-    const hLL=(x.LL/mx*cH);
+    const bL=bx(i); const bL1=bL.toFixed(1); const bw1=bw.toFixed(1);
+    const hLL=x.LL/mx*cH; const hLT=x.LT/mx*cH;
     const yLL=(PT+cH-hLL).toFixed(1);
-    const rLL=hLL>=2?`<rect x="${bLeft}" y="${yLL}" width="${bw2}" height="${hLL.toFixed(1)}" fill="#5bafd6" rx="1"/>`:'';
-    // segmento LT (topo, amarelo)
-    const hLT=(x.LT/mx*cH);
     const yLT=(PT+cH-hLL-hLT).toFixed(1);
-    const rLT=hLT>=2?`<rect x="${bLeft}" y="${yLT}" width="${bw2}" height="${hLT.toFixed(1)}" fill="#f5c518" rx="1"/>`:'';
-    // percentuais do dia
-    const pctLL=x.tot>0?Math.round(x.LL/x.tot*100):0;
-    const pctLT=x.tot>0?Math.round(x.LT/x.tot*100):0;
-    const cx2=(+bLeft+bw/2).toFixed(1);
-    // label LL dentro: valor + % (duas linhas se espaço, uma linha se pouco)
-    const midLL=(PT+cH-hLL/2);
-    let lblLL='';
-    if(showInner&&hLL>=24&&x.LL>0){
-      lblLL=`<text x="${cx2}" y="${(midLL-5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?10:8}" font-weight="800" fill="rgba(0,0,0,.85)">${x.LL}</text>`+
-            `<text x="${cx2}" y="${(midLL+6).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?9:7}" fill="rgba(0,0,0,.7)">${pctLL}%</text>`;
-    } else if(showInner&&hLL>=12&&x.LL>0){
-      lblLL=`<text x="${cx2}" y="${midLL.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?9:7}" font-weight="700" fill="rgba(0,0,0,.8)">${x.LL}·${pctLL}%</text>`;
+    const cx=(bL+bw/2).toFixed(1);
+    const rLL=hLL>=1.5?`<rect x="${bL1}" y="${yLL}" width="${bw1}" height="${hLL.toFixed(1)}" fill="#5bafd6"/>`:'';
+    const rLT=hLT>=1.5?`<rect x="${bL1}" y="${yLT}" width="${bw1}" height="${hLT.toFixed(1)}" fill="#f5c518"/>`:'';
+    // total acima — sempre que showTotal e barra tem altura
+    const hTot=hLL+hLT;
+    const yTop=(PT+cH-hTot-5).toFixed(1);
+    const fmtV=v=>v>=1000?(v/1000).toFixed(1)+'k':String(v);
+    const lblTot=(showTotal&&x.tot>0)?`<text x="${cx}" y="${yTop}" text-anchor="middle" font-size="${fTot}" font-weight="800" fill="var(--tx)">${fmtV(x.tot)}</text>`:'';
+    // labels internos (valor · %) só se barra larga
+    const pLL=x.tot>0?Math.round(x.LL/x.tot*100):0;
+    const pLT=x.tot>0?Math.round(x.LT/x.tot*100):0;
+    let lblLL='',lblLT='';
+    if(showInner){
+      if(hLL>=20&&x.LL>0) lblLL=`<text x="${cx}" y="${(PT+cH-hLL/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-weight="700" fill="rgba(0,0,0,.85)">${x.LL}<tspan font-weight="400" font-size="7"> ${pLL}%</tspan></text>`;
+      if(hLT>=20&&x.LT>0) lblLT=`<text x="${cx}" y="${(+yLT+hLT/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-weight="700" fill="rgba(0,0,0,.85)">${x.LT}<tspan font-weight="400" font-size="7"> ${pLT}%</tspan></text>`;
     }
-    // label LT dentro: valor + %
-    const midLT=(+yLT+hLT/2);
-    let lblLT='';
-    if(showInner&&hLT>=24&&x.LT>0){
-      lblLT=`<text x="${cx2}" y="${(midLT-5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?10:8}" font-weight="800" fill="rgba(0,0,0,.85)">${x.LT}</text>`+
-            `<text x="${cx2}" y="${(midLT+6).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?9:7}" fill="rgba(0,0,0,.7)">${pctLT}%</text>`;
-    } else if(showInner&&hLT>=12&&x.LT>0){
-      lblLT=`<text x="${cx2}" y="${midLT.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?9:7}" font-weight="700" fill="rgba(0,0,0,.8)">${x.LT}·${pctLT}%</text>`;
-    }
-    // total acima da barra
-    const yTop=(PT+cH-hLL-hLT-6).toFixed(1);
-    const lblTot=(showTotal&&x.tot>0)?`<text x="${cx2}" y="${yTop}" text-anchor="middle" font-size="9" font-weight="800" fill="var(--tx)">${x.tot}</text>`:'';
-    // label X
-    const lblX=(i%xStep===0||i===n-1)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${H-8}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}" font-size="8.5" fill="var(--mu)">${fmtDia(x.m)}</text>`:'';
-    // hover rect
-    const hRect=`<rect class="dia-bar" x="${bLeft}" y="${PT}" width="${bw2}" height="${cH}" fill="transparent" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:pointer"/>`;
-    return rLL+rLT+lblLL+lblLT+lblTot+lblX+hRect;
+    // label X: alinhado ao centro da barra
+    const lblX=(i%xStep===0||i===n-1)?
+      `<text x="${cx}" y="${H-10}" text-anchor="middle" font-size="${bw>=10?8.5:7}" fill="var(--mu)">${fmtDia(x.m)}</text>`:'';
+    // separador de mês (linha vertical fina quando muda o mês)
+    const sepMes=(i>0&&x.m.slice(0,7)!==tots[i-1].m.slice(0,7))?
+      `<line x1="${bL1}" y1="${PT}" x2="${bL1}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1" opacity=".5"/>`:'';
+    const hRect=`<rect class="dia-bar" x="${bL1}" y="${PT}" width="${bw1}" height="${cH}" fill="transparent" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:pointer"/>`;
+    return sepMes+rLL+rLT+lblLL+lblLT+lblTot+lblX+hRect;
   }).join('');
 
-  // ── Baseline ──────────────────────────────────────────────────────
   const baseline=`<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1"/>`;
+  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">${gridLines}${baseline}${bars}</svg>`;
 
-  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">
-    ${gridLines}${baseline}${bars}
-  </svg>`;
+  // ══════════════════════════════════════════════════════════════════
+  // GRÁFICO 2 — Média diária por mês (linha de evolução)
+  // ══════════════════════════════════════════════════════════════════
+  const gMes=new Map();
+  tots.forEach(x=>{
+    const mes=x.m.slice(0,7);
+    if(!gMes.has(mes))gMes.set(mes,{tot:0,LT:0,LL:0,dias:0});
+    const v=gMes.get(mes);
+    v.dias++; v.tot+=x.tot; v.LT+=x.LT; v.LL+=x.LL;
+  });
+  const medMeses=Array.from(gMes.entries()).sort((a,b)=>a[0]<b[0]?-1:1).map(([m,v])=>({
+    m, avgTot:v.dias>0?v.tot/v.dias:0, avgLT:v.dias>0?v.LT/v.dias:0, avgLL:v.dias>0?v.LL/v.dias:0, dias:v.dias
+  }));
+  const nm=medMeses.length;
+  const MNMS2=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const fmtMesShort=m=>MNMS2[+m.slice(5,7)-1]+'/'+m.slice(2,4);
+  const mxM=Math.max(1,...medMeses.map(x=>x.avgTot));
+  let svg2='';
+  if(nm>=2){
+    const W2=900,H2=180,PL2=42,PR2=20,PT2=24,PB2=28;
+    const cW2=W2-PL2-PR2, cH2=H2-PT2-PB2;
+    const xm=i=>PL2+i/(nm-1)*cW2;
+    const ym=v=>PT2+cH2-(v/mxM*cH2);
+    const fmtA=v=>v>=1000?(v/1000).toFixed(1)+'k':v.toFixed(1);
+    // grid
+    const gL2=Array.from({length:5},(_,k)=>{
+      const f=k/4; const y=ym(mxM*f).toFixed(1); const val=(mxM*f);
+      return`<line x1="${PL2}" y1="${y}" x2="${W2-PR2}" y2="${y}" stroke="var(--bd)" stroke-width="1" opacity="${k===0?0:.3}"/>`+
+        (val>0?`<text x="${PL2-4}" y="${y}" text-anchor="end" font-size="8" fill="var(--mu)" dominant-baseline="middle">${fmtA(val)}</text>`:'');
+    }).join('');
+    // área + linha total
+    const ptsTm=medMeses.map((x,i)=>`${xm(i).toFixed(1)},${ym(x.avgTot).toFixed(1)}`).join(' ');
+    const ptsLm=medMeses.map((x,i)=>`${xm(i).toFixed(1)},${ym(x.avgLL).toFixed(1)}`).join(' ');
+    const baseM=`${(W2-PR2).toFixed(1)},${(PT2+cH2).toFixed(1)} ${PL2},${(PT2+cH2).toFixed(1)}`;
+    const aTot=`<polygon points="${ptsTm} ${baseM}" fill="rgba(245,197,24,.18)"/>`;
+    const aLL=`<polygon points="${ptsLm} ${baseM}" fill="rgba(91,175,214,.18)"/>`;
+    const lTot=`<polyline points="${ptsTm}" fill="none" stroke="#f5c518" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const lLL=`<polyline points="${ptsLm}" fill="none" stroke="#5bafd6" stroke-width="1.5" stroke-dasharray="5 3" stroke-linejoin="round" stroke-linecap="round"/>`;
+    // dots + labels
+    const dotsM=medMeses.map((x,i)=>{
+      const cx=xm(i).toFixed(1), cy=ym(x.avgTot).toFixed(1), cyLL=ym(x.avgLL).toFixed(1);
+      const anc=i===0?'start':i===nm-1?'end':'middle';
+      const lbl=`<text x="${cx}" y="${(ym(x.avgTot)-9).toFixed(1)}" text-anchor="${anc}" font-size="10" font-weight="800" fill="#f5c518">${fmtA(x.avgTot)}</text>`;
+      return lbl+
+        `<circle cx="${cx}" cy="${cy}" r="4" fill="#f5c518" stroke="var(--bg)" stroke-width="1.5"/>`+
+        `<circle cx="${cx}" cy="${cyLL}" r="3" fill="#5bafd6" stroke="var(--bg)" stroke-width="1"/>`;
+    }).join('');
+    // labels X
+    const xlM=medMeses.map((x,i)=>{
+      const anc=i===0?'start':i===nm-1?'end':'middle';
+      return`<text x="${xm(i).toFixed(1)}" y="${H2-6}" text-anchor="${anc}" font-size="9" fill="var(--mu)">${fmtMesShort(x.m)}</text>`;
+    }).join('');
+    const bl2=`<line x1="${PL2}" y1="${PT2+cH2}" x2="${W2-PR2}" y2="${PT2+cH2}" stroke="var(--bd)" stroke-width="1"/>`;
+    svg2=`<svg viewBox="0 0 ${W2} ${H2}" style="width:100%;display:block" preserveAspectRatio="none">${gL2}${bl2}${aTot}${aLL}${lTot}${lLL}${dotsM}${xlM}</svg>`;
+  }
+
+  const graf2=nm>=2?
+    `<div style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--bd)">
+      <div style="font-size:.78rem;font-weight:700;color:var(--mu);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.04em">Média de pedidos por dia · mês a mês</div>
+      <div style="position:relative">${svg2}</div>
+      <div class="hlgd" style="margin-top:.2rem">
+        <span style="color:#f5c518;font-size:.74rem">— Média total/dia</span>
+        <span style="color:#5bafd6;font-size:.74rem">- - Média LL/dia</span>
+      </div>
+    </div>`:'' ;
 
   // ── Legenda ───────────────────────────────────────────────────────
   const legenda=`<div class="hlgd" style="margin-top:.3rem">
     <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:12px;height:10px;background:#f5c518;border-radius:2px"></span> LT – Loja Trator</span>
     <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:12px;height:10px;background:#5bafd6;border-radius:2px"></span> LL – Loja Leão</span>
-    <span class="mu2" style="font-size:.7rem">passe o mouse para detalhes</span>
+    <span class="mu2" style="font-size:.7rem">passe o mouse para detalhes · linha vertical = virada de mês</span>
   </div>`;
 
   el.innerHTML=toggleHtml+resumo+
     `<div class="area-chart" style="position:relative;margin:0 -0.5rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
-    legenda;
+    legenda+graf2;
 
   el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
 
@@ -1270,34 +1364,50 @@ function renderHist(rs,el){
   const selMes=(F.mes1&&F.mes1===F.mes2)?F.mes1:'';
 
   // ── Painel de resumo do período ──────────────────────────────────────────
-  // Comparação: primeiro mês fechado vs último mês fechado
-  const f0=fechados[0], fZ=fechados[fechados.length-1];
   const grandTotal=tots.reduce((s,x)=>s+x.tot,0);
-  const vTotPeriodo=f0&&fZ&&f0!==fZ?varPct(fZ.tot,f0.tot):null;
-  const vLTPeriodo=f0&&fZ&&f0!==fZ?varPct(fZ.LT,f0.LT):null;
-  const vLLPeriodo=f0&&fZ&&f0!==fZ?varPct(fZ.LL,f0.LL):null;
+  // Crescimento M/M com período padronizado (mesmo cálculo dos KPIs do topo)
+  // Mês atual até dia D vs mês anterior até dia D
+  let mmTot=null,mmLT=null,mmLL=null,mmLabel='',mmDia=0;
+  try{
+    const mesAtualMM=mesAtual;
+    const d2mm=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);
+    const mesAntMM=`${d2mm.getFullYear()}-${String(d2mm.getMonth()+1).padStart(2,'0')}`;
+    const rAtMM=rs.filter(r=>r.mes===mesAtualMM);
+    const rAnMM=rs.filter(r=>r.mes===mesAntMM);
+    if(rAtMM.length>0&&rAnMM.length>0){
+      const diasAt=rAtMM.map(r=>+(r.dia||'').slice(8,10)||0);
+      mmDia=Math.max(...diasAt);
+      const rAnFilt=rAnMM.filter(r=>+(r.dia||'').slice(8,10)<=mmDia);
+      const tA=rAtMM.length,tB=rAnFilt.length;
+      const ltA=rAtMM.filter(r=>r.loja==='LT').length,ltB=rAnFilt.filter(r=>r.loja==='LT').length;
+      const llA=rAtMM.filter(r=>r.loja==='LL').length,llB=rAnFilt.filter(r=>r.loja==='LL').length;
+      const MNMS2=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      if(tB>0){mmTot=(tA-tB)/tB*100;mmLT=ltB>0?(ltA-ltB)/ltB*100:null;mmLL=llB>0?(llA-llB)/llB*100:null;mmLabel=`vs ${MNMS2[+mesAntMM.slice(5,7)-1]} 1–${mmDia}`;}
+    }
+  }catch(e){}
   const clsC=v=>v===null?'var(--mu)':v>0?'var(--ok)':'var(--bad)';
+  const fmtMM=v=>v===null?'–':(v>=0?`+${v.toFixed(1)}%`:`${v.toFixed(1)}%`);
+  const mmCards=[
+    mmTot!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid ${clsC(mmTot)};border-radius:8px;padding:.4rem .75rem;min-width:9rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO TOTAL</div>
+      <div style="font-size:1.05rem;font-weight:900;color:${clsC(mmTot)}">${fmtMM(mmTot)}</div>
+      <div style="font-size:.68rem;color:var(--mu)">${mmLabel}</div></div>`:'',
+    mmLT!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--y);border-radius:8px;padding:.4rem .75rem;min-width:9rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO LT</div>
+      <div style="font-size:1.05rem;font-weight:900;color:${clsC(mmLT)}">${fmtMM(mmLT)}</div>
+      <div style="font-size:.68rem;color:var(--mu)">${mmLabel}</div></div>`:'',
+    mmLL!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--bl);border-radius:8px;padding:.4rem .75rem;min-width:9rem">
+      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO LL</div>
+      <div style="font-size:1.05rem;font-weight:900;color:${clsC(mmLL)}">${fmtMM(mmLL)}</div>
+      <div style="font-size:.68rem;color:var(--mu)">${mmLabel}</div></div>`:'',
+  ].filter(Boolean).join('');
   const resumoHtml=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem;align-items:stretch">
     <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:.4rem .75rem;min-width:7rem">
       <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">TOTAL GERAL</div>
       <div style="font-size:1.1rem;font-weight:900;color:var(--tx)">${N(grandTotal)}</div>
       <div style="font-size:.68rem;color:var(--mu)">soma de todos os meses</div>
     </div>
-    ${vTotPeriodo!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid ${clsC(vTotPeriodo)};border-radius:8px;padding:.4rem .75rem;min-width:9rem">
-      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO TOTAL</div>
-      <div style="font-size:1.05rem;font-weight:900;color:${clsC(vTotPeriodo)}">${fmtVar(vTotPeriodo)}</div>
-      <div style="font-size:.68rem;color:var(--mu)">${fmtMes(f0.m)} → ${fmtMes(fZ.m)}</div>
-    </div>`:''}
-    ${vLTPeriodo!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--y);border-radius:8px;padding:.4rem .75rem;min-width:9rem">
-      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO LT</div>
-      <div style="font-size:1.05rem;font-weight:900;color:${clsC(vLTPeriodo)}">${fmtVar(vLTPeriodo)}</div>
-      <div style="font-size:.68rem;color:var(--mu)">${fmtMes(f0.m)}: LT ${N(f0.LT)} → ${fmtMes(fZ.m)}: LT ${N(fZ.LT)}</div>
-    </div>`:''}
-    ${vLLPeriodo!==null?`<div style="background:var(--s2);border:1px solid var(--bd);border-left:3px solid var(--bl);border-radius:8px;padding:.4rem .75rem;min-width:9rem">
-      <div style="font-size:.68rem;color:var(--mu);font-weight:600;margin-bottom:.15rem">CRESCIMENTO LL</div>
-      <div style="font-size:1.05rem;font-weight:900;color:${clsC(vLLPeriodo)}">${fmtVar(vLLPeriodo)}</div>
-      <div style="font-size:.68rem;color:var(--mu)">${fmtMes(f0.m)}: LL ${N(f0.LL)} → ${fmtMes(fZ.m)}: LL ${N(fZ.LL)}</div>
-    </div>`:''}
+    ${mmCards}
   </div>`;
 
   // ── SVG ─────────────────────────────────────────────────────────────────
