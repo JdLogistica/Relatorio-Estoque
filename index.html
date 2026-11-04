@@ -628,33 +628,59 @@ async function loadXLSX(){
 }
 
 // Parseia um File XLSX e retorna array de objetos (linha por linha, header na row 7)
+// Converte número serial do Excel para string YYYY-MM-DD
+function xlSerialToDate(v){
+  if(!v && v!==0) return null;
+  if(v instanceof Date){
+    const y=v.getFullYear(),m=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  const n = Number(v);
+  if(!isNaN(n) && n > 1000){
+    // Excel serial: dias desde 1900-01-00 (com bug do ano bissexto 1900)
+    const ms = (n - 25569) * 86400 * 1000;
+    const dt = new Date(ms);
+    if(isNaN(dt.getTime())) return null;
+    const y=dt.getUTCFullYear(),m=String(dt.getUTCMonth()+1).padStart(2,'0'),d=String(dt.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  // Já é string no formato dd/mm/aaaa ou yyyy-mm-dd
+  const s=String(v).trim();
+  const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(m2){const yr=m2[3].length===2?'20'+m2[3]:m2[3];return`${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`}
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  return null;
+}
+
 async function parseXLSX(file){
   const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf,{type:'array',cellText:true,cellDates:true});
+  // NÃO usar cellDates:true — mantém os seriais numéricos para xlSerialToDate
+  const wb = XLSX.read(buf,{type:'array'});
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
 
-  // Detecta linha de cabeçalho (procura até linha 20)
+  // Detecta linha de cabeçalho: procura "Pedido" como coluna exata
   let headerIdx = -1;
   for(let i=0;i<Math.min(20,rows.length);i++){
     const row = rows[i];
-    const txt = row.map(c=>String(c).toLowerCase()).join('|');
-    if(txt.includes('pedido')||txt.includes('cliente')||txt.includes('vendedor')){
+    // Verifica se alguma célula é exatamente "Pedido"
+    if(row.some(c=>String(c).trim()==='Pedido')){
       headerIdx=i; break;
     }
+    // Fallback: linha contém pelo menos 3 das palavras-chave
+    const txt = row.map(c=>String(c).toLowerCase());
+    const hits = ['pedido','cliente','vendedor','situacao','emissao'].filter(k=>txt.some(c=>c.includes(k)));
+    if(hits.length>=3){ headerIdx=i; break; }
   }
-  if(headerIdx===-1) headerIdx=0; // fallback: usa primeira linha
+  if(headerIdx===-1) headerIdx=0;
 
   const headers = rows[headerIdx].map(h=>String(h).trim());
-  console.log('[DEBUG] parseXLSX headers encontrados (linha '+headerIdx+'):', headers);
+  console.log('[DEBUG] Headers (linha '+headerIdx+'):', headers.filter(h=>h).join(' | '));
 
-  // Pula cabeçalho; se a linha seguinte for em branco, pula também
-  let startIdx = headerIdx+1;
-  if(startIdx < rows.length && !rows[startIdx].some(c=>c!=='')){
-    startIdx++;
-  }
-  const dataRows = rows.slice(startIdx).filter(r=>r.some(c=>c!==''));
-  console.log('[DEBUG] parseXLSX dataRows:', dataRows.length, '| 1ª linha:', JSON.stringify(dataRows[0]));
+  // Dados começam logo na linha seguinte (sem linha em branco)
+  const dataRows = rows.slice(headerIdx+1).filter(r=>r.some(c=>c!==''));
+  console.log('[DEBUG] Total rows:', dataRows.length, '| 1ª:', JSON.stringify((dataRows[0]||[]).slice(0,10)));
+
   return dataRows.map(row=>{
     const obj={};
     headers.forEach((h,i)=>{ if(h) obj[h]=row[i]??''; });
@@ -815,13 +841,16 @@ function _tp2Norm(s){
 }
 
 // Converte row bruta do xlsx para formato do Supabase
+// Nomes exatos das colunas: Pedido, Cliente, Transportadora, Situacao, Urgente?,
+//   Vendedor, Conferente, Emissao, Dt Expedido
 function _normalizarRow(r, lojaDefault){
-  const id = String(r['Pedido']||r['pedido']||r.id||r.nr_pedido||'').trim();
-  const loja = String(r['loja']||r.loja||lojaDefault||'').trim();
-  const dia  = _parseDate(r['Emissao']||r['Emissão']||r['emissao']||r.dia||'');
-  const exp  = _parseDate(r['Dt Expedido']||r['dt_expedido']||r.exp||'');
-  const sit  = String(r['Situacao']||r['Situação']||r['situacao']||r.sit||'').trim();
-  const tp   = String(r['Transportadora']||r['transportadora']||r.tp||'').trim();
+  const id  = String(r['Pedido']||r['pedido']||r.id||'').trim();
+  const loja= String(r['loja']||r.loja||lojaDefault||'').trim();
+  // Datas podem ser seriais numéricos do Excel
+  const dia = xlSerialToDate(r['Emissao']||r['Emissão']||r['emissao']||r.dia||'');
+  const exp = xlSerialToDate(r['Dt Expedido']||r['dt_expedido']||r.exp||'');
+  const sit = String(r['Situacao']||r['Situação']||r['situacao']||r.sit||'').trim();
+  const tp  = String(r['Transportadora']||r['transportadora']||r.tp||'').trim();
   return {
     id,
     loja,
@@ -829,9 +858,9 @@ function _normalizarRow(r, lojaDefault){
     vend: String(r['Vendedor']||r['vendedor']||r.vend||'').trim(),
     conf: String(r['Conferente']||r['conferente']||r.conf||'').trim(),
     tp,
-    tp2:  _tp2Norm(r['Transportadora']||r['transportadora']||r.tp2||tp),
+    tp2:  _tp2Norm(tp),
     sit,
-    urg:  !!(r['Urgente?'] ? String(r['Urgente?']).toUpperCase().startsWith('S') : (r.urg||false)),
+    urg:  !!(r['Urgente?'] ? String(r['Urgente?']).trim().toUpperCase() === 'S' : (r.urg||false)),
     canc: !!(r.canc || sit.toLowerCase().includes('cancel')),
     dia:  dia || null,
     exp:  exp || null,
@@ -1125,7 +1154,8 @@ if(Array.isArray(D.rows)){
 }else if(Array.isArray(D.pedidos)){
   // Formato do botão Atualizar: raw XLSX, normaliza aqui
   const tp2Norm=s=>{s=String(s||'').toUpperCase().trim();if(!s||s==='0'||s==='NONE')return'NÃO SEPARAR';if(s.startsWith('RETIRA'))return'RETIRA';if(s.includes('BALCÃO')||s.includes('BALCAO'))return'BALCÃO';if(s.includes('ENTREGA'))return'ENTREGA';if(s.includes('NÃO SEP')||s.includes('NAO SEP'))return'NÃO SEPARAR';return'TRANSPORTADORA'};
-  const parseDate=v=>{if(!v)return'';if(v instanceof Date){const y=v.getFullYear(),m=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');return`${y}-${m}-${d}`}const s=String(v);const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(m2){const yr=m2[3].length===2?'20'+m2[3]:m2[3];return`${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`}return s.slice(0,10)||''};
+  // Reutiliza xlSerialToDate definida globalmente (converte serial Excel → YYYY-MM-DD)
+  const parseDate=v=>xlSerialToDate(v)||'';
   rows = D.pedidos.map(r=>({
     id:  r['Pedido']||r['pedido']||'',
     cli: r['Cliente']||r['cliente']||'',
