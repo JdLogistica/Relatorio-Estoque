@@ -1118,104 +1118,74 @@ function renderHistDia(rs,el){
     <div class="dia-kpi"><span>Média/dia</span><b>${(totPer/n).toFixed(1)}</b></div>
   </div>`;
 
-  // ── Layout SVG ────────────────────────────────────────────────────────
-  const W=900,H=260,PL=42,PR=16,PT=16,PB=28;
+  // ── Barras empilhadas categóricas ─────────────────────────────────────
+  // Layout: W fixo, barras com gap, LL na base (azul), LT em cima (amarelo)
+  // Total do dia no topo de cada barra, valores de cada filial dentro
+
+  const W=900,H=280,PL=42,PR=12,PT=28,PB=32;
   const cW=W-PL-PR, cH=H-PT-PB;
-  const xs=i=>PL+i/(n-1||1)*cW;
   const yv=v=>PT+cH-(v/mx*cH);
 
-  // ── Stacked area: LL na base, LT em cima (tot = LT + LL) ─────────────
-  // yv(v) mapeia valor → coordenada Y (0 = baseline, mx = topo)
-  // Stacked: ponto LL fica em yv(LL), ponto Total fica em yv(tot)
-  // Área LT = entre linha tot e linha LL (preenchida com cor LT)
-  // Área LL = entre linha LL e baseline (preenchida com cor LL)
+  // Largura e posição de cada barra
+  const gap=Math.max(1, n>40?1:n>20?2:3);
+  const bw=Math.max(4, Math.floor(cW/n)-gap);
+  const bx=i=>PL + i*(bw+gap) + (cW - n*(bw+gap)+gap)/2;
 
-  // ── Gradients ────────────────────────────────────────────────────────
-  const defs=`<defs>
-    <linearGradient id="dg-lt2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f5c518" stop-opacity=".55"/>
-      <stop offset="100%" stop-color="#f5c518" stop-opacity=".1"/>
-    </linearGradient>
-    <linearGradient id="dg-ll2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5bafd6" stop-opacity=".55"/>
-      <stop offset="100%" stop-color="#5bafd6" stop-opacity=".1"/>
-    </linearGradient>
-  </defs>`;
-
-  // ── Pontos de cada série ──────────────────────────────────────────────
-  // Linha do topo (total = LT+LL)
-  const ptsTot=tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.tot).toFixed(1)}`).join(' ');
-  // Linha da divisória LL/LT (nível LL empilhado)
-  const ptsLL =tots.map((x,i)=>`${xs(i).toFixed(1)},${yv(x.LL).toFixed(1)}`).join(' ');
-  const baseRight=`${(W-PR).toFixed(1)},${(PT+cH).toFixed(1)}`;
-  const baseLeft=`${PL},${(PT+cH).toFixed(1)}`;
-
-  // Área LL: de ptsLL até baseline (sentido horário)
-  const areaLL=`<polygon points="${ptsLL} ${baseRight} ${baseLeft}" fill="url(#dg-ll2)"/>`;
-  // Área LT: de ptsTot descendo por ptsLL invertido (entre as duas linhas)
-  const ptsLLrev=tots.slice().reverse().map((x,i,a)=>`${xs(n-1-i).toFixed(1)},${yv(x.LL).toFixed(1)}`).join(' ');
-  const areaLT=`<polygon points="${ptsTot} ${ptsLLrev}" fill="url(#dg-lt2)"/>`;
-
-  // Linha topo (total) — amarelo sólido
-  const lineTot=`<polyline points="${ptsTot}" fill="none" stroke="#f5c518" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
-  // Linha divisória LL/LT — azul tracejado
-  const lineLL =`<polyline points="${ptsLL}"  fill="none" stroke="#5bafd6" stroke-width="1.5" stroke-dasharray="5 3" stroke-linejoin="round" stroke-linecap="round"/>`;
-
-  // ── Dots apenas nos picos (top-5) ─────────────────────────────────
-  const sorted=[...tots].sort((a,b)=>b.tot-a.tot).slice(0,5).map(x=>x.m);
-  const peakDots=tots.map((x,i)=>{
-    if(!sorted.includes(x.m))return'';
-    const cx=xs(i).toFixed(1);
-    const cyTot=yv(x.tot).toFixed(1);
-    const cyLL=yv(x.LL).toFixed(1);
-    const anchor=i<2?'start':i>n-3?'end':'middle';
-    const lbl=`<text x="${cx}" y="${(yv(x.tot)-9).toFixed(1)}" text-anchor="${anchor}" font-size="11" font-weight="800" fill="#f5c518">${x.tot}</text>`;
-    return lbl+
-      `<circle cx="${cx}" cy="${cyTot}" r="4" fill="#f5c518" stroke="var(--bg)" stroke-width="1.5"/>`+
-      `<circle cx="${cx}" cy="${cyLL}" r="3" fill="#5bafd6" stroke="var(--bg)" stroke-width="1" opacity=".9"/>`;
-  }).join('');
-
-  // ── Grid Y ────────────────────────────────────────────────────────
+  // ── Grid Y ─────────────────────────────────────────────────────────
   const gridN=4;
   const gridLines=Array.from({length:gridN+1},(_,k)=>{
-    const f=k/gridN;
-    const y=yv(mx*f).toFixed(1);
-    const val=Math.round(mx*f);
-    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="1" opacity="${k===0?0:.35}"/>`+
-           `<text x="${PL-4}" y="${y}" text-anchor="end" font-size="9" fill="var(--mu)" dominant-baseline="middle">${val}</text>`;
+    const f=k/gridN; const y=yv(mx*f).toFixed(1); const val=Math.round(mx*f);
+    return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" stroke-width="1" opacity="${k===0?0:.3}"/>`+
+           (val>0?`<text x="${PL-4}" y="${y}" text-anchor="end" font-size="9" fill="var(--mu)" dominant-baseline="middle">${val}</text>`:'');
   }).join('');
 
-  // ── Eixo X labels ────────────────────────────────────────────────
-  const maxLbls=Math.min(n,14);
-  const step=Math.max(1,Math.floor(n/maxLbls));
-  const xlbls=tots.map((x,i)=>{
-    if(i%step!==0&&i!==n-1)return'';
-    const anchor=i===0?'start':i===n-1?'end':'middle';
-    return`<text x="${xs(i).toFixed(1)}" y="${H-6}" text-anchor="${anchor}" font-size="9" fill="var(--mu)">${fmtDia(x.m)}</text>`;
+  // ── Barras + labels ────────────────────────────────────────────────
+  // Decide se mostra label de valor dentro da barra (bw >= 14 → sim)
+  const showInner=bw>=14;
+  // Label total acima: sempre que bw >= 8
+  const showTotal=bw>=8;
+  // Label X: a cada step para não amontoar
+  const xStep=Math.max(1,Math.ceil(n/18));
+
+  const bars=tots.map((x,i)=>{
+    const bLeft=bx(i).toFixed(1);
+    const bw2=bw.toFixed(1);
+    // segmento LL (base, azul)
+    const hLL=(x.LL/mx*cH);
+    const yLL=(PT+cH-hLL).toFixed(1);
+    const rLL=hLL>=2?`<rect x="${bLeft}" y="${yLL}" width="${bw2}" height="${hLL.toFixed(1)}" fill="#5bafd6" rx="1"/>`:'';
+    // segmento LT (topo, amarelo)
+    const hLT=(x.LT/mx*cH);
+    const yLT=(PT+cH-hLL-hLT).toFixed(1);
+    const rLT=hLT>=2?`<rect x="${bLeft}" y="${yLT}" width="${bw2}" height="${hLT.toFixed(1)}" fill="#f5c518" rx="1"/>`:'';
+    // label LL dentro (centro da fatia azul)
+    const midLL=(PT+cH-hLL/2).toFixed(1);
+    const lblLL=(showInner&&hLL>=14&&x.LL>0)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${midLL}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?10:8}" font-weight="700" fill="rgba(0,0,0,.75)">${x.LL}</text>`:'';
+    // label LT dentro (centro da fatia amarela)
+    const midLT=(+yLT+hLT/2).toFixed(1);
+    const lblLT=(showInner&&hLT>=14&&x.LT>0)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${midLT}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?10:8}" font-weight="700" fill="rgba(0,0,0,.75)">${x.LT}</text>`:'';
+    // total acima da barra
+    const yTop=(PT+cH-hLL-hLT-6).toFixed(1);
+    const lblTot=(showTotal&&x.tot>0)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${yTop}" text-anchor="middle" font-size="9" font-weight="800" fill="var(--tx)">${x.tot}</text>`:'';
+    // label X
+    const lblX=(i%xStep===0||i===n-1)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${H-8}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}" font-size="8.5" fill="var(--mu)">${fmtDia(x.m)}</text>`:'';
+    // hover rect
+    const hRect=`<rect class="dia-bar" x="${bLeft}" y="${PT}" width="${bw2}" height="${cH}" fill="transparent" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:pointer"/>`;
+    return rLL+rLT+lblLL+lblLT+lblTot+lblX+hRect;
   }).join('');
 
-  // ── Baseline ─────────────────────────────────────────────────────
+  // ── Baseline ──────────────────────────────────────────────────────
   const baseline=`<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1"/>`;
 
-  // ── Hover rects ───────────────────────────────────────────────────
-  const colW=n>1?(cW/(n-1)):cW;
-  const hoverRects=tots.map((x,i)=>{
-    const cx=xs(i);
-    const left=Math.max(PL,cx-colW/2);
-    const right=Math.min(W-PR,cx+colW/2);
-    return`<rect class="dia-bar" x="${left.toFixed(1)}" y="${PT}" width="${(right-left).toFixed(1)}" height="${cH}" fill="transparent" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:crosshair"/>`;
-  }).join('');
-
   const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">
-    ${defs}${gridLines}${baseline}${areaLL}${areaLT}${lineTot}${lineLL}${peakDots}${hoverRects}${xlbls}
+    ${gridLines}${baseline}${bars}
   </svg>`;
 
   // ── Legenda ───────────────────────────────────────────────────────
   const legenda=`<div class="hlgd" style="margin-top:.3rem">
-    <span style="color:#f5c518;font-size:.75rem">▬ Total (topo)</span>
-    <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:14px;height:10px;background:rgba(245,197,24,.45);border-radius:2px"></span> LT acima</span>
-    <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:14px;height:10px;background:rgba(91,175,214,.45);border-radius:2px"></span> LL base</span>
-    <span class="mu2" style="font-size:.7rem">passe o mouse para detalhes do dia</span>
+    <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:12px;height:10px;background:#f5c518;border-radius:2px"></span> LT – Loja Trator</span>
+    <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:12px;height:10px;background:#5bafd6;border-radius:2px"></span> LL – Loja Leão</span>
+    <span class="mu2" style="font-size:.7rem">passe o mouse para detalhes</span>
   </div>`;
 
   el.innerHTML=toggleHtml+resumo+
@@ -1242,7 +1212,7 @@ function renderHistDia(rs,el){
         `</div>`;
       const rc=el.querySelector('.area-chart').getBoundingClientRect();
       const scaleX=rc.width/W;
-      const cx=xs(idx)*scaleX;
+      const cx=(bx(idx)+bw/2)*scaleX;
       tip.style.display='block';
       requestAnimationFrame(()=>{
         const tw=tip.offsetWidth||150, th=tip.offsetHeight||80;
