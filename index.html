@@ -1099,8 +1099,13 @@ function renderHistDia(rs,el){
     el.innerHTML=toggleHtml+`<p class="mu2" style="padding:.5rem">Sem dados para o período.</p>`;
     el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));return;
   }
-  const dias=Array.from(g.keys()).sort();
-  const tots=dias.map(d=>{const v=g.get(d);return{m:d,LT:v.LT,LL:v.LL,tot:v.LT+v.LL};});
+  // Preenche todos os dias do intervalo (sem dados = zero)
+  const diasComDados=Array.from(g.keys()).sort();
+  const dMin=diasComDados[0], dMax=diasComDados[diasComDados.length-1];
+  const allDias=[];
+  {const cur=new Date(dMin+'T00:00:00');const end=new Date(dMax+'T00:00:00');
+   while(cur<=end){allDias.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}}
+  const tots=allDias.map(d=>{const v=g.get(d)||{LT:0,LL:0};return{m:d,LT:v.LT,LL:v.LL,tot:v.LT+v.LL};});
   const mx=Math.max(1,...tots.map(x=>x.tot));
   const totPer=tots.reduce((a,x)=>a+x.tot,0);
   const ltPer=tots.reduce((a,x)=>a+x.LT,0);
@@ -1126,10 +1131,11 @@ function renderHistDia(rs,el){
   const cW=W-PL-PR, cH=H-PT-PB;
   const yv=v=>PT+cH-(v/mx*cH);
 
-  // Largura e posição de cada barra
-  const gap=Math.max(1, n>40?1:n>20?2:3);
-  const bw=Math.max(4, Math.floor(cW/n)-gap);
-  const bx=i=>PL + i*(bw+gap) + (cW - n*(bw+gap)+gap)/2;
+  // Barras finas com gap mínimo para caber todos os dias
+  const gap=n>60?0:n>30?1:2;
+  const bw=Math.max(3, Math.floor((cW-(gap*(n-1)))/n));
+  const totalW=n*(bw+gap)-gap;
+  const bx=i=>PL + (cW-totalW)/2 + i*(bw+gap);
 
   // ── Grid Y ─────────────────────────────────────────────────────────
   const gridN=4;
@@ -1140,12 +1146,11 @@ function renderHistDia(rs,el){
   }).join('');
 
   // ── Barras + labels ────────────────────────────────────────────────
-  // Decide se mostra label de valor dentro da barra (bw >= 14 → sim)
-  const showInner=bw>=14;
-  // Label total acima: sempre que bw >= 8
-  const showTotal=bw>=8;
-  // Label X: a cada step para não amontoar
-  const xStep=Math.max(1,Math.ceil(n/18));
+  const showInner=bw>=18; // valor+% dentro da fatia
+  const showTotal=bw>=8;  // total acima da barra
+  // Label X: espaçado para não sobrepor (mínimo 28px entre labels)
+  const minPxBetween=28;
+  const xStep=Math.max(1,Math.ceil(minPxBetween/(bw+gap)));
 
   const bars=tots.map((x,i)=>{
     const bLeft=bx(i).toFixed(1);
@@ -1158,15 +1163,31 @@ function renderHistDia(rs,el){
     const hLT=(x.LT/mx*cH);
     const yLT=(PT+cH-hLL-hLT).toFixed(1);
     const rLT=hLT>=2?`<rect x="${bLeft}" y="${yLT}" width="${bw2}" height="${hLT.toFixed(1)}" fill="#f5c518" rx="1"/>`:'';
-    // label LL dentro (centro da fatia azul)
-    const midLL=(PT+cH-hLL/2).toFixed(1);
-    const lblLL=(showInner&&hLL>=14&&x.LL>0)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${midLL}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?10:8}" font-weight="700" fill="rgba(0,0,0,.75)">${x.LL}</text>`:'';
-    // label LT dentro (centro da fatia amarela)
-    const midLT=(+yLT+hLT/2).toFixed(1);
-    const lblLT=(showInner&&hLT>=14&&x.LT>0)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${midLT}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?10:8}" font-weight="700" fill="rgba(0,0,0,.75)">${x.LT}</text>`:'';
+    // percentuais do dia
+    const pctLL=x.tot>0?Math.round(x.LL/x.tot*100):0;
+    const pctLT=x.tot>0?Math.round(x.LT/x.tot*100):0;
+    const cx2=(+bLeft+bw/2).toFixed(1);
+    // label LL dentro: valor + % (duas linhas se espaço, uma linha se pouco)
+    const midLL=(PT+cH-hLL/2);
+    let lblLL='';
+    if(showInner&&hLL>=24&&x.LL>0){
+      lblLL=`<text x="${cx2}" y="${(midLL-5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?10:8}" font-weight="800" fill="rgba(0,0,0,.85)">${x.LL}</text>`+
+            `<text x="${cx2}" y="${(midLL+6).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?9:7}" fill="rgba(0,0,0,.7)">${pctLL}%</text>`;
+    } else if(showInner&&hLL>=12&&x.LL>0){
+      lblLL=`<text x="${cx2}" y="${midLL.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?9:7}" font-weight="700" fill="rgba(0,0,0,.8)">${x.LL}·${pctLL}%</text>`;
+    }
+    // label LT dentro: valor + %
+    const midLT=(+yLT+hLT/2);
+    let lblLT='';
+    if(showInner&&hLT>=24&&x.LT>0){
+      lblLT=`<text x="${cx2}" y="${(midLT-5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?10:8}" font-weight="800" fill="rgba(0,0,0,.85)">${x.LT}</text>`+
+            `<text x="${cx2}" y="${(midLT+6).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?9:7}" fill="rgba(0,0,0,.7)">${pctLT}%</text>`;
+    } else if(showInner&&hLT>=12&&x.LT>0){
+      lblLT=`<text x="${cx2}" y="${midLT.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${bw>=22?9:7}" font-weight="700" fill="rgba(0,0,0,.8)">${x.LT}·${pctLT}%</text>`;
+    }
     // total acima da barra
     const yTop=(PT+cH-hLL-hLT-6).toFixed(1);
-    const lblTot=(showTotal&&x.tot>0)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${yTop}" text-anchor="middle" font-size="9" font-weight="800" fill="var(--tx)">${x.tot}</text>`:'';
+    const lblTot=(showTotal&&x.tot>0)?`<text x="${cx2}" y="${yTop}" text-anchor="middle" font-size="9" font-weight="800" fill="var(--tx)">${x.tot}</text>`:'';
     // label X
     const lblX=(i%xStep===0||i===n-1)?`<text x="${(+bLeft+bw/2).toFixed(1)}" y="${H-8}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}" font-size="8.5" fill="var(--mu)">${fmtDia(x.m)}</text>`:'';
     // hover rect
@@ -1202,13 +1223,14 @@ function renderHistDia(rs,el){
       const dia=b.dataset.m;
       const tot=+b.dataset.tot, lt=+b.dataset.lt, ll=+b.dataset.ll;
       const pct=totPer>0?((tot/totPer)*100).toFixed(1):'0';
+      const pLT=tot>0?Math.round(lt/tot*100):0;
+      const pLL=tot>0?Math.round(ll/tot*100):0;
       tip.innerHTML=
         `<div style="font-size:.8rem;font-weight:800;margin-bottom:.3rem;color:var(--tx)">${fmtDia(dia)}</div>`+
-        `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.15rem .6rem;font-size:.78rem">`+
-        `<span style="color:var(--mu)">Total</span><b style="color:var(--tx)">${tot}</b>`+
-        `<span style="color:#f5c518">LT</span><b style="color:#f5c518">${lt}</b>`+
-        `<span style="color:#5bafd6">LL</span><b style="color:#5bafd6">${ll}</b>`+
-        `<span style="color:var(--mu)">% período</span><b style="color:var(--mu)">${pct}%</b>`+
+        `<div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:.15rem .5rem;font-size:.78rem;align-items:center">`+
+        `<span style="color:var(--mu)">Total</span><b style="color:var(--tx);grid-column:2/4">${tot} <span style="color:var(--mu);font-weight:400;font-size:.72rem">(${pct}% do período)</span></b>`+
+        `<span style="color:#f5c518">LT</span><b style="color:#f5c518">${lt}</b><span style="color:#f5c518;font-size:.72rem">${pLT}%</span>`+
+        `<span style="color:#5bafd6">LL</span><b style="color:#5bafd6">${ll}</b><span style="color:#5bafd6;font-size:.72rem">${pLL}%</span>`+
         `</div>`;
       const rc=el.querySelector('.area-chart').getBoundingClientRect();
       const scaleX=rc.width/W;
