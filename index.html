@@ -138,17 +138,22 @@ main{padding:1rem 0 2.5rem}
 .fl input{width:100%}.fa{display:flex;gap:.5rem;margin-left:auto;align-items:flex-end}
 .badge{display:inline-block;background:var(--y);color:#0a0a0a;border-radius:99px;font-size:.7rem;font-weight:800;padding:.05rem .45rem;margin-left:.3rem}
 /* kpis */
-.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));gap:.7rem;margin-bottom:1rem}
-.k{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:.8rem 1rem;border-left:4px solid var(--y);min-width:0;overflow:hidden}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:.5rem;margin-bottom:.75rem}
+.k{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:.6rem .75rem;border-left:3px solid var(--y);min-width:0;overflow:hidden}
 .k.bl{border-left-color:var(--bl)}.k.ok{border-left-color:var(--ok)}.k.bad{border-left-color:var(--bad)}
-.k span{color:var(--mu);font-size:.78rem;font-weight:600;display:block;margin-bottom:.15rem}
-.k b{display:block;font-size:clamp(1.1rem,2.2vw,1.75rem);line-height:1.2;font-style:italic;font-weight:800;font-variant-numeric:tabular-nums;word-break:break-all;overflow-wrap:anywhere}
-.k small{color:var(--mu);font-size:.75rem;display:block;margin-top:.1rem}
+.k span{color:var(--mu);font-size:.7rem;font-weight:600;display:block;margin-bottom:.1rem}
+.k b{display:block;font-size:clamp(.95rem,1.8vw,1.4rem);line-height:1.2;font-style:italic;font-weight:800;font-variant-numeric:tabular-nums;word-break:break-all;overflow-wrap:anywhere}
+.k small{color:var(--mu);font-size:.68rem;display:block;margin-top:.08rem}
 .kpi-g{display:inline-block;margin-top:.35rem;font-size:.72rem;font-weight:700;padding:.1rem .4rem;border-radius:4px;background:rgba(255,255,255,.07);color:var(--mu)}
 .kpi-g.up{background:rgba(102,187,106,.15);color:#66bb6a}
 .kpi-g.dn{background:rgba(239,83,80,.13);color:#ef5350}
 /* grid de charts */
 .cg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:.75rem;margin-bottom:1rem}
+.vend-row{display:grid;grid-template-columns:minmax(14rem,220px) minmax(15rem,1fr) minmax(22rem,2fr);gap:.75rem;grid-column:1/-1}
+.vend-col-sm{min-width:0}
+.vend-col-lg{min-width:0}
+@media(max-width:900px){.vend-row{grid-template-columns:1fr 1fr}.vend-col-lg{grid-column:1/-1}}
+@media(max-width:560px){.vend-row{grid-template-columns:1fr}.vend-col-lg{grid-column:auto}}
 .pn{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:.9rem 1rem;min-width:0}
 .pn.w2{grid-column:1/-1}.pn h3{margin:0 0 .6rem;font-size:.92rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem}
 /* barras */
@@ -468,7 +473,39 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
         </label>
       </div>
     </div>
-    <!-- Barra de status + botão atualizar -->
+      <!-- Itens import cards -->
+      <div id="imp-itens-upload-area">
+        <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
+          <span style="font-size:.8rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Itens dos pedidos</span>
+          <span style="font-size:.7rem;color:var(--mu);background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:.1rem .4rem">ITENSLT + ITENSLL</span>
+        </div>
+        <div class="imp-cards">
+          <label class="imp-card" id="lbl-itens-lt">
+            <input type="file" id="imp-itens-lt" accept=".xlsx,.xls,.csv" onchange="importarItens(this,'LT')">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">&#x1F4E6;</span>
+              <div>
+                <strong>Itens LT</strong>
+                <small id="nm-itens-lt">Nenhum arquivo selecionado</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar</span>
+          </label>
+          <label class="imp-card" id="lbl-itens-ll">
+            <input type="file" id="imp-itens-ll" accept=".xlsx,.xls,.csv" onchange="importarItens(this,'LL')">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">&#x1F4E6;</span>
+              <div>
+                <strong>Itens LL</strong>
+                <small id="nm-itens-ll">Nenhum arquivo selecionado</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar</span>
+          </label>
+        </div>
+        <div id="imp-itens-status" class="imp-status" style="display:none"></div>
+      </div>
+    <!-- Barra de status + botao atualizar -->
     <div class="imp-footer">
       <div id="imp-status" class="imp-status" style="display:none"></div>
       <button class="bt imp-refresh-btn" id="btn-atualizar" onclick="atualizarDados()">
@@ -499,6 +536,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
     <button class="back-btn" onclick="openSection('home')">← Voltar</button>
   </div>
   <main class="wrap" id="p-app" hidden>
+    <div id="hist-toggle-bar" style="display:none;align-items:center;gap:.5rem;margin-bottom:.5rem"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog hist-tog-on" data-hm="mes">Mensal</button><button class="hist-tog" data-hm="dia">Diário</button></div>
     <section class="kp" id="p-kp" aria-live="polite"></section>
     <section class="cg" id="cg"></section>
     <section class="tbl" id="p-tb"></section>
@@ -856,7 +894,8 @@ async function importarArquivo(input, lojaHint){
       const pa=document.getElementById('p-app');
       if(pa) pa.innerHTML='';
       if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
-      _bootedP=true; bootP(_dP);
+      await carregarItensSupa();
+    _bootedP=true; bootP(_dP);
     }
     st.className='imp-status ok';
     st.textContent=`✅ ${file.name} importado! ${pedidosRows.length} pedidos no banco.`;
@@ -886,6 +925,122 @@ async function parseCSV(file){
 }
 
 // Botão Atualizar dados — recarrega do Supabase sem fazer upload
+let _itensCache=[];
+
+async function carregarItensSupa(){
+  try{
+    let all=[]; let from=0; const PAGE=1000;
+    while(true){
+      const {data,error}=await _sb.from('itens').select('*').range(from,from+PAGE-1);
+      if(error) throw error;
+      if(!data||data.length===0) break;
+      all=all.concat(data);
+      if(data.length<PAGE) break;
+      from+=PAGE;
+    }
+    _itensCache=all;
+    console.log('[itens] carregados:',all.length);
+  }catch(e){ console.warn('[carregarItensSupa]',e.message); }
+}
+
+function renderIfItens(){
+  if(typeof cur!=='undefined'&&(cur==='itens'||cur==='sp'||cur==='tempos')){
+    if(typeof go==='function') go(cur);
+  }
+}
+
+async function importarItens(input, lojaHint){
+  const file=input.files[0]; if(!file) return;
+  const loja=detectarLoja(file.name)||lojaHint;
+  if(!loja){ alert('Nao foi possivel identificar a filial. O nome deve conter "LT" ou "LL".'); input.value=''; return; }
+  const admin=await checkAdmin();
+  if(!admin){
+    const st=document.getElementById('imp-itens-status');
+    if(st){st.style.display='';st.className='imp-status err';st.textContent='Apenas administradores podem importar dados.';}
+    return;
+  }
+  const lbl=document.getElementById('lbl-itens-'+loja.toLowerCase());
+  const nm =document.getElementById('nm-itens-'+loja.toLowerCase());
+  const st =document.getElementById('imp-itens-status');
+  if(lbl) lbl.className='imp-card loading';
+  if(st){st.style.display='';st.className='imp-status';st.textContent='Lendo arquivo...';}
+  try{
+    const rows=await new Promise((res,rej)=>{
+      const reader=new FileReader();
+      reader.onload=e=>{
+        try{
+          const wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
+          const ws=wb.Sheets[wb.SheetNames[0]];
+          const range=XLSX.utils.decode_range(ws['!ref']||'A1:A1');
+          let hdrRow=0;
+          for(let r=range.s.r;r<=Math.min(range.e.r,15);r++){
+            let cnt=0;
+            for(let c=range.s.c;c<=range.e.c;c++){
+              const cell=ws[XLSX.utils.encode_cell({r,c})];
+              if(cell&&cell.v!=null&&String(cell.v).trim()) cnt++;
+            }
+            if(cnt>=5){hdrRow=r;break;}
+          }
+          res(XLSX.utils.sheet_to_json(ws,{raw:true,defval:null,range:hdrRow}));
+        }catch(err){rej(err);}
+      };
+      reader.onerror=()=>rej(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+    if(nm) nm.textContent=file.name;
+    if(st) st.textContent='Processando '+rows.length+' linhas...';
+    const byPedido={};
+    rows.forEach(r=>{
+      const pid=String(r['Pedido']||r['pedido']||'').trim();
+      if(!pid) return;
+      if(!byPedido[pid]) byPedido[pid]=[];
+      byPedido[pid].push(r);
+    });
+    const itens=[];
+    Object.entries(byPedido).forEach(([pid,rlist])=>{
+      rlist.forEach((r,seq)=>{
+        const rawP=String(r['Produto']||r['produto']||'').replace(/^[\s
+]+|_x000D_/g,'').trim();
+        const entDate=xlSerialToDate(r['Entrega']||r['entrega']||null)||null;
+        const mes=entDate?entDate.substring(0,7):null;
+        const descKey=r['Descrição']||r['Descricao']||r['descricao']||r['DESCRICAO']||'';
+        itens.push({
+          pedido_id:parseInt(pid,10)||0, loja, seq,
+          cod_produto:rawP||null,
+          principal:String(r['Principal']||r['principal']||'').trim()||null,
+          descricao:String(descKey).trim()||null,
+          qtde:parseFloat(r['Qtde. Ped.']||r['Qtde Ped']||r['qtde']||0)||0,
+          saldo:parseFloat(r['Saldo']||r['saldo']||0)||0,
+          total:r['Total Produto']!=null?parseFloat(r['Total Produto'])||0:null,
+          cod_marca:parseInt(r['Cód.Marca']||r['Cod.Marca']||r['cod_marca']||0)||null,
+          marca:String(r['Marca']||r['marca']||'').trim()||null,
+          entrega:entDate, mes,
+        });
+      });
+    });
+    const valid=itens.filter(x=>x.pedido_id>0);
+    if(valid.length===0) throw new Error('Nenhum item valido. Verifique a coluna "Pedido".');
+    if(st) st.textContent='Enviando '+valid.length+' itens...';
+    const BATCH=500; let ok=0;
+    for(let i=0;i<valid.length;i+=BATCH){
+      const batch=valid.slice(i,i+BATCH);
+      const {error}=await _sb.from('itens').upsert(batch,{onConflict:'pedido_id,loja,seq'});
+      if(error) throw new Error('Erro Supabase: '+error.message);
+      ok+=batch.length;
+      if(st) st.textContent='Enviando... '+ok+'/'+valid.length;
+    }
+    if(lbl) lbl.className='imp-card done';
+    if(st){st.textContent=valid.length+' itens sincronizados!';st.className='imp-status ok';}
+    await carregarItensSupa(); renderIfItens();
+  }catch(err){
+    console.error('[importarItens]',err);
+    if(lbl) lbl.className='imp-card err';
+    if(st){st.textContent='Erro: '+err.message;st.className='imp-status err';}
+    if(nm) nm.textContent='Erro no arquivo';
+    input.value='';
+  }
+}
+
 async function atualizarDados(){
   const btn = document.getElementById('btn-atualizar');
   const st  = document.getElementById('imp-status');
@@ -900,9 +1055,12 @@ async function atualizarDados(){
       const pa=document.getElementById('p-app');
       if(pa) pa.innerHTML='';
       if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML='';
-      _bootedP=true; bootP(_dP);
+      await carregarItensSupa();
+    _bootedP=true; bootP(_dP);
     }
     st.className='imp-status ok';
+    // also load itens
+    await carregarItensSupa();
     st.textContent=`✅ Dados atualizados — ${pedidosRows.length} pedidos carregados.`;
   }catch(e){
     st.className='imp-status err';
@@ -947,6 +1105,13 @@ function _normalizarRow(r, lojaDefault){
     canc: !!(r.canc || sit.toLowerCase().includes('cancel')),
     dia:  dia || null,
     exp:  exp || null,
+    hr_emissao: String(r['Hr Emissao']||r['Hr Emissão']||r['hr_emissao']||'').trim()||null,
+    hr_sep_ini: String(r['Hr Sep Ini']||r['Hr Inicio Sep']||r['hr_sep_ini']||'').trim()||null,
+    hr_sep_fim: String(r['Hr Sep Fim']||r['Hr Fim Sep']||r['hr_sep_fim']||'').trim()||null,
+    hr_exp:     String(r['Hr Expedido']||r['Hr Exp']||r['hr_exp']||'').trim()||null,
+    dt_sep_ini: xlSerialToDate(r['Dt Sep Ini']||r['Dt Inicio Sep']||r['dt_sep_ini']||'')||null,
+    dt_sep_fim: xlSerialToDate(r['Dt Sep Fim']||r['Dt Fim Sep']||r['dt_sep_fim']||'')||null,
+    dt_exp:     xlSerialToDate(r['Dt Exped']||r['dt_exp']||'')||null,
   };
 }
 
@@ -1142,6 +1307,232 @@ function go(tab){
 }
 function toggle(tab,k,v){const s=S[tab];s.sel[k]=s.sel[k]===v?'':v;s.pg=0;cur!==tab?go(tab):(syncFilters(),render())}
 
+// ═══════════════════════════════════════════════════════
+// ITENS TAB
+// ═══════════════════════════════════════════════════════
+function renderItensTab(itens, pedidosRs){
+  if(!itens||itens.length===0){
+    ['itens-kp','c-itens-pareto','c-itens-marca','c-itens-cli','c-itens-receita-marca','c-itens-receita'].forEach(id=>{
+      const el=$('#'+id); if(el) el.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados — importe os arquivos ITENS</p>';
+    });
+    return;
+  }
+
+  // Filter by selected pedidos (use pedidosRs ids as allowlist)
+  const allowIds=new Set(pedidosRs.map(r=>String(r.id)+r.loja));
+  const filtered=itens.filter(x=>allowIds.has(String(x.pedido_id)+x.loja));
+  const src=filtered.length>0?filtered:itens;
+
+  // ── KPIs ─────────────────────────────────────────────
+  const totalQtde=src.reduce((a,x)=>a+(+x.qtde||0),0);
+  const totalReceita=src.reduce((a,x)=>a+(+x.total||0),0);
+  const pedidosComItens=new Set(src.map(x=>x.pedido_id+x.loja)).size;
+  const mediaItensPedido=pedidosComItens>0?(src.length/pedidosComItens).toFixed(1):0;
+  // avg per day
+  const diasComItens=new Set(src.map(x=>x.entrega||x.mes).filter(Boolean)).size;
+  const mediaItensDia=diasComItens>0?(src.length/diasComItens).toFixed(1):0;
+  const kpEl=$('#itens-kp');
+  if(kpEl) kpEl.innerHTML=
+    `<div class="k"><div class="kl">Total de linhas</div><div class="kv">${N(src.length)}</div></div>`+
+    `<div class="k"><div class="kl">Qtde total</div><div class="kv">${N(Math.round(totalQtde))}</div></div>`+
+    `<div class="k"><div class="kl">Receita total</div><div class="kv">R$ ${BRL(totalReceita)}</div></div>`+
+    `<div class="k"><div class="kl">Pedidos c/ itens</div><div class="kv">${N(pedidosComItens)}</div></div>`+
+    `<div class="k"><div class="kl">Média itens/pedido</div><div class="kv">${mediaItensPedido}</div></div>`+
+    `<div class="k"><div class="kl">Média itens/dia</div><div class="kv">${mediaItensDia}</div></div>`;
+
+  // ── Helper: agrupa por campo ──────────────────────────
+  function aggField(arr, key, valKey){
+    const m={};
+    arr.forEach(x=>{
+      const k=x[key]||'(vazio)';
+      if(!m[k]) m[k]={k,v:0};
+      m[k].v+=(valKey?+x[valKey]||0:1);
+    });
+    return Object.values(m).sort((a,b)=>b.v-a.v);
+  }
+
+  // ── Pareto descricao ──────────────────────────────────
+  const paEl=$('#c-itens-pareto');
+  if(paEl) renderBars(src,'descricao',paEl,{pr:true,top:30,label:'produtos'});
+
+  // ── Marca ─────────────────────────────────────────────
+  const maEl=$('#c-itens-marca');
+  if(maEl) renderBars(src,'marca',maEl,{pr:true,top:15,label:'marcas'});
+
+  // ── Receita por produto ───────────────────────────────
+  const recEl=$('#c-itens-receita');
+  if(recEl){
+    const byProd=aggField(src,'descricao','total').slice(0,20);
+    renderBarsRaw(byProd,recEl,{label:'produtos',prefix:'R$ ',fmt:(v)=>BRL(v)});
+  }
+
+  // ── Receita por marca ─────────────────────────────────
+  const recMEl=$('#c-itens-receita-marca');
+  if(recMEl){
+    const byMarca=aggField(src,'marca','total').slice(0,15);
+    renderBarsRaw(byMarca,recMEl,{label:'marcas',prefix:'R$ ',fmt:(v)=>BRL(v)});
+  }
+
+  // ── Matriz cliente × item ─────────────────────────────
+  const cliEl=$('#c-itens-cli');
+  if(cliEl){
+    // Merge with pedidos to get client
+    const pedMap={};
+    pedidosRs.forEach(p=>pedMap[p.id+'_'+p.loja]=p.cli||'');
+    const topProds=aggField(src,'descricao').slice(0,12).map(x=>x.k);
+    // Count per client per product
+    const cliProd={};
+    src.forEach(x=>{
+      const cli=pedMap[x.pedido_id+'_'+x.loja]||'(s/cli)';
+      const prod=x.descricao||'(vazio)';
+      if(!topProds.includes(prod)) return;
+      const ck=cli+'|||'+prod;
+      cliProd[ck]=(cliProd[ck]||0)+1;
+    });
+    // top 10 clients
+    const cliTotal={};
+    Object.keys(cliProd).forEach(k=>{const [c]=k.split('|||');cliTotal[c]=(cliTotal[c]||0)+cliProd[k];});
+    const topClis=Object.entries(cliTotal).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>x[0]);
+    if(topClis.length===0||topProds.length===0){cliEl.innerHTML='<p style="color:var(--mu);padding:1rem">Dados insuficientes</p>';return;}
+    // Build HTML table
+    const thStyle='font-size:.7rem;font-weight:700;color:var(--mu);padding:.3rem .5rem;white-space:nowrap;border-bottom:1px solid var(--bd)';
+    const tdStyle='font-size:.72rem;text-align:center;padding:.25rem .4rem;border-bottom:1px solid var(--bd)';
+    let tbl='<table style="border-collapse:collapse;min-width:100%"><thead><tr>';
+    tbl+=`<th style="${thStyle};text-align:left">Cliente</th>`;
+    topProds.forEach(p=>{ tbl+=`<th style="${thStyle}">${esc(p.substring(0,20))}</th>`; });
+    tbl+='</tr></thead><tbody>';
+    topClis.forEach((cli,i)=>{
+      const bg=i%2===0?'var(--bg)':'var(--s2)';
+      tbl+=`<tr style="background:${bg}"><td style="${tdStyle};text-align:left;white-space:nowrap">${esc(cli.substring(0,25))}</td>`;
+      topProds.forEach(p=>{
+        const v=cliProd[cli+'|||'+p]||0;
+        const col=v>0?`background:color-mix(in srgb,var(--y) ${Math.min(80,v*8)}%,var(--bg))`:'';
+        tbl+=`<td style="${tdStyle};${col}">${v||''}</td>`;
+      });
+      tbl+='</tr>';
+    });
+    tbl+='</tbody></table>';
+    cliEl.innerHTML=tbl;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Helper: renderBars com dados já agregados
+// ═══════════════════════════════════════════════════════
+function renderBarsRaw(data, el, {label='',fmt=v=>N(v),prefix=''}={}){
+  if(!el||!data||data.length===0){if(el)el.innerHTML='<p style="color:var(--mu);text-align:center;padding:1rem">Sem dados</p>';return;}
+  const max=data[0].v||1;
+  const rows=data.map((x,i)=>{
+    const pct=Math.round(x.v/max*100);
+    return`<div style="display:grid;grid-template-columns:12rem 1fr 7rem;align-items:center;gap:.4rem;margin-bottom:.25rem">
+      <span style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.k)}">${esc(x.k)}</span>
+      <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:14px">
+        <div style="width:${pct}%;height:100%;background:var(--ok);border-radius:3px;transition:width .3s"></div>
+      </div>
+      <span style="font-size:.78rem;color:var(--mu);text-align:right">${prefix}${fmt(x.v)}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// TEMPOS TAB
+// ═══════════════════════════════════════════════════════
+function parseDur(dt1, hr1, dt2, hr2){
+  // Returns duration in minutes or null
+  if(!dt1||!hr1||!dt2||!hr2) return null;
+  try{
+    const d1=new Date(dt1+'T'+hr1); const d2=new Date(dt2+'T'+hr2);
+    if(isNaN(d1)||isNaN(d2)) return null;
+    const ms=d2-d1; if(ms<0) return null;
+    return Math.round(ms/60000);
+  }catch(e){return null;}
+}
+
+function fmtMin(m){
+  if(m===null||m===undefined) return '—';
+  if(m<60) return m+'min';
+  const h=Math.floor(m/60),r=m%60;
+  return r?`${h}h ${r}min`:`${h}h`;
+}
+
+function renderTemposTab(rs){
+  const rows=rs.filter(r=>r.hr_sep_ini||r.hr_sep_fim||r.hr_emissao||r.hr_exp);
+  if(rows.length===0){
+    ['tempos-kp','c-sep-hist','c-sep-vend','c-sep-dia'].forEach(id=>{
+      const el=$('#'+id); if(el) el.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados de tempo — os arquivos importados nao contêm colunas de horário (Hr Emissao, Hr Sep Ini, Hr Sep Fim, Hr Expedido)</p>';
+    });
+    return;
+  }
+
+  // Compute durations
+  const withSep=rows.map(r=>{
+    const sep=parseDur(r.dt_sep_ini||r.dia, r.hr_sep_ini, r.dt_sep_fim||r.dia, r.hr_sep_fim);
+    const totalSep=parseDur(r.dia, r.hr_emissao, r.dt_sep_fim||r.dia, r.hr_sep_fim);
+    const expTime=parseDur(r.dt_sep_fim||r.dia, r.hr_sep_fim, r.exp||r.dt_exp||r.dia, r.hr_exp);
+    return {...r, _sep:sep, _totalSep:totalSep, _exp:expTime};
+  });
+
+  const validSep=withSep.filter(r=>r._sep!==null&&r._sep>=0&&r._sep<=1440);
+  const validExp=withSep.filter(r=>r._exp!==null&&r._exp>=0&&r._exp<=1440);
+
+  const avg=arr=>arr.length?Math.round(arr.reduce((s,x)=>s+x,0)/arr.length):null;
+  const med=arr=>{if(!arr.length) return null; const s=arr.slice().sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2?s[m]:Math.round((s[m-1]+s[m])/2);}
+
+  const sepVals=validSep.map(r=>r._sep);
+  const expVals=validExp.map(r=>r._exp);
+
+  // ── KPIs ─────────────────────────────────────────────
+  const kpEl=$('#tempos-kp');
+  if(kpEl) kpEl.innerHTML=
+    `<div class="k"><div class="kl">Pedidos c/ tempo sep.</div><div class="kv">${N(validSep.length)}</div></div>`+
+    `<div class="k"><div class="kl">Tempo médio sep.</div><div class="kv">${fmtMin(avg(sepVals))}</div></div>`+
+    `<div class="k"><div class="kl">Tempo mediano sep.</div><div class="kv">${fmtMin(med(sepVals))}</div></div>`+
+    `<div class="k"><div class="kl">Pedidos c/ tempo exp.</div><div class="kv">${N(validExp.length)}</div></div>`+
+    `<div class="k"><div class="kl">Tempo médio expedição</div><div class="kv">${fmtMin(avg(expVals))}</div></div>`;
+
+  // ── Histograma de separação (buckets de 30min) ────────
+  const sepHistEl=$('#c-sep-hist');
+  if(sepHistEl&&sepVals.length>0){
+    const buckets={}; const BK=30;
+    sepVals.forEach(v=>{const b=Math.floor(v/BK)*BK; const lbl=`${b}-${b+BK}min`; buckets[lbl]=(buckets[lbl]||0)+1;});
+    const bData=Object.entries(buckets).sort((a,b)=>{const na=parseInt(a[0]);const nb=parseInt(b[0]);return na-nb;}).map(([k,v])=>({k,v}));
+    renderBarsRaw(bData,sepHistEl,{label:'faixa de tempo',fmt:v=>N(v)+' pedidos'});
+  } else if(sepHistEl){
+    sepHistEl.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>';
+  }
+
+  // ── Tempo médio de separação por vendedor ─────────────
+  const sepVendEl=$('#c-sep-vend');
+  if(sepVendEl&&validSep.length>0){
+    const byVend={};
+    validSep.forEach(r=>{
+      const v=r.vend||'(s/vend)';
+      if(!byVend[v]) byVend[v]={v:0,cnt:0};
+      byVend[v].v+=r._sep; byVend[v].cnt++;
+    });
+    const vData=Object.entries(byVend).map(([k,o])=>({k,v:Math.round(o.v/o.cnt)})).sort((a,b)=>a.v-b.v).slice(0,15);
+    renderBarsRaw(vData,sepVendEl,{label:'vendedores',fmt:v=>fmtMin(v)});
+  } else if(sepVendEl){
+    sepVendEl.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>';
+  }
+
+  // ── Tempo médio por dia ───────────────────────────────
+  const sepDiaEl=$('#c-sep-dia');
+  if(sepDiaEl&&validSep.length>0){
+    const byDia={};
+    validSep.forEach(r=>{
+      const d=r.dia||r.dt_sep_ini||'?';
+      if(!byDia[d]) byDia[d]={v:0,cnt:0};
+      byDia[d].v+=r._sep; byDia[d].cnt++;
+    });
+    const dData=Object.entries(byDia).map(([k,o])=>({k,v:Math.round(o.v/o.cnt)})).sort((a,b)=>a.k<b.k?-1:1).slice(-60);
+    renderBarsRaw(dData,sepDiaEl,{label:'dias',fmt:v=>fmtMin(v)});
+  } else if(sepDiaEl){
+    sepDiaEl.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>';
+  }
+}
+
 document.addEventListener('click',e=>{
  const t=e.target;let b;
  if(b=t.closest('#e-tabs [data-tab]'))return go(b.dataset.tab);
@@ -1174,6 +1565,8 @@ const TABS=[
   {k:'cli',  ic:'🏢', l:'Clientes'},
   {k:'transp',ic:'🚚',l:'Transportadoras'},
   {k:'hist', ic:'📅', l:'Histórico'},
+  {k:'itens',ic:'📦', l:'Itens'},
+  {k:'tempos',ic:'⏱️', l:'Tempos'},
 ];
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1362,14 +1755,33 @@ function kpis(rs){
   const gLTHtml=growLT!==null?`<span class="kpi-g${clG(growLT)}">${fmtG(growLT)} ${growLabel}</span>`:'';
   const gLLHtml=growLL!==null?`<span class="kpi-g${clG(growLL)}">${fmtG(growLL)} ${growLabel}</span>`:'';
 
+  // Cards de crescimento para o topo (período do filtro ou mês atual parcial)
+  const growCards=[];
+  if(growTot!==null){
+    const cl=growTot>0?'ok':growTot<0?'bad':'';
+    growCards.push({l:'Crescimento total',v:fmtG(growTot),s:growLabel,c:cl,g:''});
+  }
+  if(growLT!==null){
+    const cl=growLT>0?'ok':growLT<0?'bad':'';
+    growCards.push({l:'Crescimento LT',v:fmtG(growLT),s:growLabel,c:cl,g:'',blt:'y'});
+  }
+  if(growLL!==null){
+    const cl=growLL>0?'ok':growLL<0?'bad':'';
+    growCards.push({l:'Crescimento LL',v:fmtG(growLL),s:growLabel,c:cl,g:'',blt:'bl'});
+  }
   return[
-    {l:'Total de pedidos',v:N(rs.length),s:'LT: '+N(lt)+' · LL: '+N(ll),c:'',g:gTotHtml},
+    {l:'Total de pedidos',v:N(rs.length),s:'LT: '+N(lt)+' · LL: '+N(ll),c:'',g:''},
     {l:'Expedidos',v:N(exp.length),s:PCT(exp.length,rs.length)+' do total',c:'ok',g:''},
-    {l:'LT',v:N(lt),s:PCT(lt,rs.length)+' do total',c:'',g:gLTHtml},
-    {l:'LL',v:N(ll),s:PCT(ll,rs.length)+' do total',c:'',g:gLLHtml},
+    {l:'LT',v:N(lt),s:PCT(lt,rs.length)+' do total',c:'',g:''},
+    {l:'LL',v:N(ll),s:PCT(ll,rs.length)+' do total',c:'',g:''},
+    ...growCards,
   ]
 }
-function kpHtml(a){return a.map(o=>`<div class="k ${o.c}"><span>${o.l}</span><b>${o.v}</b>${o.s?`<small>${o.s}</small>`:''} ${o.g||''}</div>`).join('')}
+function kpHtml(a){return a.map(o=>{
+  const bl=o.blt?`border-left-color:var(--${o.blt})`:'';
+  const bClr=o.c==='ok'?`style="color:var(--ok)"`:o.c==='bad'?`style="color:var(--bad)"`:'';
+  return`<div class="k ${o.c||''}"${bl?` style="${bl}"`:''}><span>${o.l}</span><b ${bClr}>${o.v}</b>${o.s?`<small>${o.s}</small>`:''}</div>`;
+}).join('')}
 
 function aggCount(rs,k,top=12){const g=new Map();rs.forEach(r=>{const v=r[k]||'(vazio)';g.set(v,(g.get(v)||0)+1)});return[...g].sort((a,b)=>b[1]-a[1]).slice(0,top)}
 function aggPareto(rs,k){const g=new Map();rs.forEach(r=>{const v=r[k]||'(vazio)';g.set(v,(g.get(v)||0)+1)});const all=[...g].sort((a,b)=>b[1]-a[1]),tot=rs.length;let acc=0;all.forEach(x=>acc+=x[1]);let cu=0;const n80=all.findIndex(x=>{cu+=x[1];return cu/tot>=0.8})+1||all.length;return{all,tot,n80}}
@@ -1402,7 +1814,7 @@ function renderHistDia(rs,el){
   rs.forEach(r=>{if(r.dia){if(!g.has(r.dia))g.set(r.dia,{LT:0,LL:0});g.get(r.dia)[r.loja]++}});
   if(!g.size){
     el.innerHTML=toggleHtml+`<p class="mu2" style="padding:.5rem">Sem dados para o período.</p>`;
-    el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));return;
+    document.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));return;
   }
   // Preenche todos os dias do intervalo (sem dados = zero)
   const diasComDados=Array.from(g.keys()).sort();
@@ -1568,7 +1980,7 @@ function renderHistDia(rs,el){
     `<div class="area-chart" style="position:relative;margin:0 -0.5rem;margin-top:.05rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
     legenda+graf2;
 
-  el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
+  document.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
 
   // Tooltip on hover
   el.querySelectorAll('.dia-bar').forEach(b=>{
@@ -1603,6 +2015,10 @@ function renderHistDia(rs,el){
 }
 
 function renderHist(rs,el){
+  // Sync toggle bar active state
+  document.querySelectorAll('.hist-tog').forEach(b=>{
+    b.classList.toggle('hist-tog-on', b.dataset.hm===histMode);
+  });
   if(histMode==='dia'){return renderHistDia(rs,el);}
   const g=new Map();
   rs.forEach(r=>{if(r.mes){if(!g.has(r.mes))g.set(r.mes,{LT:0,LL:0});g.get(r.mes)[r.loja]++}});
@@ -1841,10 +2257,10 @@ function renderHist(rs,el){
     ?`<span style="display:inline-flex;align-items:center;gap:.3rem;background:var(--s2);border:1px solid var(--ok);border-radius:6px;padding:.2rem .55rem;font-size:.72rem;color:var(--ok);font-weight:700">● ${fmtMes(mesAtual)}: em andamento (hover para ver dados)</span>`:'';
 
   const toggleHtmlMes=`<div style="display:flex;gap:.5rem;margin-bottom:.35rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog hist-tog-on" data-hm="mes">Mensal</button><button class="hist-tog" data-hm="dia">Diário</button></div>`;
-  el.innerHTML= toggleHtmlMes+resumoHtml+
-    `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible;margin-top:.1rem">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
+  el.innerHTML=
+    `<div class="area-chart" style="position:relative;margin:0 -1rem;overflow:visible;margin-top:.2rem">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
     `<div class="hlgd" style="margin-top:.5rem">${avisoAtual}<span style="color:var(--y)">— Total</span><span style="color:var(--bl)">- - LL</span><span class="up">▲ crescimento</span><span class="dn">▼ queda</span><span class="mu2" style="font-size:.7rem">clique no ponto para filtrar</span></div>`;
-  el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
+  document.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
 
   // Eventos
   el.querySelectorAll('.area-dot').forEach(dot=>{
@@ -1954,6 +2370,10 @@ function render(){
     renderHist(rs,$('#c-hist2'));
     renderBars(rs,'mes',$('#c-mes'),{top:15,label:'meses'});
   }
+  // ── Itens tab ───────────────────────────────────────────
+  if(cur==='itens') renderItensTab(_itensCache, rs);
+  // ── Tempos tab ──────────────────────────────────────────
+  if(cur==='tempos') renderTemposTab(rs);
   renderTable(rs);
   buildSidebarFilters();
 }
@@ -1964,6 +2384,8 @@ function go(tab){
   $('#p-tabs').innerHTML=TABS.map(t=>`<button role="tab" type="button" data-tab="${t.k}" aria-selected="${t.k===tab}">${t.ic} ${t.l}</button>`).join('');
   renderNav();
   const cg=$('#cg');
+  const htb=document.getElementById('hist-toggle-bar');
+  if(htb) htb.style.display=tab==='ov'?'flex':'none';
   if(tab==='ov'){
     cg.innerHTML=`<article class="pn w2"><h3>Pedidos por mês</h3><div id="c-hist"></div></article>`+
       `<article class="pn"><h3>Distribuição por loja</h3><div id="c-loja"></div></article>`+
@@ -1971,17 +2393,42 @@ function go(tab){
       `<article class="pn"><h3>Situação dos pedidos</h3><div id="c-sit"></div></article>`;
   }else if(tab==='vend'){
     cg.innerHTML=
-      `<article class="pn"><h3>Vendedor por loja</h3><div id="c-lv"></div></article>`+
-      `<article class="pn"><h3>Pedidos por conferente</h3><div id="c-conf"></div></article>`+
-      `<article class="pn w2"><h3>Pedidos por vendedor (Pareto 80/20)</h3><div id="c-vend"></div></article>`;
+      `<div class="vend-row">` +
+        `<article class="pn vend-col-sm"><h3>Vendedor por loja</h3><div id="c-lv"></div></article>`+
+        `<article class="pn vend-col-sm"><h3>Pedidos por conferente</h3><div id="c-conf"></div></article>`+
+        `<article class="pn vend-col-lg"><h3>Pedidos por vendedor (Pareto 80/20)</h3><div id="c-vend"></div></article>`+
+      `</div>`;
   }else if(tab==='cli'){
     cg.innerHTML=`<article class="pn w2"><h3>Clientes com mais pedidos (Pareto 80/20)</h3><div id="c-cli"></div></article>`;
   }else if(tab==='transp'){
-    cg.innerHTML=`<article class="pn"><h3>Tipo de entrega</h3><div id="c-ttp2"></div></article>`+
-      `<article class="pn w2"><h3>Transportadora (Pareto 80/20)</h3><div id="c-tp"></div></article>`;
+    cg.innerHTML=`<div class="vend-row">` +
+      `<article class="pn vend-col-sm"><h3>Tipo de entrega</h3><div id="c-ttp2"></div></article>`+
+      `<article class="pn vend-col-lg" style="grid-column:span 2"><h3>Transportadora (Pareto 80/20)</h3><div id="c-tp"></div></article>`+
+      `</div>`;
   }else if(tab==='hist'){
     cg.innerHTML=`<article class="pn w2"><h3>Evolução mensal de pedidos</h3><div id="c-hist2"></div></article>`+
       `<article class="pn w2"><h3>Pedidos por mês</h3><div id="c-mes"></div></article>`;
+  }
+  if(tab==='itens'){
+    cg.innerHTML=
+      `<div class="kp" id="itens-kp"></div>`+
+      `<div class="vend-row">
+        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Itens mais vendidos (Pareto 80/20)</h3><div id="c-itens-pareto"></div></article>
+        <article class="pn vend-col-sm"><h3>Itens por marca</h3><div id="c-itens-marca"></div></article>
+      </div>`+
+      `<article class="pn w2"><h3>Qual cliente compra qual item (top 15 itens × top clientes)</h3><div id="c-itens-cli" style="overflow-x:auto"></div></article>`+
+      `<div class="vend-row">
+        <article class="pn vend-col-sm"><h3>Receita por marca</h3><div id="c-itens-receita-marca"></div></article>
+        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Receita por produto (top 20)</h3><div id="c-itens-receita"></div></article>
+      </div>`;
+  } else if(tab==='tempos'){
+    cg.innerHTML=
+      `<div class="kp" id="tempos-kp"></div>`+
+      `<div class="vend-row">
+        <article class="pn vend-col-sm"><h3>Distribuição do tempo de separação</h3><div id="c-sep-hist"></div></article>
+        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Tempo médio de separação por vendedor</h3><div id="c-sep-vend"></div></article>
+      </div>`+
+      `<article class="pn w2"><h3>Tempo de separação por dia (últimos 60 dias)</h3><div id="c-sep-dia"></div></article>`;
   }
   buildSidebarFilters();render();
 }
@@ -2029,7 +2476,7 @@ document.addEventListener('input',e=>{
   else if(id==='furg'){F.urg=e.target.value;tPage=0;render()}
 });
 $('#th').textContent=document.documentElement.dataset.t==='dark'?'Tema claro':'Tema escuro';
-const h0=location.hash.slice(1);go(['ov','vend','cli','transp','hist'].includes(h0)?h0:'ov');
+const h0=location.hash.slice(1);go(['ov','vend','cli','transp','hist','itens','tempos'].includes(h0)?h0:'ov');
 }
 
 </script>
