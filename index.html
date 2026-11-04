@@ -376,7 +376,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
   <div id="lf" role="group" aria-label="Login">
     <h2>Acesso restrito</h2>
     <p>Painel Gerencial · Estoque &amp; Pedidos</p>
-    <label class="fl">E-mail<input id="lu" type="email" autocomplete="email" inputmode="email" placeholder="seu@email.com"></label>
+    <label class="fl">Usuário<input id="lu" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu usuário"></label>
     <label class="fl">Senha<input id="lp" type="password" autocomplete="current-password"></label>
     <p class="er" id="le" role="alert"></p>
     <button class="bt" id="lb" type="button">Entrar</button>
@@ -538,17 +538,19 @@ function abrirDashboard(){
   document.getElementById('sect-home').classList.add('active');
 }
 
+const DOMINIO_AUTH='@empresa.local';
 async function entrar(){
   const q=s=>document.getElementById(s),b=q('lb'),er=q('le');
   if(b.disabled)return;
-  const email=q('lu').value.trim(), pw=q('lp').value;
-  if(!email||!pw){er.textContent='Informe o e-mail e a senha.';return}
+  const usuario=q('lu').value.trim().toLowerCase().replace(/\s+/g,''), pw=q('lp').value;
+  if(!usuario||!pw){er.textContent='Informe o usuário e a senha.';return}
+  const email=usuario+DOMINIO_AUTH;
   er.textContent='';b.disabled=true;b.textContent='Verificando…';
   try{
-    // 1. Autenticar no Supabase
+    // 1. Autenticar no Supabase (email montado internamente)
     const {data:authData, error:authErr} = await _sb.auth.signInWithPassword({email, password:pw});
     if(authErr) throw authErr;
-    // 2. Verificar se email está na lista de autorizados
+    // 2. Verificar se usuário está na lista de autorizados
     const {data:authOk, error:authOkErr} = await _sb
       .from('usuarios_auth')
       .select('ativo')
@@ -557,25 +559,19 @@ async function entrar(){
       .single();
     if(authOkErr || !authOk){
       await _sb.auth.signOut();
-      throw new Error('Acesso não autorizado para este e-mail.');
+      throw new Error('Usuário não autorizado.');
     }
-    // 3. Desencripta dados de estoque (ainda local) com e-mail como "usuário"
-    // Mantém compatibilidade: tenta unlock com email OU com o antigo usuário/senha
-    b.textContent='Carregando estoque…';
-    try{ _dE=unlock(email,pw,ENC_E); }catch(e){
-      // se não funcionar com email, estoque fica null (painel de estoque desabilitado)
-      _dE=null;
-    }
-    // 4. Carrega pedidos do Supabase
+    // 3. Carrega pedidos do Supabase
     b.textContent='Carregando pedidos…';
     const pedidosRows = await carregarPedidosSupa();
     _dP = { rows: pedidosRows };
-    // 5. Entra no dashboard
+    _dE = null;
+    // 4. Entra no dashboard
     q('lp').value='';
     abrirDashboard();
   }catch(x){
     er.textContent = x.message==='Invalid login credentials'
-      ? 'E-mail ou senha incorretos.'
+      ? 'Usuário ou senha incorretos.'
       : (x.message || 'Erro ao entrar. Tente novamente.');
     b.disabled=false; b.textContent='Entrar';
   }
