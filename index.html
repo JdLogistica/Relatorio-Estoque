@@ -2378,11 +2378,12 @@ function render(){
   buildSidebarFilters();
 }
 
-function go(tab){
+async function go(tab){
   closeSB();
   cur=tab;try{history.replaceState(null,'','#'+tab)}catch(e){}
   $('#p-tabs').innerHTML=TABS.map(t=>`<button role="tab" type="button" data-tab="${t.k}" aria-selected="${t.k===tab}">${t.ic} ${t.l}</button>`).join('');
   renderNav();
+  if(tab==='itens'&&_itensCache.length===0) await carregarItensSupa();
   const cg=$('#cg');
   const htb=document.getElementById('hist-toggle-bar');
   if(htb) htb.style.display=tab==='ov'?'flex':'none';
