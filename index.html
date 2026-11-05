@@ -1478,7 +1478,7 @@ function pareto(tab,c,el){
  s+=sh.map((r,i)=>{const x=L+sl*i,p=r.v/tot*100,bh=ph*p/100,vt=`<text class="v${bh>=16?' vi':''}" x="${x+sl/2}" y="${bh>=16?y(p)+11:y(p)-3}">${c.fmt===BRL?short(r.v):N(r.v)}</text>`;
   return`<g class="pb" data-k="${c.k}" data-v="${esc(r.k)}"><title>${esc(r.k)}: ${f(r.v)} (${PCT(r.v,tot)}) · acumulado ${PCT(r.cum,100)}</title><rect x="${x}" y="${T}" width="${sl}" height="${ph}" fill="transparent"/><rect class="bx${i<n80?'':' o'}${String(r.k)===sel?' on':''}" x="${x+sl*.19}" y="${y(p)}" width="${sl*.62}" height="${ph*p/100}"/>${vt}<text transform="translate(${x+sl/2+3},${H-B+12}) rotate(-45)" text-anchor="end">${lab(r.k)}</text></g>`}).join('');
  s+=`<line class="r80" x1="${L}" x2="${W-R}" y1="${y(80)}" y2="${y(80)}"/><polyline class="ln" points="${sh.map((r,i)=>`${L+sl*i+sl/2},${y(r.cum)}`).join(' ')}"/>`+sh.map((r,i)=>`<circle class="dot" cx="${L+sl*i+sl/2}" cy="${y(r.cum)}" r="2.6"/>`).join('')+sh.map((r,i)=>`<text class="cu" x="${L+sl*i+sl/2}" y="${y(r.cum)-7}">${Math.round(r.cum)}%</text>`).join('');
- el.innerHTML=`<p class="pt"><b>${n80} de ${rows.length}</b> ${c.nm||'itens'} (${PCT(n80,rows.length)}) respondem por <b>${PCT(rows[n80-1].cum,100)}</b> do total de <b>${f(tot)}</b>. Barras amarelas = esse grupo; os números nas barras são os valores e os da linha, o % acumulado.</p><div class="pa"><svg viewBox="0 0 ${W} ${H}" style="min-width:${W}px;width:100%" role="img" aria-label="${esc(c.t)}">${s}</svg></div>`;
+ el.innerHTML=`<p class="pt"><b>${n80} de ${rows.length}</b> ${c.nm||'itens'} (${PCT(n80,rows.length)}) respondem por <b>${PCT(rows[n80-1].cum,100)}</b> do total de <b>${f(tot)}</b>. Barras amarelas = esse grupo; os números nas barras são os valores e os da linha, o % acumulado.</p><div class="pa" style="overflow-x:auto;-webkit-overflow-scrolling:touch"><svg viewBox="0 0 ${W} ${H}" style="min-width:min(${W}px,100%);width:100%;height:auto" role="img" aria-label="${esc(c.t)}">${s}</svg></div>`;
 }
 const draw=(tab,c,el)=>c.heat?heat(el):c.type=='donut'?donut(tab,c,el):c.type=='col'?cols(tab,c,el):c.type=='pareto'?pareto(tab,c,el):bars(tab,c,el);
 const uniq=k=>[...new Set(D.inv.map(r=>r[k]))].sort((a,b)=>a-b);
@@ -2021,7 +2021,7 @@ function renderHistDia(rs,el){
   }).join('');
 
   const baseline=`<line x1="${PL}" y1="${PT+cH}" x2="${W-PR}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1"/>`;
-  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" preserveAspectRatio="none">${gridLines}${baseline}${bars}</svg>`;
+  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="min-width:min(${W}px,100%);width:100%;height:auto;display:block">${gridLines}${baseline}${bars}</svg>`;
 
   // ══════════════════════════════════════════════════════════════════
   // GRÁFICO 2 — Média diária por mês (linha de evolução)
@@ -2076,7 +2076,7 @@ function renderHistDia(rs,el){
       return`<text x="${xm(i).toFixed(1)}" y="${H2-6}" text-anchor="${anc}" font-size="9" fill="var(--mu)">${fmtMesShort(x.m)}</text>`;
     }).join('');
     const bl2=`<line x1="${PL2}" y1="${PT2+cH2}" x2="${W2-PR2}" y2="${PT2+cH2}" stroke="var(--bd)" stroke-width="1"/>`;
-    svg2=`<svg viewBox="0 0 ${W2} ${H2}" style="width:100%;display:block" preserveAspectRatio="none">${gL2}${bl2}${aTot}${aLL}${lTot}${lLL}${dotsM}${xlM}</svg>`;
+    svg2=`<svg viewBox="0 0 ${W2} ${H2}" style="width:100%;height:auto;display:block">${gL2}${bl2}${aTot}${aLL}${lTot}${lLL}${dotsM}${xlM}</svg>`;
   }
 
   const graf2=nm>=2?
@@ -2097,7 +2097,7 @@ function renderHistDia(rs,el){
   </div>`;
 
   el.innerHTML=toggleHtml+resumo+
-    `<div class="area-chart" style="position:relative;margin:0 -0.5rem;margin-top:.05rem;overflow:visible">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
+    `<div class="area-chart" style="position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -0.5rem;margin-top:.05rem">${svgStr}<div class="area-tooltip" id="area-tip" style="position:absolute;display:none;z-index:20"></div></div>`+
     legenda+graf2;
 
   document.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{histMode=b.dataset.hm;renderHist(rs,el);}));
@@ -2358,7 +2358,7 @@ function renderHist(rs,el){
 <circle cx="${cx}" cy="${cyL}" r="3" fill="${isAt?'var(--ok)':'var(--bl)'}" stroke="var(--bg)" stroke-width="1.5" pointer-events="none"/>`;
   }).join('');
 
-  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;min-height:${H}px;overflow:visible">
+  const svgStr=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible">
     <defs>
       <linearGradient id="gTot" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--y)" stop-opacity=".4"/><stop offset="100%" stop-color="var(--y)" stop-opacity=".03"/></linearGradient>
       <linearGradient id="gLL" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--bl)" stop-opacity=".45"/><stop offset="100%" stop-color="var(--bl)" stop-opacity=".04"/></linearGradient>
