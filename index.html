@@ -2441,16 +2441,16 @@ function renderTable(rs){
     '4-Pedido Separado':`<span class="bd bl2c">Separado</span>`,
     '6-Confirmacao de Pagamento':`<span class="bd wn">Conf. Pag.</span>`,
   };
-  const cols=[['id','Pedido'],['loja','Loja'],['cli','Cliente'],['vend','Vendedor'],['tp2','Tipo'],['tp','Transportadora'],['sit','Situação'],['dia','Emissão'],['exp','Expedido']];
+  const cols=[['id','Pedido'],['loja','Loja'],['cli','Cliente'],['vend','Vendedor'],['conf','Conferente'],['tp2','Tipo'],['tp','Transportadora'],['sit','Situação'],['dia','Emissão'],['exp','Expedido']];
   const head=cols.map(([k,l])=>{const on=tSort&&tSort[0]===k;return`<th data-sk="${k}"><button>${l}<span>${on?(tSort[1]>0?'▲':'▼'):''}</span></button></th>`}).join('');
   const body=rs.slice(from,from+P).map(r=>`<tr>
     <td class="r">${N(r.id)}${r.urg?` <span class="bd wn">U</span>`:''}</td>
     <td>${r.loja==='LT'?`<span class="bd ok">LT</span>`:`<span class="bd bl2c">LL</span>`}</td>
-    <td>${esc(r.cli)}</td><td>${esc(r.vend)}</td>
+    <td>${esc(r.cli)}</td><td>${esc(r.vend)}</td><td>${esc(r.conf||'')}</td>
     <td>${esc(r.tp2)}</td><td class="mu2" style="max-width:9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.tp)}</td>
     <td>${SIT[r.sit]||`<span class="bd bad">${esc(r.sit)}</span>`}</td>
     <td>${FMT_DT(r.dia)}</td><td>${FMT_DT(r.exp)}</td></tr>`).join('');
-  $('#p-tb').innerHTML=`<div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${body||'<tr><td colspan="9" style="text-align:center;color:var(--mu);padding:1.5rem">Nenhum pedido com esses filtros</td></tr>'}</tbody></table></div>`+
+  $('#p-tb').innerHTML=`<div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${body||'<tr><td colspan="10" style="text-align:center;color:var(--mu);padding:1.5rem">Nenhum pedido com esses filtros</td></tr>'}</tbody></table></div>`+
     `<div class="pg"><span>${rs.length?`${N(from+1)}–${N(Math.min(from+P,rs.length))} de ${N(rs.length)} pedidos`:'0 pedidos'}</span><div><button class="bt" data-pg="-1" ${tPage<1?'disabled':''}>Anterior</button><button class="bt" data-pg="1" ${tPage>=pages-1?'disabled':''}>Próxima</button></div></div>`;
 }
 
