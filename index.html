@@ -1194,15 +1194,15 @@ function renderItensTab(dash){
   // ── helpers inline ───────────────────────────────────
   function classBadge(c){
     const col={A:'#22c55e',B:'#f59e0b',C:'#94a3b8',P:'#3b82f6',Q:'#8b5cf6',R:'#ec4899'};
-    return`<span style="display:inline-block;padding:.1rem .45rem;border-radius:9999px;font-size:.72rem;font-weight:700;background:${col[c]||'var(--bd)'};color:#fff">${c}</span>`;
+    return`<span style="display:inline-block;padding:.1rem .45rem;border-radius:9999px;font-size:.82rem;font-weight:700;background:${col[c]||'var(--bd)'};color:#fff">${c}</span>`;
   }
   function classCard(label, obj, colorVar){
     const c=obj||{};
     return`<div style="flex:1;min-width:7rem;padding:.6rem .9rem;border-radius:.5rem;background:${colorVar};text-align:center">
       <div style="font-size:1.5rem;font-weight:700;color:var(--tx)">${N(c.count||0)}</div>
-      <div style="font-size:.7rem;color:var(--mu);margin:.1rem 0">itens (${c.pct_itens||0}%)</div>
+      <div style="font-size:.82rem;color:var(--mu);margin:.1rem 0">itens (${c.pct_itens||0}%)</div>
       <div style="font-size:.82rem;font-weight:600;color:var(--tx)">R$ ${BRL(c.receita||0)}</div>
-      <div style="font-size:.7rem;color:var(--mu);margin-top:.15rem">${label}</div>
+      <div style="font-size:.82rem;color:var(--mu);margin-top:.15rem">${label}</div>
     </div>`;
   }
 
@@ -1222,18 +1222,18 @@ function renderItensTab(dash){
   if(maisEl){
     if(!maisList.length){maisEl.innerHTML=noData;}else{
       const max=maisList[0].qtde_total||1;
-      const header=`<div style="display:grid;grid-template-columns:13rem 1fr 5.5rem 7rem 7rem;gap:.35rem;padding:0 0 .4rem;border-bottom:1px solid var(--bd);font-size:.72rem;color:var(--mu);font-weight:600">
+      const header=`<div style="display:grid;grid-template-columns:13rem 1fr 5.5rem 7rem 7rem;gap:.35rem;padding:0 0 .4rem;border-bottom:1px solid var(--bd);font-size:.82rem;color:var(--mu);font-weight:600">
         <span>Produto</span><span></span><span style="text-align:right">Qtde</span><span style="text-align:right">Pedidos</span><span style="text-align:right">Receita</span></div>`;
       const rows=maisList.map(x=>{
         const pct=max>0?Math.round((x.qtde_total||0)/max*100):0;
         return`<div style="display:grid;grid-template-columns:13rem 1fr 5.5rem 7rem 7rem;align-items:center;gap:.35rem;margin-bottom:.22rem">
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
           <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:12px">
             <div style="width:${pct}%;height:100%;background:var(--ok);border-radius:3px"></div>
           </div>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.num_pedidos)}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.num_pedidos)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       maisEl.innerHTML=header+`<div style="padding:.3rem 0">${rows}</div>`;
@@ -1248,12 +1248,12 @@ function renderItensTab(dash){
       const rows=menosList.map(x=>{
         const pct=max>0?Math.round((x.qtde_total||0)/max*100):0;
         return`<div style="display:grid;grid-template-columns:13rem 1fr 5.5rem 7rem;align-items:center;gap:.35rem;margin-bottom:.22rem">
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
           <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:12px">
             <div style="width:${pct}%;height:100%;background:var(--er);opacity:.7;border-radius:3px"></div>
           </div>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       menosEl.innerHTML=`<div style="padding:.3rem 0">${rows}</div>`;
@@ -1268,13 +1268,13 @@ function renderItensTab(dash){
       const rows=saidasList.map(x=>{
         const pct=max>0?Math.round((x.pedidos_distintos||0)/max*100):0;
         return`<div style="display:grid;grid-template-columns:13rem 1fr 5rem 5.5rem 7rem;align-items:center;gap:.35rem;margin-bottom:.22rem">
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
           <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:12px">
             <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
           </div>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.pedidos_distintos)} ped.</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)} un.</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.pedidos_distintos)} ped.</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)} un.</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       saiEl.innerHTML=`<div style="padding:.3rem 0">${rows}</div>`;
@@ -1289,12 +1289,12 @@ function renderItensTab(dash){
       const rows=topMarca.map(x=>{
         const pct=max>0?Math.round((x.qtde_total||0)/max*100):0;
         return`<div style="display:grid;grid-template-columns:9rem 1fr 5.5rem 7rem;align-items:center;gap:.35rem;margin-bottom:.22rem">
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.marca||'')}">${esc((x.marca||'Sem marca').substring(0,22))}</span>
+          <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.marca||'')}">${esc((x.marca||'Sem marca').substring(0,22))}</span>
           <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:12px">
             <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
           </div>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       maEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
@@ -1313,9 +1313,9 @@ function renderItensTab(dash){
           <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:14px">
             <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
           </div>
-          <span style="font-size:.76rem;color:var(--mu)">${N(x.qtde_total)} un.</span>
-          <span style="font-size:.76rem;color:var(--mu)">R$ ${BRL(x.receita_total||0)}</span>
-          <span style="font-size:.74rem;color:var(--mu)">${N(x.produtos_distintos)} prod.</span>
+          <span style="font-size:.85rem;color:var(--mu)">${N(x.qtde_total)} un.</span>
+          <span style="font-size:.85rem;color:var(--mu)">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu)">${N(x.produtos_distintos)} prod.</span>
         </div>`;
       }).join('');
       lojaEl.innerHTML=`<div style="padding:.5rem 0">${rows}</div>`;
@@ -1332,16 +1332,16 @@ function renderItensTab(dash){
         ${classCard('Classe B — 80–95% receita',r.B,'rgba(245,158,11,.12)')}
         ${classCard('Classe C — 95–100% receita',r.C,'rgba(148,163,184,.12)')}
       </div>`;
-      const header=`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem 4rem;gap:.35rem;padding:0 0 .35rem;border-bottom:1px solid var(--bd);font-size:.72rem;color:var(--mu);font-weight:600">
+      const header=`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem 4rem;gap:.35rem;padding:0 0 .35rem;border-bottom:1px solid var(--bd);font-size:.82rem;color:var(--mu);font-weight:600">
         <span>Cl.</span><span>Produto</span><span style="text-align:right">Receita</span><span style="text-align:right">% Acum.</span><span style="text-align:right">Qtde</span><span style="text-align:right">Pedidos</span></div>`;
       const rows=top50.map(x=>{
         return`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem 4rem;align-items:center;gap:.35rem;margin-bottom:.2rem">
           ${classBadge(x.classe||'C')}
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${x.pct_acumulado||0}%</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.num_pedidos)}</span>
+          <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${x.pct_acumulado||0}%</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.num_pedidos)}</span>
         </div>`;
       }).join('');
       abcEl.innerHTML=cards+header+`<div style="padding:.3rem 0">${rows}</div>`;
@@ -1358,15 +1358,15 @@ function renderItensTab(dash){
         ${classCard('Classe Q — 20–50% frequência',r.Q,'rgba(139,92,246,.12)')}
         ${classCard('Classe R — 50%+ frequência',r.R,'rgba(236,72,153,.12)')}
       </div>`;
-      const header=`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem;gap:.35rem;padding:0 0 .35rem;border-bottom:1px solid var(--bd);font-size:.72rem;color:var(--mu);font-weight:600">
+      const header=`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem;gap:.35rem;padding:0 0 .35rem;border-bottom:1px solid var(--bd);font-size:.82rem;color:var(--mu);font-weight:600">
         <span>Cl.</span><span>Produto</span><span style="text-align:right">Pedidos</span><span style="text-align:right">Receita</span><span style="text-align:right">Qtde</span></div>`;
       const rows=top50.map(x=>{
         return`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem;align-items:center;gap:.35rem;margin-bottom:.2rem">
           ${classBadge(x.classe||'R')}
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.frequencia)}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.frequencia)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
         </div>`;
       }).join('');
       pqrEl.innerHTML=cards+header+`<div style="padding:.3rem 0">${rows}</div>`;
@@ -1537,11 +1537,11 @@ function renderBarsRaw(data, el, {label='',fmt=v=>N(v),prefix=''}={}){
   const rows=data.map((x,i)=>{
     const pct=Math.round(x.v/max*100);
     return`<div style="display:grid;grid-template-columns:12rem 1fr 7rem;align-items:center;gap:.4rem;margin-bottom:.25rem">
-      <span style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.k)}">${esc(x.k)}</span>
+      <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.k)}">${esc(x.k)}</span>
       <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:14px">
         <div style="width:${pct}%;height:100%;background:var(--ok);border-radius:3px;transition:width .3s"></div>
       </div>
-      <span style="font-size:.78rem;color:var(--mu);text-align:right">${prefix}${fmt(x.v)}</span>
+      <span style="font-size:.85rem;color:var(--mu);text-align:right">${prefix}${fmt(x.v)}</span>
     </div>`;
   }).join('');
   el.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
