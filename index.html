@@ -1170,158 +1170,6 @@ async function enviarAoSupabase(pedidos, lojaDefault, statusEl){
 }
 
 
-function bootE(D){
-const $=(s,r=document)=>r.querySelector(s);
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const N=v=>Number(v).toLocaleString('pt-BR',{maximumFractionDigits:3});
-const BRL=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-const PCT=(a,b)=>(b?a/b*100:0).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-const PC=(a,b)=>(b?Math.round(a/b*100):0)+'%';
-const sum=(rs,k)=>rs.reduce((a,r)=>a+r[k],0);
-const bd=(t,c)=>`<span class="bd ${c}">${t}</span>`;
-const FX=['Zerado','1 peça','2 a 5','6 a 10','11 a 50','Mais de 50'];
-const band=e=>e===0?FX[0]:e===1?FX[1]:e<=5?FX[2]:e<=10?FX[3]:e<=50?FX[4]:FX[5];
-
-D.inv.forEach(r=>{r.fx=band(r.e);r.loc=`R${r.ru} · P${r.pr} · N${r.ni} · A${r.ap}`;r.lk=r.ru*1e6+r.pr*1e4+r.ni*100+r.ap;r.cl=r.ct==2?'2 contagens':r.ct==1?'1 contagem':'Sem registro'});
-D.sp.forEach(r=>{r.lc=r.l?'Com locação':'Sem locação';r.pw=r.w>0?'Com peso':'Sem peso';r.c2=r.cv?'Com 1ª conversão':'Sem 1ª conversão'});
-D.dv.forEach(r=>{r.st=r.s===0?'Sem saldo':r.s<r.q?'Saldo parcial':'Saldo suficiente';r.pl=(r.p+' '+r.d).trim()});
-
-const dash=r=>v=>v?esc(v):'<span class="mu">—</span>';
-const TB={
-inv:{n:'Inventário',rows:D.inv,s:['c','r','p'],ph:'Buscar código, referência ou produto',
- f:[['ru','Rua','n'],['pr','Prédio','n'],['ni','Nível','n'],['fx','Faixa de estoque','o'],['cl','Contagem']],
- col:[['c','Código'],['r','Referência'],['p','Produto','',r=>esc(r.p)+(r.aj?' '+bd('Ajustar SISRAVE','bad'):'')],['e','Estoque','r',r=>N(r.e)],['loc','Endereço','',null,'lk'],['cl','Contagem']],
- kpi:rs=>{const seen=new Set();let u=0;rs.forEach(r=>{if(!seen.has(r.c)){seen.add(r.c);u+=r.e}});
-  return[['Produtos (SKU)',N(seen.size),N(rs.length)+' endereços'],['Peças em estoque',N(sum(rs,'e')),N(u)+' sem repetir endereços'],['Estoque zerado',N(rs.filter(r=>!r.e).length),'endereços'],['Sem contagem registrada',N(rs.filter(r=>!r.ct).length),'endereços']]},
- ch:[{t:'Mapa do depósito (rua × prédio)',heat:1},{t:'Endereços por faixa de estoque',k:'fx',ord:FX,type:'col'},{t:'Endereços por nível',k:'ni',ord:'key',type:'col',pre:'N'},{t:'Situação da contagem',k:'cl',type:'donut',u:'endereços',col:{'Sem registro':'var(--bad)','1 contagem':'var(--y)','2 contagens':'var(--tx)'}}]},
-sp:{n:'Itens sem preço',rows:D.sp,s:['c','d','m'],ph:'Buscar código, descrição ou marca',
- f:[['m','Marca'],['lc','Locação'],['pw','Peso'],['c2','1ª conversão']],
- col:[['c','Código'],['d','Descrição'],['m','Marca'],['l','Locação','',r=>dash()(r.l)],['s','Saldo','r',r=>N(r.s)],['w','Peso (kg)','r',r=>N(r.w)],['cv','1ª conversão','',r=>dash()(r.cv)]],
- kpi:rs=>[['Itens sem preço',N(rs.length),N(new Set(rs.map(r=>r.c)).size)+' códigos'],['Saldo total',N(sum(rs,'s')),'peças'],['Sem locação',N(rs.filter(r=>!r.l).length),PC(rs.filter(r=>!r.l).length,rs.length)+' dos itens'],['Sem 1ª conversão',N(rs.filter(r=>!r.cv).length),PC(rs.filter(r=>!r.cv).length,rs.length)+' dos itens']],
- ch:[{t:'Marcas com mais itens sem preço (Pareto 80/20)',k:'m',pr:1,nm:'marcas'},{t:'Pareto dos itens sem preço por marca (80/20)',k:'m',type:'pareto',nm:'marcas'},{t:'Situação da locação',k:'lc',type:'donut',col:{'Com locação':'var(--ok)','Sem locação':'var(--bad)'}},{t:'Situação da 1ª conversão',k:'c2',type:'donut',col:{'Com 1ª conversão':'var(--ok)','Sem 1ª conversão':'var(--bad)'}}]},
-dv:{n:'Divergências',rows:D.dv,s:['p','d','m'],ph:'Buscar produto, descrição ou marca',
- f:[['m','Marca'],['st','Situação do saldo']],
- note:()=>`Pedido ${D.meta.pd} · Vendedor ${D.meta.ve} · Entrega ${D.meta.en}`,
- col:[['p','Produto'],['d','Descrição'],['m','Marca'],['q','Qtde. pedida','r',r=>N(r.q)],['s','Saldo','r',r=>N(r.s)],['v','Total','r',r=>BRL(r.v)],['st','Situação','',r=>bd(r.st,r.st=='Sem saldo'?'bad':r.st=='Saldo parcial'?'wn':'ok')]],
- kpi:rs=>{const z=rs.filter(r=>r.st=='Sem saldo').length,p=rs.filter(r=>r.st=='Saldo parcial').length;
-  return[['Valor total',BRL(sum(rs,'v')),N(sum(rs,'q'))+' peças pedidas'],['Itens divergentes',N(rs.length)],['Sem saldo',N(z),PC(z,rs.length)+' dos itens'],['Saldo parcial',N(p),PC(p,rs.length)+' dos itens']]},
- ch:[{t:'Valor por marca (Pareto 80/20)',k:'m',v:'v',fmt:BRL,pr:1,nm:'marcas'},{t:'Situação do saldo',k:'st',type:'donut',col:{'Sem saldo':'var(--bad)','Saldo parcial':'var(--y)','Saldo suficiente':'var(--ok)'}},{t:'Pareto do valor por marca (80/20)',k:'m',v:'v',fmt:BRL,type:'pareto',nm:'marcas'},{t:'Pareto do valor por item (80/20)',k:'pl',v:'v',fmt:BRL,type:'pareto',nm:'itens',lab:k=>k.split(' ')[0]}]},
-sl:{n:'Sem locação',rows:D.sl,s:['c','d','m'],ph:'Buscar código, descrição ou marca',
- f:[['m','Marca']],
- col:[['c','Código'],['d','Descrição'],['m','Marca'],['s','Saldo','r',r=>N(r.s)],['w','Peso (kg)','r',r=>N(r.w)],['cu','Custo líquido','r',r=>BRL(r.cu)]],
- kpi:rs=>[['Itens com saldo e sem locação',N(rs.length)],['Saldo total',N(sum(rs,'s')),'peças'],['Com custo informado',N(rs.filter(r=>r.cu>0).length)]],
- ch:[{t:'Saldo por marca',k:'m',v:'s'}]}
-};
-Object.values(TB).forEach(t=>t.rows.forEach(r=>{r._s=t.s.map(k=>r[k]).join(' ').toLowerCase()}));
-const S={};Object.keys(TB).forEach(k=>S[k]={q:'',sel:{},so:null,pg:0});
-let cur='ov',hm='sku';
-
-function filtered(tab,...ex){const s=S[tab],q=s.q.trim().toLowerCase(),e=Object.entries(s.sel).filter(([k,v])=>v&&!ex.includes(k));
- return TB[tab].rows.filter(r=>(!q||r._s.includes(q))&&e.every(([k,v])=>String(r[k])===v))}
-const kpiHtml=a=>a.map(([l,v,s])=>`<div class="k"><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`).join('');
-const nFilters=tab=>Object.values(S[tab].sel).filter(Boolean).length+(S[tab].q?1:0);
-
-function agg(tab,c){
- const g=new Map();filtered(tab,c.k).forEach(r=>g.set(r[c.k],(g.get(r[c.k])||0)+(c.v?r[c.v]:1)));
- const all=[...g];
- all.sort(c.ord==='key'?(a,b)=>a[0]-b[0]:c.ord?(a,b)=>c.ord.indexOf(a[0])-c.ord.indexOf(b[0]):(a,b)=>b[1]-a[1]);
- return{all,sel:S[tab].sel[c.k]||''};
-}
-function bars(tab,c,el){
- const{all,sel}=agg(tab,c),f=c.fmt||N,tot=all.reduce((s,x)=>s+x[1],0);
- let acc=0;const cum=new Map(all.map(([k,v])=>[k,tot?(acc+=v)/tot*100:0])),rk=new Map(all.map(([k],i)=>[k,i]));
- const n80=c.pr&&tot?(all.findIndex(x=>cum.get(x[0])>=79.9999)+1)||all.length:0;
- const a=all.slice(0,c.pr?Math.min(all.length,Math.max(n80+2,c.top||10),Math.max(30,n80)):(c.top||10));
- if(sel&&!a.some(x=>String(x[0])===sel)){const g=all.find(x=>String(x[0])===sel);if(g)a.push(g)}
- const mx=Math.max(1,...a.map(x=>x[1]));
- const row=([k,v])=>{const i=rk.get(k),on=String(k)===sel;
-  return`<button class="bar${on?' on':''}${c.pr?' pr':''}${c.pr&&i>=n80?' g':''}" data-k="${c.k}" data-v="${esc(k)}" title="${esc(k)}: ${f(v)} (${PCT(v,tot)}) · acumulado ${PCT(cum.get(k),100)}" aria-pressed="${on}"><span class="bl">${esc(k)}</span><span class="bt2"><i style="width:${v/mx*100}%"></i></span><b>${f(v)} <span class="pc2">${PCT(v,tot)}</span></b>${c.pr?`<span class="bac">Σ ${PCT(cum.get(k),100)}</span>`:''}
-</button>`+(c.pr&&i==n80-1?`<div class="p80">80% do total atingido nas ${n80} primeiras ${c.nm||'linhas'} (Σ ${PCT(cum.get(k),100)})</div>`:'')};
- el.innerHTML=(c.pr&&tot?`<p class="pt"><b>${n80} de ${all.length}</b> ${c.nm||'itens'} (${PCT(n80,all.length)}) respondem por <b>${PCT(cum.get(all[n80-1][0]),100)}</b> do total de <b>${f(tot)}</b>. Barras amarelas = esse grupo; Σ = % acumulado.</p>`:'')+(a.map(row).join('')||'<p class="mu">Nada para mostrar com esses filtros.</p>');
-}
-function cols(tab,c,el){
- const{all,sel}=agg(tab,c),mx=Math.max(1,...all.map(x=>x[1])),f=c.fmt||N,tot=all.reduce((a,x)=>a+x[1],0);let cu=0;
- el.innerHTML='<div class="cl">'+all.map(([k,v])=>{cu+=v;return`<button type="button" class="${String(k)===sel?'on':''}" data-k="${c.k}" data-v="${esc(k)}" title="${esc(k)}: ${f(v)} (${PCT(v,tot)}) · acumulado ${PCT(cu,tot)}" aria-pressed="${String(k)===sel}"><em>${f(v)}</em><span class="cb" style="--h:${(v/mx).toFixed(3)}"></span><small>${(c.pre||'')+esc(k)}</small><small class="ac">Σ ${PCT(cu,tot)}</small></button>`}).join('')+'</div>';
-}
-const PAL=['var(--y)','var(--tx)','#8d8c85','var(--bad)','var(--ok)','#5aa9ff'];
-function donut(tab,c,el){
- const{all,sel}=agg(tab,c),tot=all.reduce((a,x)=>a+x[1],0),col=(k,i)=>(c.col&&c.col[k])||PAL[i%PAL.length];let acc=0;
- const seg=all.map(([k,v],i)=>{const p=tot?v/tot*100:0,d=Math.max(p-.6,.1),o=acc;acc+=p;
-  return`<circle cx="21" cy="21" r="15.9155" stroke="${col(k,i)}" stroke-dasharray="${d} ${100-d}" stroke-dashoffset="${-o}" class="${String(k)===sel?'on':''}" data-k="${c.k}" data-v="${esc(k)}"><title>${esc(k)}: ${N(v)}</title></circle>`}).join('');
- el.innerHTML=`<div class="dn"><div class="dw"><svg viewBox="0 0 42 42" role="img" aria-label="${esc(c.t)}"><circle cx="21" cy="21" r="15.9155" class="tk"/>${seg}</svg><div class="dm"><b>${N(tot)}</b><small>${c.u||'itens'}</small></div></div><div class="lgd">`+
-  all.map(([k,v],i)=>`<button type="button" class="${String(k)===sel?'on':''}" data-k="${c.k}" data-v="${esc(k)}" aria-pressed="${String(k)===sel}"><i style="background:${col(k,i)}"></i><span>${esc(k)}</span><b>${N(v)} · ${PC(v,tot)}</b></button>`).join('')+'</div></div>';
-}
-const short=v=>v>=1e6?(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi':v>=1e3?(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:v>=1e4?0:1})+' mil':N(Math.round(v));
-function pareto(tab,c,el){
- const{all,sel}=agg(tab,c),tot=all.reduce((a,x)=>a+x[1],0),f=c.fmt||N;
- if(!tot){el.innerHTML='<p class="mu">Nada para mostrar com esses filtros.</p>';return}
- let acc=0;const rows=all.map(([k,v])=>({k,v,cum:(acc+=v)/tot*100})),n80=(rows.findIndex(r=>r.cum>=79.9999)+1)||rows.length;
- const sh=rows.slice(0,Math.min(rows.length,Math.max(n80+3,10),Math.max(24,n80)));
- if(sel&&!sh.some(r=>String(r.k)===sel)){const r=rows.find(r=>String(r.k)===sel);if(r)sh.push(r)}
- const n=sh.length,W=Math.max(n*34+104,340),H=270,L=58,R=40,T=14,B=78,pw=W-L-R,ph=H-T-B,sl=pw/n,y=p=>T+ph*(1-p/100);
- const lab=k=>{k=String(c.lab?c.lab(k):k);return esc(k.length>16?k.slice(0,15)+'…':k)};
- let s=[0,20,40,60,80,100].map(p=>`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(p)}" y2="${y(p)}"/><text x="${L-6}" y="${y(p)+3}" text-anchor="end">${(c.fmt===BRL?'R$ ':'')+short(tot*p/100)}</text><text x="${W-R+6}" y="${y(p)+3}">${p}%</text>`).join('');
- s+=sh.map((r,i)=>{const x=L+sl*i,p=r.v/tot*100,bh=ph*p/100,vt=`<text class="v${bh>=16?' vi':''}" x="${x+sl/2}" y="${bh>=16?y(p)+11:y(p)-3}">${c.fmt===BRL?short(r.v):N(r.v)}</text>`;
-  return`<g class="pb" data-k="${c.k}" data-v="${esc(r.k)}"><title>${esc(r.k)}: ${f(r.v)} (${PCT(r.v,tot)}) · acumulado ${PCT(r.cum,100)}</title><rect x="${x}" y="${T}" width="${sl}" height="${ph}" fill="transparent"/><rect class="bx${i<n80?'':' o'}${String(r.k)===sel?' on':''}" x="${x+sl*.19}" y="${y(p)}" width="${sl*.62}" height="${ph*p/100}"/>${vt}<text transform="translate(${x+sl/2+3},${H-B+12}) rotate(-45)" text-anchor="end">${lab(r.k)}</text></g>`}).join('');
- s+=`<line class="r80" x1="${L}" x2="${W-R}" y1="${y(80)}" y2="${y(80)}"/><polyline class="ln" points="${sh.map((r,i)=>`${L+sl*i+sl/2},${y(r.cum)}`).join(' ')}"/>`+sh.map((r,i)=>`<circle class="dot" cx="${L+sl*i+sl/2}" cy="${y(r.cum)}" r="2.6"/>`).join('')+sh.map((r,i)=>`<text class="cu" x="${L+sl*i+sl/2}" y="${y(r.cum)-7}">${Math.round(r.cum)}%</text>`).join('');
- el.innerHTML=`<p class="pt"><b>${n80} de ${rows.length}</b> ${c.nm||'itens'} (${PCT(n80,rows.length)}) respondem por <b>${PCT(rows[n80-1].cum,100)}</b> do total de <b>${f(tot)}</b>. Barras amarelas = esse grupo; os números nas barras são os valores e os da linha, o % acumulado.</p><div class="pa"><svg viewBox="0 0 ${W} ${H}" style="min-width:${W}px;width:100%" role="img" aria-label="${esc(c.t)}">${s}</svg></div>`;
-}
-const draw=(tab,c,el)=>c.heat?heat(el):c.type=='donut'?donut(tab,c,el):c.type=='col'?cols(tab,c,el):c.type=='pareto'?pareto(tab,c,el):bars(tab,c,el);
-const uniq=k=>[...new Set(D.inv.map(r=>r[k]))].sort((a,b)=>a-b);
-function heat(el){
- const s=S.inv,m={},R=uniq('ru'),C=uniq('pr');
- filtered('inv','ru','pr').forEach(r=>{const k=r.ru+'-'+r.pr;m[k]=(m[k]||0)+(hm=='pcs'?r.e:1)});
- const mx=Math.max(1,...Object.values(m));
- el.innerHTML=`<div class="hm" style="--c:${C.length}"><span></span>${C.map(c=>`<i>P${c}</i>`).join('')}`+R.map(r=>`<i>R${r}</i>`+C.map(c=>{
-  const v=m[r+'-'+c]||0,a=Math.sqrt(v/mx),on=s.sel.ru==r&&s.sel.pr==c;
-  return`<button class="hc${on?' on':''}${v?'':' z'}${a<.55?' lo':''}" style="--a:${a.toFixed(2)}" data-r="${r}" data-c="${c}" title="Rua ${r}, prédio ${c}: ${N(v)} ${hm=='pcs'?'peças':'endereços'}">${v?N(v):''}</button>`}).join('')).join('')+'</div>';
-}
-function tableHtml(rs){
- const t=TB[cur],s=S[cur],P=25;
- if(s.so){const[k,d]=s.so;rs=rs.slice().sort((a,b)=>(a[k]>b[k]?1:a[k]<b[k]?-1:0)*d)}
- const pages=Math.max(1,Math.ceil(rs.length/P));s.pg=Math.min(s.pg,pages-1);const from=s.pg*P;
- const head=t.col.map(([k,l,a,f,sk])=>{const key=sk||k,on=s.so&&s.so[0]==key;
-  return`<th class="${a||''}" data-s="${key}" aria-sort="${on?(s.so[1]>0?'ascending':'descending'):'none'}"><button type="button">${l}<span>${on?(s.so[1]>0?'▲':'▼'):''}</span></button></th>`}).join('');
- const body=rs.slice(from,from+P).map(r=>'<tr>'+t.col.map(([k,l,a,f])=>`<td class="${a||''}">${f?f(r):esc(r[k])}</td>`).join('')+'</tr>').join('');
- return`<div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`+
-  (rs.length?'':'<p class="emp">Nenhum item com esses filtros. Use “Limpar filtros” para voltar à lista completa.</p>')+
-  `<div class="pg"><span>${rs.length?`${N(from+1)}–${N(Math.min(from+P,rs.length))} de ${N(rs.length)}`:'0 itens'}</span><div><button class="bt" data-pg="-1" ${s.pg<1?'disabled':''}>Anterior</button><button class="bt" data-pg="1" ${s.pg>=pages-1?'disabled':''}>Próxima</button></div></div>`;
-}
-function buildFilters(){
- const t=TB[cur],s=S[cur];
- $('#e-fb').innerHTML=`<label class="fl grow">Buscar<input id="q" type="search" placeholder="${t.ph}" value="${esc(s.q)}"></label>`+
-  t.f.map(([k,l,ty])=>{const v=[...new Set(t.rows.map(r=>String(r[k])))].sort(ty=='n'?(a,b)=>a-b:ty=='o'?(a,b)=>FX.indexOf(a)-FX.indexOf(b):(a,b)=>a.localeCompare(b,'pt-BR'));
-   return`<label class="fl">${l}<select class="fsel" data-k="${k}"><option value="">Todos</option>${v.map(x=>`<option${s.sel[k]===x?' selected':''}>${esc(x)}</option>`).join('')}</select></label>`}).join('')+
-  '<div class="fa"><button id="clr" class="bt" type="button">Limpar filtros</button><button id="exp" class="bt" type="button">Exportar CSV</button></div>';
-}
-function syncFilters(){const s=S[cur];$('#q').value=s.q;document.querySelectorAll('.fsel').forEach(e=>e.value=s.sel[e.dataset.k]||'')}
-function render(){
- if(cur=='ov')return;
- const t=TB[cur],rs=filtered(cur),n=nFilters(cur);
- $('#e-kp').innerHTML=(t.note?`<p class="nt">${t.note()}</p>`:'')+kpiHtml(t.kpi(rs));
- t.ch.forEach((c,i)=>{const el=$('#c'+i);draw(cur,c,el)});
- document.querySelectorAll('[data-hm]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.hm==hm));
- $('#e-tb').innerHTML=tableHtml(rs);
- const c=$('#clr');c.disabled=!n;c.textContent=n?`Limpar filtros (${n})`:'Limpar filtros';
-}
-function overview(){
- const i=D.inv,sku=new Set(i.map(r=>r.c)).size,pcs=sum(i,'e');
- $('#e-kp').innerHTML=kpiHtml([['Produtos (SKU)',N(sku),N(i.length)+' endereços'],['Peças em estoque',N(pcs)],['Itens sem preço',N(D.sp.length)],['Valor em divergência',BRL(sum(D.dv,'v')),N(D.dv.length)+' itens'],['Saldo sem locação',N(D.sl.length),'itens']]);
- const L=[['Itens positivos sem preço',N(D.sp.length)+' itens','sp'],['Saldo positivo sem locação (Sisrev)',N(D.sl.length)+' itens','sl'],['Divergências',N(D.dv.length)+' itens · '+BRL(sum(D.dv,'v')),'dv'],['Baixas e entradas especiais','Não está na planilha',''],['Inventário completo',N(i.length)+' endereços','inv'],['Quantidade de SKU geral',N(sku)+' SKUs','inv'],['Quantidade de itens e peças',N(pcs)+' peças','inv']];
- $('#ch').innerHTML=`<article class="pn w2"><h3>Relatórios solicitados</h3><ol class="ck">${L.map((x,j)=>`<li><span class="n">${j+1}</span><span>${x[0]}</span><span class="${x[2]?'v':'no'}">${x[1]}</span>${x[2]?`<button class="bt" data-go="${x[2]}">Abrir</button>`:'<span></span>'}</li>`).join('')}</ol></article>`+
-  `<article class="pn" data-tab="sp"><h3>Marcas com mais itens sem preço</h3><div id="o0"></div></article><article class="pn" data-tab="dv"><h3>Divergências por marca (valor)</h3><div id="o1"></div></article><article class="pn" data-tab="inv"><h3>Endereços por faixa de estoque</h3><div id="o2"></div></article><article class="pn" data-tab="dv"><h3>Situação do saldo nas divergências</h3><div id="o3"></div></article>`;
- draw('sp',{...TB.sp.ch[0],pr:0,top:10},$('#o0'));draw('dv',{...TB.dv.ch[0],pr:0,top:10},$('#o1'));draw('inv',TB.inv.ch[1],$('#o2'));draw('dv',TB.dv.ch[1],$('#o3'));
-}
-function go(tab){
- cur=tab;try{history.replaceState(null,'','#'+tab)}catch(e){}
- $('#e-tabs').innerHTML=[['ov','Visão geral'],...Object.entries(TB).map(([k,t])=>[k,t.n])].map(([k,l])=>`<button role="tab" type="button" data-tab="${k}" aria-selected="${k==tab}">${l}</button>`).join('');
- const ovw=tab=='ov';$('#e-fb').hidden=ovw;$('#e-tb').hidden=ovw;
- if(ovw){$('#e-tb').innerHTML='';$('#e-fb').innerHTML='';return overview()}
- buildFilters();
- $('#ch').innerHTML=TB[tab].ch.map((c,i)=>`<article class="pn${c.heat||c.type=='pareto'?' w2':''}" data-tab="${tab}"><h3>${c.t}${c.heat?'<span class="seg"><button type="button" data-hm="sku">Endereços</button><button type="button" data-hm="pcs">Peças</button></span>':''}</h3><div id="c${i}"></div></article>`).join('');
- render();
-}
-function toggle(tab,k,v){const s=S[tab];s.sel[k]=s.sel[k]===v?'':v;s.pg=0;cur!==tab?go(tab):(syncFilters(),render())}
 
 // ═══════════════════════════════════════════════════════
 // ITENS TAB — usa dados pré-agregados do server (RPC)
@@ -1525,6 +1373,160 @@ function renderItensTab(dash){
     }
   }
 }
+
+function bootE(D){
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const N=v=>Number(v).toLocaleString('pt-BR',{maximumFractionDigits:3});
+const BRL=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const PCT=(a,b)=>(b?a/b*100:0).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+const PC=(a,b)=>(b?Math.round(a/b*100):0)+'%';
+const sum=(rs,k)=>rs.reduce((a,r)=>a+r[k],0);
+const bd=(t,c)=>`<span class="bd ${c}">${t}</span>`;
+const FX=['Zerado','1 peça','2 a 5','6 a 10','11 a 50','Mais de 50'];
+const band=e=>e===0?FX[0]:e===1?FX[1]:e<=5?FX[2]:e<=10?FX[3]:e<=50?FX[4]:FX[5];
+
+D.inv.forEach(r=>{r.fx=band(r.e);r.loc=`R${r.ru} · P${r.pr} · N${r.ni} · A${r.ap}`;r.lk=r.ru*1e6+r.pr*1e4+r.ni*100+r.ap;r.cl=r.ct==2?'2 contagens':r.ct==1?'1 contagem':'Sem registro'});
+D.sp.forEach(r=>{r.lc=r.l?'Com locação':'Sem locação';r.pw=r.w>0?'Com peso':'Sem peso';r.c2=r.cv?'Com 1ª conversão':'Sem 1ª conversão'});
+D.dv.forEach(r=>{r.st=r.s===0?'Sem saldo':r.s<r.q?'Saldo parcial':'Saldo suficiente';r.pl=(r.p+' '+r.d).trim()});
+
+const dash=r=>v=>v?esc(v):'<span class="mu">—</span>';
+const TB={
+inv:{n:'Inventário',rows:D.inv,s:['c','r','p'],ph:'Buscar código, referência ou produto',
+ f:[['ru','Rua','n'],['pr','Prédio','n'],['ni','Nível','n'],['fx','Faixa de estoque','o'],['cl','Contagem']],
+ col:[['c','Código'],['r','Referência'],['p','Produto','',r=>esc(r.p)+(r.aj?' '+bd('Ajustar SISRAVE','bad'):'')],['e','Estoque','r',r=>N(r.e)],['loc','Endereço','',null,'lk'],['cl','Contagem']],
+ kpi:rs=>{const seen=new Set();let u=0;rs.forEach(r=>{if(!seen.has(r.c)){seen.add(r.c);u+=r.e}});
+  return[['Produtos (SKU)',N(seen.size),N(rs.length)+' endereços'],['Peças em estoque',N(sum(rs,'e')),N(u)+' sem repetir endereços'],['Estoque zerado',N(rs.filter(r=>!r.e).length),'endereços'],['Sem contagem registrada',N(rs.filter(r=>!r.ct).length),'endereços']]},
+ ch:[{t:'Mapa do depósito (rua × prédio)',heat:1},{t:'Endereços por faixa de estoque',k:'fx',ord:FX,type:'col'},{t:'Endereços por nível',k:'ni',ord:'key',type:'col',pre:'N'},{t:'Situação da contagem',k:'cl',type:'donut',u:'endereços',col:{'Sem registro':'var(--bad)','1 contagem':'var(--y)','2 contagens':'var(--tx)'}}]},
+sp:{n:'Itens sem preço',rows:D.sp,s:['c','d','m'],ph:'Buscar código, descrição ou marca',
+ f:[['m','Marca'],['lc','Locação'],['pw','Peso'],['c2','1ª conversão']],
+ col:[['c','Código'],['d','Descrição'],['m','Marca'],['l','Locação','',r=>dash()(r.l)],['s','Saldo','r',r=>N(r.s)],['w','Peso (kg)','r',r=>N(r.w)],['cv','1ª conversão','',r=>dash()(r.cv)]],
+ kpi:rs=>[['Itens sem preço',N(rs.length),N(new Set(rs.map(r=>r.c)).size)+' códigos'],['Saldo total',N(sum(rs,'s')),'peças'],['Sem locação',N(rs.filter(r=>!r.l).length),PC(rs.filter(r=>!r.l).length,rs.length)+' dos itens'],['Sem 1ª conversão',N(rs.filter(r=>!r.cv).length),PC(rs.filter(r=>!r.cv).length,rs.length)+' dos itens']],
+ ch:[{t:'Marcas com mais itens sem preço (Pareto 80/20)',k:'m',pr:1,nm:'marcas'},{t:'Pareto dos itens sem preço por marca (80/20)',k:'m',type:'pareto',nm:'marcas'},{t:'Situação da locação',k:'lc',type:'donut',col:{'Com locação':'var(--ok)','Sem locação':'var(--bad)'}},{t:'Situação da 1ª conversão',k:'c2',type:'donut',col:{'Com 1ª conversão':'var(--ok)','Sem 1ª conversão':'var(--bad)'}}]},
+dv:{n:'Divergências',rows:D.dv,s:['p','d','m'],ph:'Buscar produto, descrição ou marca',
+ f:[['m','Marca'],['st','Situação do saldo']],
+ note:()=>`Pedido ${D.meta.pd} · Vendedor ${D.meta.ve} · Entrega ${D.meta.en}`,
+ col:[['p','Produto'],['d','Descrição'],['m','Marca'],['q','Qtde. pedida','r',r=>N(r.q)],['s','Saldo','r',r=>N(r.s)],['v','Total','r',r=>BRL(r.v)],['st','Situação','',r=>bd(r.st,r.st=='Sem saldo'?'bad':r.st=='Saldo parcial'?'wn':'ok')]],
+ kpi:rs=>{const z=rs.filter(r=>r.st=='Sem saldo').length,p=rs.filter(r=>r.st=='Saldo parcial').length;
+  return[['Valor total',BRL(sum(rs,'v')),N(sum(rs,'q'))+' peças pedidas'],['Itens divergentes',N(rs.length)],['Sem saldo',N(z),PC(z,rs.length)+' dos itens'],['Saldo parcial',N(p),PC(p,rs.length)+' dos itens']]},
+ ch:[{t:'Valor por marca (Pareto 80/20)',k:'m',v:'v',fmt:BRL,pr:1,nm:'marcas'},{t:'Situação do saldo',k:'st',type:'donut',col:{'Sem saldo':'var(--bad)','Saldo parcial':'var(--y)','Saldo suficiente':'var(--ok)'}},{t:'Pareto do valor por marca (80/20)',k:'m',v:'v',fmt:BRL,type:'pareto',nm:'marcas'},{t:'Pareto do valor por item (80/20)',k:'pl',v:'v',fmt:BRL,type:'pareto',nm:'itens',lab:k=>k.split(' ')[0]}]},
+sl:{n:'Sem locação',rows:D.sl,s:['c','d','m'],ph:'Buscar código, descrição ou marca',
+ f:[['m','Marca']],
+ col:[['c','Código'],['d','Descrição'],['m','Marca'],['s','Saldo','r',r=>N(r.s)],['w','Peso (kg)','r',r=>N(r.w)],['cu','Custo líquido','r',r=>BRL(r.cu)]],
+ kpi:rs=>[['Itens com saldo e sem locação',N(rs.length)],['Saldo total',N(sum(rs,'s')),'peças'],['Com custo informado',N(rs.filter(r=>r.cu>0).length)]],
+ ch:[{t:'Saldo por marca',k:'m',v:'s'}]}
+};
+Object.values(TB).forEach(t=>t.rows.forEach(r=>{r._s=t.s.map(k=>r[k]).join(' ').toLowerCase()}));
+const S={};Object.keys(TB).forEach(k=>S[k]={q:'',sel:{},so:null,pg:0});
+let cur='ov',hm='sku';
+
+function filtered(tab,...ex){const s=S[tab],q=s.q.trim().toLowerCase(),e=Object.entries(s.sel).filter(([k,v])=>v&&!ex.includes(k));
+ return TB[tab].rows.filter(r=>(!q||r._s.includes(q))&&e.every(([k,v])=>String(r[k])===v))}
+const kpiHtml=a=>a.map(([l,v,s])=>`<div class="k"><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`).join('');
+const nFilters=tab=>Object.values(S[tab].sel).filter(Boolean).length+(S[tab].q?1:0);
+
+function agg(tab,c){
+ const g=new Map();filtered(tab,c.k).forEach(r=>g.set(r[c.k],(g.get(r[c.k])||0)+(c.v?r[c.v]:1)));
+ const all=[...g];
+ all.sort(c.ord==='key'?(a,b)=>a[0]-b[0]:c.ord?(a,b)=>c.ord.indexOf(a[0])-c.ord.indexOf(b[0]):(a,b)=>b[1]-a[1]);
+ return{all,sel:S[tab].sel[c.k]||''};
+}
+function bars(tab,c,el){
+ const{all,sel}=agg(tab,c),f=c.fmt||N,tot=all.reduce((s,x)=>s+x[1],0);
+ let acc=0;const cum=new Map(all.map(([k,v])=>[k,tot?(acc+=v)/tot*100:0])),rk=new Map(all.map(([k],i)=>[k,i]));
+ const n80=c.pr&&tot?(all.findIndex(x=>cum.get(x[0])>=79.9999)+1)||all.length:0;
+ const a=all.slice(0,c.pr?Math.min(all.length,Math.max(n80+2,c.top||10),Math.max(30,n80)):(c.top||10));
+ if(sel&&!a.some(x=>String(x[0])===sel)){const g=all.find(x=>String(x[0])===sel);if(g)a.push(g)}
+ const mx=Math.max(1,...a.map(x=>x[1]));
+ const row=([k,v])=>{const i=rk.get(k),on=String(k)===sel;
+  return`<button class="bar${on?' on':''}${c.pr?' pr':''}${c.pr&&i>=n80?' g':''}" data-k="${c.k}" data-v="${esc(k)}" title="${esc(k)}: ${f(v)} (${PCT(v,tot)}) · acumulado ${PCT(cum.get(k),100)}" aria-pressed="${on}"><span class="bl">${esc(k)}</span><span class="bt2"><i style="width:${v/mx*100}%"></i></span><b>${f(v)} <span class="pc2">${PCT(v,tot)}</span></b>${c.pr?`<span class="bac">Σ ${PCT(cum.get(k),100)}</span>`:''}
+</button>`+(c.pr&&i==n80-1?`<div class="p80">80% do total atingido nas ${n80} primeiras ${c.nm||'linhas'} (Σ ${PCT(cum.get(k),100)})</div>`:'')};
+ el.innerHTML=(c.pr&&tot?`<p class="pt"><b>${n80} de ${all.length}</b> ${c.nm||'itens'} (${PCT(n80,all.length)}) respondem por <b>${PCT(cum.get(all[n80-1][0]),100)}</b> do total de <b>${f(tot)}</b>. Barras amarelas = esse grupo; Σ = % acumulado.</p>`:'')+(a.map(row).join('')||'<p class="mu">Nada para mostrar com esses filtros.</p>');
+}
+function cols(tab,c,el){
+ const{all,sel}=agg(tab,c),mx=Math.max(1,...all.map(x=>x[1])),f=c.fmt||N,tot=all.reduce((a,x)=>a+x[1],0);let cu=0;
+ el.innerHTML='<div class="cl">'+all.map(([k,v])=>{cu+=v;return`<button type="button" class="${String(k)===sel?'on':''}" data-k="${c.k}" data-v="${esc(k)}" title="${esc(k)}: ${f(v)} (${PCT(v,tot)}) · acumulado ${PCT(cu,tot)}" aria-pressed="${String(k)===sel}"><em>${f(v)}</em><span class="cb" style="--h:${(v/mx).toFixed(3)}"></span><small>${(c.pre||'')+esc(k)}</small><small class="ac">Σ ${PCT(cu,tot)}</small></button>`}).join('')+'</div>';
+}
+const PAL=['var(--y)','var(--tx)','#8d8c85','var(--bad)','var(--ok)','#5aa9ff'];
+function donut(tab,c,el){
+ const{all,sel}=agg(tab,c),tot=all.reduce((a,x)=>a+x[1],0),col=(k,i)=>(c.col&&c.col[k])||PAL[i%PAL.length];let acc=0;
+ const seg=all.map(([k,v],i)=>{const p=tot?v/tot*100:0,d=Math.max(p-.6,.1),o=acc;acc+=p;
+  return`<circle cx="21" cy="21" r="15.9155" stroke="${col(k,i)}" stroke-dasharray="${d} ${100-d}" stroke-dashoffset="${-o}" class="${String(k)===sel?'on':''}" data-k="${c.k}" data-v="${esc(k)}"><title>${esc(k)}: ${N(v)}</title></circle>`}).join('');
+ el.innerHTML=`<div class="dn"><div class="dw"><svg viewBox="0 0 42 42" role="img" aria-label="${esc(c.t)}"><circle cx="21" cy="21" r="15.9155" class="tk"/>${seg}</svg><div class="dm"><b>${N(tot)}</b><small>${c.u||'itens'}</small></div></div><div class="lgd">`+
+  all.map(([k,v],i)=>`<button type="button" class="${String(k)===sel?'on':''}" data-k="${c.k}" data-v="${esc(k)}" aria-pressed="${String(k)===sel}"><i style="background:${col(k,i)}"></i><span>${esc(k)}</span><b>${N(v)} · ${PC(v,tot)}</b></button>`).join('')+'</div></div>';
+}
+const short=v=>v>=1e6?(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi':v>=1e3?(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:v>=1e4?0:1})+' mil':N(Math.round(v));
+function pareto(tab,c,el){
+ const{all,sel}=agg(tab,c),tot=all.reduce((a,x)=>a+x[1],0),f=c.fmt||N;
+ if(!tot){el.innerHTML='<p class="mu">Nada para mostrar com esses filtros.</p>';return}
+ let acc=0;const rows=all.map(([k,v])=>({k,v,cum:(acc+=v)/tot*100})),n80=(rows.findIndex(r=>r.cum>=79.9999)+1)||rows.length;
+ const sh=rows.slice(0,Math.min(rows.length,Math.max(n80+3,10),Math.max(24,n80)));
+ if(sel&&!sh.some(r=>String(r.k)===sel)){const r=rows.find(r=>String(r.k)===sel);if(r)sh.push(r)}
+ const n=sh.length,W=Math.max(n*34+104,340),H=270,L=58,R=40,T=14,B=78,pw=W-L-R,ph=H-T-B,sl=pw/n,y=p=>T+ph*(1-p/100);
+ const lab=k=>{k=String(c.lab?c.lab(k):k);return esc(k.length>16?k.slice(0,15)+'…':k)};
+ let s=[0,20,40,60,80,100].map(p=>`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(p)}" y2="${y(p)}"/><text x="${L-6}" y="${y(p)+3}" text-anchor="end">${(c.fmt===BRL?'R$ ':'')+short(tot*p/100)}</text><text x="${W-R+6}" y="${y(p)+3}">${p}%</text>`).join('');
+ s+=sh.map((r,i)=>{const x=L+sl*i,p=r.v/tot*100,bh=ph*p/100,vt=`<text class="v${bh>=16?' vi':''}" x="${x+sl/2}" y="${bh>=16?y(p)+11:y(p)-3}">${c.fmt===BRL?short(r.v):N(r.v)}</text>`;
+  return`<g class="pb" data-k="${c.k}" data-v="${esc(r.k)}"><title>${esc(r.k)}: ${f(r.v)} (${PCT(r.v,tot)}) · acumulado ${PCT(r.cum,100)}</title><rect x="${x}" y="${T}" width="${sl}" height="${ph}" fill="transparent"/><rect class="bx${i<n80?'':' o'}${String(r.k)===sel?' on':''}" x="${x+sl*.19}" y="${y(p)}" width="${sl*.62}" height="${ph*p/100}"/>${vt}<text transform="translate(${x+sl/2+3},${H-B+12}) rotate(-45)" text-anchor="end">${lab(r.k)}</text></g>`}).join('');
+ s+=`<line class="r80" x1="${L}" x2="${W-R}" y1="${y(80)}" y2="${y(80)}"/><polyline class="ln" points="${sh.map((r,i)=>`${L+sl*i+sl/2},${y(r.cum)}`).join(' ')}"/>`+sh.map((r,i)=>`<circle class="dot" cx="${L+sl*i+sl/2}" cy="${y(r.cum)}" r="2.6"/>`).join('')+sh.map((r,i)=>`<text class="cu" x="${L+sl*i+sl/2}" y="${y(r.cum)-7}">${Math.round(r.cum)}%</text>`).join('');
+ el.innerHTML=`<p class="pt"><b>${n80} de ${rows.length}</b> ${c.nm||'itens'} (${PCT(n80,rows.length)}) respondem por <b>${PCT(rows[n80-1].cum,100)}</b> do total de <b>${f(tot)}</b>. Barras amarelas = esse grupo; os números nas barras são os valores e os da linha, o % acumulado.</p><div class="pa"><svg viewBox="0 0 ${W} ${H}" style="min-width:${W}px;width:100%" role="img" aria-label="${esc(c.t)}">${s}</svg></div>`;
+}
+const draw=(tab,c,el)=>c.heat?heat(el):c.type=='donut'?donut(tab,c,el):c.type=='col'?cols(tab,c,el):c.type=='pareto'?pareto(tab,c,el):bars(tab,c,el);
+const uniq=k=>[...new Set(D.inv.map(r=>r[k]))].sort((a,b)=>a-b);
+function heat(el){
+ const s=S.inv,m={},R=uniq('ru'),C=uniq('pr');
+ filtered('inv','ru','pr').forEach(r=>{const k=r.ru+'-'+r.pr;m[k]=(m[k]||0)+(hm=='pcs'?r.e:1)});
+ const mx=Math.max(1,...Object.values(m));
+ el.innerHTML=`<div class="hm" style="--c:${C.length}"><span></span>${C.map(c=>`<i>P${c}</i>`).join('')}`+R.map(r=>`<i>R${r}</i>`+C.map(c=>{
+  const v=m[r+'-'+c]||0,a=Math.sqrt(v/mx),on=s.sel.ru==r&&s.sel.pr==c;
+  return`<button class="hc${on?' on':''}${v?'':' z'}${a<.55?' lo':''}" style="--a:${a.toFixed(2)}" data-r="${r}" data-c="${c}" title="Rua ${r}, prédio ${c}: ${N(v)} ${hm=='pcs'?'peças':'endereços'}">${v?N(v):''}</button>`}).join('')).join('')+'</div>';
+}
+function tableHtml(rs){
+ const t=TB[cur],s=S[cur],P=25;
+ if(s.so){const[k,d]=s.so;rs=rs.slice().sort((a,b)=>(a[k]>b[k]?1:a[k]<b[k]?-1:0)*d)}
+ const pages=Math.max(1,Math.ceil(rs.length/P));s.pg=Math.min(s.pg,pages-1);const from=s.pg*P;
+ const head=t.col.map(([k,l,a,f,sk])=>{const key=sk||k,on=s.so&&s.so[0]==key;
+  return`<th class="${a||''}" data-s="${key}" aria-sort="${on?(s.so[1]>0?'ascending':'descending'):'none'}"><button type="button">${l}<span>${on?(s.so[1]>0?'▲':'▼'):''}</span></button></th>`}).join('');
+ const body=rs.slice(from,from+P).map(r=>'<tr>'+t.col.map(([k,l,a,f])=>`<td class="${a||''}">${f?f(r):esc(r[k])}</td>`).join('')+'</tr>').join('');
+ return`<div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`+
+  (rs.length?'':'<p class="emp">Nenhum item com esses filtros. Use “Limpar filtros” para voltar à lista completa.</p>')+
+  `<div class="pg"><span>${rs.length?`${N(from+1)}–${N(Math.min(from+P,rs.length))} de ${N(rs.length)}`:'0 itens'}</span><div><button class="bt" data-pg="-1" ${s.pg<1?'disabled':''}>Anterior</button><button class="bt" data-pg="1" ${s.pg>=pages-1?'disabled':''}>Próxima</button></div></div>`;
+}
+function buildFilters(){
+ const t=TB[cur],s=S[cur];
+ $('#e-fb').innerHTML=`<label class="fl grow">Buscar<input id="q" type="search" placeholder="${t.ph}" value="${esc(s.q)}"></label>`+
+  t.f.map(([k,l,ty])=>{const v=[...new Set(t.rows.map(r=>String(r[k])))].sort(ty=='n'?(a,b)=>a-b:ty=='o'?(a,b)=>FX.indexOf(a)-FX.indexOf(b):(a,b)=>a.localeCompare(b,'pt-BR'));
+   return`<label class="fl">${l}<select class="fsel" data-k="${k}"><option value="">Todos</option>${v.map(x=>`<option${s.sel[k]===x?' selected':''}>${esc(x)}</option>`).join('')}</select></label>`}).join('')+
+  '<div class="fa"><button id="clr" class="bt" type="button">Limpar filtros</button><button id="exp" class="bt" type="button">Exportar CSV</button></div>';
+}
+function syncFilters(){const s=S[cur];$('#q').value=s.q;document.querySelectorAll('.fsel').forEach(e=>e.value=s.sel[e.dataset.k]||'')}
+function render(){
+ if(cur=='ov')return;
+ const t=TB[cur],rs=filtered(cur),n=nFilters(cur);
+ $('#e-kp').innerHTML=(t.note?`<p class="nt">${t.note()}</p>`:'')+kpiHtml(t.kpi(rs));
+ t.ch.forEach((c,i)=>{const el=$('#c'+i);draw(cur,c,el)});
+ document.querySelectorAll('[data-hm]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.hm==hm));
+ $('#e-tb').innerHTML=tableHtml(rs);
+ const c=$('#clr');c.disabled=!n;c.textContent=n?`Limpar filtros (${n})`:'Limpar filtros';
+}
+function overview(){
+ const i=D.inv,sku=new Set(i.map(r=>r.c)).size,pcs=sum(i,'e');
+ $('#e-kp').innerHTML=kpiHtml([['Produtos (SKU)',N(sku),N(i.length)+' endereços'],['Peças em estoque',N(pcs)],['Itens sem preço',N(D.sp.length)],['Valor em divergência',BRL(sum(D.dv,'v')),N(D.dv.length)+' itens'],['Saldo sem locação',N(D.sl.length),'itens']]);
+ const L=[['Itens positivos sem preço',N(D.sp.length)+' itens','sp'],['Saldo positivo sem locação (Sisrev)',N(D.sl.length)+' itens','sl'],['Divergências',N(D.dv.length)+' itens · '+BRL(sum(D.dv,'v')),'dv'],['Baixas e entradas especiais','Não está na planilha',''],['Inventário completo',N(i.length)+' endereços','inv'],['Quantidade de SKU geral',N(sku)+' SKUs','inv'],['Quantidade de itens e peças',N(pcs)+' peças','inv']];
+ $('#ch').innerHTML=`<article class="pn w2"><h3>Relatórios solicitados</h3><ol class="ck">${L.map((x,j)=>`<li><span class="n">${j+1}</span><span>${x[0]}</span><span class="${x[2]?'v':'no'}">${x[1]}</span>${x[2]?`<button class="bt" data-go="${x[2]}">Abrir</button>`:'<span></span>'}</li>`).join('')}</ol></article>`+
+  `<article class="pn" data-tab="sp"><h3>Marcas com mais itens sem preço</h3><div id="o0"></div></article><article class="pn" data-tab="dv"><h3>Divergências por marca (valor)</h3><div id="o1"></div></article><article class="pn" data-tab="inv"><h3>Endereços por faixa de estoque</h3><div id="o2"></div></article><article class="pn" data-tab="dv"><h3>Situação do saldo nas divergências</h3><div id="o3"></div></article>`;
+ draw('sp',{...TB.sp.ch[0],pr:0,top:10},$('#o0'));draw('dv',{...TB.dv.ch[0],pr:0,top:10},$('#o1'));draw('inv',TB.inv.ch[1],$('#o2'));draw('dv',TB.dv.ch[1],$('#o3'));
+}
+function go(tab){
+ cur=tab;try{history.replaceState(null,'','#'+tab)}catch(e){}
+ $('#e-tabs').innerHTML=[['ov','Visão geral'],...Object.entries(TB).map(([k,t])=>[k,t.n])].map(([k,l])=>`<button role="tab" type="button" data-tab="${k}" aria-selected="${k==tab}">${l}</button>`).join('');
+ const ovw=tab=='ov';$('#e-fb').hidden=ovw;$('#e-tb').hidden=ovw;
+ if(ovw){$('#e-tb').innerHTML='';$('#e-fb').innerHTML='';return overview()}
+ buildFilters();
+ $('#ch').innerHTML=TB[tab].ch.map((c,i)=>`<article class="pn${c.heat||c.type=='pareto'?' w2':''}" data-tab="${tab}"><h3>${c.t}${c.heat?'<span class="seg"><button type="button" data-hm="sku">Endereços</button><button type="button" data-hm="pcs">Peças</button></span>':''}</h3><div id="c${i}"></div></article>`).join('');
+ render();
+}
+function toggle(tab,k,v){const s=S[tab];s.sel[k]=s.sel[k]===v?'':v;s.pg=0;cur!==tab?go(tab):(syncFilters(),render())}
+
 
 // ═══════════════════════════════════════════════════════
 // Helper: renderBars com dados já agregados
