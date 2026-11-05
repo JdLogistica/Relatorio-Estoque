@@ -657,17 +657,21 @@ async function entrar(){
       throw new Error('Usuário não autorizado.');
     }
     // 3. Carrega pedidos do Supabase
-    b.textContent='Carregando pedidos…';
-    const pedidosRows = await carregarPedidosSupa();
+    b.textContent='Carregando pedidos… (aguarde)';
+    let pedidosRows = [];
+    try{ pedidosRows = await carregarPedidosSupa(); }
+    catch(pe){ console.warn('[pedidos]',pe); /* entra mesmo sem pedidos */ }
     _dP = { rows: pedidosRows };
     _dE = _ERICA_DATA;
     // 4. Entra no dashboard
     q('lp').value='';
     abrirDashboard();
   }catch(x){
+    console.error('[login]', x);
     er.textContent = x.message==='Invalid login credentials'
       ? 'Usuário ou senha incorretos.'
-      : (x.message || 'Erro ao entrar. Tente novamente.');
+      : (x.message==='Email not confirmed' ? 'Email não confirmado.'
+      : (x.message || 'Erro ao entrar: '+JSON.stringify(x)));
     b.disabled=false; b.textContent='Entrar';
   }
 }
@@ -686,7 +690,8 @@ async function entrar(){
       .single();
     if(!authOk) return;
     // Carrega pedidos silenciosamente
-    const pedidosRows = await carregarPedidosSupa();
+    let pedidosRows = [];
+    try{ pedidosRows = await carregarPedidosSupa(); }catch(pe){ console.warn('[auto-pedidos]',pe); }
     _dP = { rows: pedidosRows };
     _dE = _ERICA_DATA; // estoque: dados RELATÓRIO_ERICA.xlsx
     abrirDashboard();
