@@ -937,13 +937,22 @@ async function carregarItensSupa(lojaFilter){
   // Chama RPC que retorna apenas dados agregados — muito mais rápido que baixar 68k linhas
   try{
     const p = lojaFilter !== undefined ? lojaFilter : null;
-    const {data,error}=await _sb.rpc('get_itens_dashboard',{p_loja: p});
-    if(error) throw error;
+    // Usa fetch direto para evitar problemas com session/RLS do cliente JS
+    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey': SUPA_ANON_KEY,
+        'Authorization':'Bearer '+SUPA_ANON_KEY
+      },
+      body: JSON.stringify({p_loja: p})
+    });
+    if(!resp.ok){ const t=await resp.text(); throw new Error(resp.status+' '+t); }
+    const data = await resp.json();
     _itensDash = data || null;
     _itensDashLoja = lojaFilter;
-    console.log('[itens] dashboard carregado via RPC');
+    console.log('[itens] dashboard carregado via RPC fetch', _itensDash);
   }catch(e){ console.warn('[carregarItensSupa]',e.message); }
-}
 
 function renderIfItens(){
   // Busca o cur interno do bootP via evento customizado
