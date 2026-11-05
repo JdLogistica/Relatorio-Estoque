@@ -2483,7 +2483,19 @@ function render(){
     renderBars(rs,'mes',$('#c-mes'),{top:15,label:'meses'});
   }
   // ── Itens tab ───────────────────────────────────────────
-  if(cur==='itens') renderItensTab(_itensDash);
+  if(cur==='itens'){
+    // Se loja mudou desde o último fetch, busca novamente; senão usa cache
+    const lojaAgora = F.loja||null;
+    if(_itensDash && _itensDashLoja===lojaAgora){
+      renderItensTab(_itensDash);
+    } else {
+      // loja mudou ou sem dados — busca silenciosamente sem refazer spinners
+      const allIds=['itens-kp','c-itens-mais','c-itens-menos','c-itens-saidas','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'];
+      const spin='<div style="text-align:center;padding:3rem;color:var(--mu)"><div style="display:inline-block;width:2rem;height:2rem;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="margin-top:.75rem;font-size:.85rem">Carregando dados de itens...</p></div>';
+      allIds.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=spin;});
+      carregarItensSupa(lojaAgora).then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
+    }
+  }
   // ── Tempos tab ──────────────────────────────────────────
   if(cur==='tempos') renderTemposTab(rs);
   renderTable(rs);
@@ -2536,8 +2548,13 @@ async function go(tab){
       </div>`+
       `<article class="pn w2"><h3>📊 Curva ABC — Classificação por Receita</h3><div id="c-itens-abc">${spin}</div></article>`+
       `<article class="pn w2"><h3>📈 Curva PQR — Classificação por Frequência de Pedidos</h3><div id="c-itens-pqr">${spin}</div></article>`;
-    // Carrega dados pré-agregados via RPC (rápido: 1 chamada vs 69)
-    carregarItensSupa().then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
+    // Usa cache se a loja não mudou; caso contrário busca com a loja correta
+    const lojaAgora = F.loja||null;
+    if(_itensDash && _itensDashLoja===lojaAgora){
+      renderItensTab(_itensDash);
+    } else {
+      carregarItensSupa(lojaAgora).then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
+    }
     return; // render() será chamado após promise
   } else if(tab==='tempos'){
     cg.innerHTML=
