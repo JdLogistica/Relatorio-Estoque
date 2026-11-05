@@ -2430,6 +2430,144 @@ function renderHist(rs,el){
   });
 }
 
+// ── Evolução mensal/diária de clientes ──────────────────────
+let cliHistMode='mes';
+function renderCliHist(rs,el){
+  if(!el)return;
+  // Decide quais clientes mostrar
+  let clisFocus=[];
+  if(F.cli){
+    clisFocus=[F.cli];
+  } else {
+    // top 3 clientes por volume no rs atual
+    const cnt={};
+    rs.forEach(r=>{if(r.cli)cnt[r.cli]=(cnt[r.cli]||0)+1;});
+    clisFocus=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]);
+  }
+  if(!clisFocus.length){el.innerHTML='<p style="color:var(--mu);padding:1rem">Sem dados</p>';return;}
+
+  // Paleta de cores por posição
+  const CORES=['var(--y)','var(--bl)','var(--ok)'];
+
+  if(cliHistMode==='dia'){
+    // ── Diário ─────────────────────────────────────────────
+    // Coleta todos os dias únicos com pedidos dos clientes foco
+    const diasSet=new Set();
+    const cliDia={}; // {cli: {dia: count}}
+    clisFocus.forEach(c=>{cliDia[c]={};});
+    rs.forEach(r=>{
+      if(!r.dia||!clisFocus.includes(r.cli))return;
+      diasSet.add(r.dia);
+      cliDia[r.cli][r.dia]=(cliDia[r.cli][r.dia]||0)+1;
+    });
+    const dias=Array.from(diasSet).sort();
+    if(!dias.length){el.innerHTML='<p style="color:var(--mu);padding:1rem">Sem dados diários</p>';return;}
+
+    const W=Math.max(500,dias.length*28+80), H=180;
+    const PAD={t:20,r:20,b:38,l:40};
+    const cw=W-PAD.l-PAD.r, ch=H-PAD.t-PAD.b;
+    const xs=i=>PAD.l+i*(cw/(Math.max(dias.length-1,1)));
+    const allVals=clisFocus.flatMap(c=>dias.map(d=>cliDia[c][d]||0));
+    const maxV=Math.max(...allVals,1);
+    const yv=v=>PAD.t+ch-(v/maxV*ch);
+
+    // Grid horizontal
+    const nTicks=4;
+    let grid='';
+    for(let i=0;i<=nTicks;i++){
+      const v=Math.round(maxV/nTicks*i);
+      const y=yv(v);
+      grid+=`<line x1="${PAD.l}" y1="${y.toFixed(1)}" x2="${W-PAD.r}" y2="${y.toFixed(1)}" stroke="var(--bd)" stroke-width="0.6" stroke-dasharray="4,3"/>`;
+      grid+=`<text x="${(PAD.l-5).toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--mu)">${v}</text>`;
+    }
+
+    // Linhas + pontos por cliente
+    let lines='',dots='';
+    clisFocus.forEach((c,ci)=>{
+      const cor=CORES[ci%CORES.length];
+      const pts=dias.map((d,i)=>`${xs(i).toFixed(1)},${yv(cliDia[c][d]||0).toFixed(1)}`).join(' ');
+      lines+=`<polyline points="${pts}" fill="none" stroke="${cor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${ci>0?'6,3':'none'}"/>`;
+      dias.forEach((d,i)=>{
+        const v=cliDia[c][d]||0;
+        if(!v)return;
+        dots+=`<circle cx="${xs(i).toFixed(1)}" cy="${yv(v).toFixed(1)}" r="3.5" fill="${cor}" stroke="var(--bg)" stroke-width="1.5" style="cursor:default" title="${esc(c)}: ${v}"/>`;
+      });
+    });
+
+    // Labels eixo X — a cada N dias para não sobrecarregar
+    const step=Math.max(1,Math.ceil(dias.length/10));
+    let xlbls='';
+    dias.forEach((d,i)=>{
+      if(i%step!==0&&i!==dias.length-1)return;
+      const parts=d.split('-');
+      const lbl=parts.length>=3?`${parts[2]}/${parts[1]}`:(parts[1]&&parts[2]?`${parts[2]}/${parts[1]}`:d);
+      xlbls+=`<text x="${xs(i).toFixed(1)}" y="${(H-8).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--mu)">${lbl}</text>`;
+    });
+
+    const svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible">${grid}${lines}${dots}${xlbls}</svg>`;
+    const lgd=clisFocus.map((c,ci)=>`<span style="color:${CORES[ci%CORES.length]};font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:12rem" title="${esc(c)}">— ${esc(c)}</span>`).join('');
+    const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.35rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog" data-chm="mes">Mensal</button><button class="hist-tog hist-tog-on" data-chm="dia">Diário</button></div>`;
+    el.innerHTML=toggleHtml+`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">${svg}</div><div class="hlgd" style="margin-top:.4rem;flex-wrap:wrap;gap:.4rem .8rem">${lgd}</div>`;
+    el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{cliHistMode=b.dataset.chm;renderCliHist(rs,el);}));
+    return;
+  }
+
+  // ── Mensal ───────────────────────────────────────────────
+  const meses=Array.from(new Set(rs.map(r=>r.mes).filter(Boolean))).sort();
+  if(!meses.length){el.innerHTML='<p style="color:var(--mu);padding:1rem">Sem dados</p>';return;}
+
+  const cliMes={}; // {cli: {mes: count}}
+  clisFocus.forEach(c=>{cliMes[c]={};});
+  rs.forEach(r=>{
+    if(!r.mes||!clisFocus.includes(r.cli))return;
+    cliMes[r.cli][r.mes]=(cliMes[r.cli][r.mes]||0)+1;
+  });
+
+  const W=Math.max(400,meses.length*52+80), H=180;
+  const PAD={t:20,r:20,b:38,l:40};
+  const cw=W-PAD.l-PAD.r, ch=H-PAD.t-PAD.b;
+  const xs=i=>PAD.l+(meses.length>1?i*(cw/(meses.length-1)):cw/2);
+  const allVals=clisFocus.flatMap(c=>meses.map(m=>cliMes[c][m]||0));
+  const maxV=Math.max(...allVals,1);
+  const yv=v=>PAD.t+ch-(v/maxV*ch);
+
+  const nTicks=4;
+  let grid='';
+  for(let i=0;i<=nTicks;i++){
+    const v=Math.round(maxV/nTicks*i);
+    const y=yv(v);
+    grid+=`<line x1="${PAD.l}" y1="${y.toFixed(1)}" x2="${W-PAD.r}" y2="${y.toFixed(1)}" stroke="var(--bd)" stroke-width="0.6" stroke-dasharray="4,3"/>`;
+    grid+=`<text x="${(PAD.l-5).toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--mu)">${v}</text>`;
+  }
+
+  let lines='',dots='';
+  clisFocus.forEach((c,ci)=>{
+    const cor=CORES[ci%CORES.length];
+    const pts=meses.map((m,i)=>`${xs(i).toFixed(1)},${yv(cliMes[c][m]||0).toFixed(1)}`).join(' ');
+    // Área sombreada só para o primeiro cliente
+    if(ci===0){
+      const polyPts=meses.map((m,i)=>`${xs(i).toFixed(1)},${yv(cliMes[c][m]||0).toFixed(1)}`).join(' ')+` ${xs(meses.length-1).toFixed(1)},${(PAD.t+ch).toFixed(1)} ${xs(0).toFixed(1)},${(PAD.t+ch).toFixed(1)}`;
+      lines+=`<polygon points="${polyPts}" fill="${cor}" fill-opacity="0.1"/>`;
+    }
+    lines+=`<polyline points="${pts}" fill="none" stroke="${cor}" stroke-width="${ci===0?2.5:2}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${ci>0?'6,3':'none'}"/>`;
+    // Labels de valor em cada ponto
+    meses.forEach((m,i)=>{
+      const v=cliMes[c][m]||0;
+      dots+=`<circle cx="${xs(i).toFixed(1)}" cy="${yv(v).toFixed(1)}" r="${ci===0?4:3}" fill="${cor}" stroke="var(--bg)" stroke-width="1.5" style="cursor:default"/>`;
+      if(v>0&&ci===0)dots+=`<text x="${xs(i).toFixed(1)}" y="${(yv(v)-8).toFixed(1)}" text-anchor="middle" font-size="9" fill="${cor}" font-weight="700">${v}</text>`;
+    });
+  });
+
+  const xlbls=meses.map((m,i)=>`<text x="${xs(i).toFixed(1)}" y="${(H-8).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--mu)">${fmtMes(m)}</text>`).join('');
+
+  const svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible">${grid}${lines}${dots}${xlbls}</svg>`;
+  const lgd=clisFocus.map((c,ci)=>`<span style="color:${CORES[ci%CORES.length]};font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:14rem" title="${esc(c)}">— ${esc(c)}</span>`).join('');
+  const title=F.cli?`Evolução mensal — ${esc(F.cli)}`:'Evolução dos 3 maiores clientes';
+  const toggleHtml=`<div style="display:flex;gap:.5rem;margin-bottom:.35rem;align-items:center"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog hist-tog-on" data-chm="mes">Mensal</button><button class="hist-tog" data-chm="dia">Diário</button></div>`;
+  el.innerHTML=toggleHtml+`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">${svg}</div><div class="hlgd" style="margin-top:.4rem;flex-wrap:wrap;gap:.4rem .8rem">${lgd}</div>`;
+  el.querySelectorAll('.hist-tog').forEach(b=>b.addEventListener('click',()=>{cliHistMode=b.dataset.chm;renderCliHist(rs,el);}));
+}
+
 function renderTable(rs){
   if(tSort){const[k,d]=tSort;rs=rs.slice().sort((a,b)=>(String(a[k])>String(b[k])?1:-1)*d)}
   const pages=Math.max(1,Math.ceil(rs.length/P));tPage=Math.min(tPage,pages-1);const from=tPage*P;
@@ -2482,6 +2620,10 @@ function render(){
     renderBars(rs,'conf',$('#c-conf'),{top:12,label:'conferentes'});
     renderBars(rs,'vend',$('#c-vend'),{pr:true,label:'vendedores'});
   }else if(cur==='cli'){
+    // Atualiza título do gráfico de evolução conforme seleção
+    const cht=$('#cli-hist-title');
+    if(cht)cht.textContent=F.cli?`Evolução mensal — ${F.cli}`:'Evolução dos 3 maiores clientes';
+    renderCliHist(rs,$('#c-cli-hist'));
     renderBars(rs,'cli',$('#c-cli'),{pr:true,top:20,label:'clientes'});
   }else if(cur==='transp'){
     renderBars(rs,'tp2',$('#c-ttp2'),{pr:true,label:'tipos'});
@@ -2531,7 +2673,9 @@ async function go(tab){
         `<article class="pn vend-col-lg"><h3>Pedidos por vendedor (Pareto 80/20)</h3><div id="c-vend"></div></article>`+
       `</div>`;
   }else if(tab==='cli'){
-    cg.innerHTML=`<article class="pn w2"><h3>Clientes com mais pedidos (Pareto 80/20)</h3><div id="c-cli"></div></article>`;
+    cg.innerHTML=
+      `<article class="pn w2"><h3 id="cli-hist-title">Evolução dos 3 maiores clientes</h3><div id="c-cli-hist"></div></article>`+
+      `<article class="pn w2"><h3>Clientes com mais pedidos (Pareto 80/20)</h3><div id="c-cli"></div></article>`;
   }else if(tab==='transp'){
     cg.innerHTML=`<div class="vend-row">` +
       `<article class="pn vend-col-sm"><h3>Tipo de entrega</h3><div id="c-ttp2"></div></article>`+
