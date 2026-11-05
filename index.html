@@ -957,7 +957,17 @@ async function carregarItensSupa(lojaFilter){
     _itensDash = data || null;
     _itensDashLoja = lojaFilter;
     console.log('[itens] dashboard carregado via RPC fetch', _itensDash);
-  }catch(e){ console.warn('[carregarItensSupa]',e.message); }
+  }catch(e){
+    console.error('[carregarItensSupa] ERRO:', e.message, e);
+    _itensDash = null;
+    // Mostra erro nos painéis em vez de spinner infinito
+    const errHtml=`<p style="color:var(--er,#f87171);text-align:center;padding:1.5rem;font-size:.9rem">⚠️ Erro ao carregar: ${e.message}</p>`;
+    ['c-itens-mais','c-itens-menos','c-itens-saidas','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.innerHTML=errHtml;
+    });
+    const kp=document.getElementById('itens-kp');
+    if(kp) kp.innerHTML=errHtml;
+  }
 }
 
 function renderIfItens(){
