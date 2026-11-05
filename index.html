@@ -943,7 +943,7 @@ async function carregarItensSupa(lojaFilter){
   try{
     const p = lojaFilter !== undefined ? lojaFilter : null;
     // Usa fetch direto para evitar problemas com session/RLS do cliente JS
-    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard',{
+    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard_v2',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
@@ -1327,134 +1327,201 @@ function toggle(tab,k,v){const s=S[tab];s.sel[k]=s.sel[k]===v?'':v;s.pg=0;cur!==
 // ITENS TAB — usa dados pré-agregados do server (RPC)
 // ═══════════════════════════════════════════════════════
 function renderItensTab(dash){
-  const noData='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados — importe os arquivos ITENS ou aguarde o carregamento</p>';
+  const noData='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados — aguarde o carregamento</p>';
+  const allIds=['itens-kp','c-itens-mais','c-itens-menos','c-itens-saidas','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'];
   if(!dash){
-    ['itens-kp','c-itens-pareto','c-itens-marca','c-itens-loja','c-itens-receita-marca','c-itens-receita'].forEach(id=>{
-      const el=$('#'+id); if(el) el.innerHTML=noData;
-    });
+    allIds.forEach(id=>{const el=$('#'+id);if(el)el.innerHTML=noData;});
     return;
   }
 
-  const kpis=dash.kpis||{};
-  const topProd=(dash.top_produtos||[]);
-  const topMarca=(dash.top_marcas||[]);
-  const porLoja=(dash.por_loja||[]);
+  const kpis         = dash.kpis||{};
+  const maisList     = dash.top20_mais_vendidos||[];
+  const menosList    = dash.top20_menos_vendidos||[];
+  const saidasList   = dash.mais_saidas_por_pedido||[];
+  const topMarca     = dash.top_marcas||[];
+  const porLoja      = dash.por_loja||[];
+  const abc          = dash.curva_abc||{};
+  const pqr          = dash.curva_pqr||{};
+
+  // ── helpers inline ───────────────────────────────────
+  function classBadge(c){
+    const col={A:'#22c55e',B:'#f59e0b',C:'#94a3b8',P:'#3b82f6',Q:'#8b5cf6',R:'#ec4899'};
+    return`<span style="display:inline-block;padding:.1rem .45rem;border-radius:9999px;font-size:.72rem;font-weight:700;background:${col[c]||'var(--bd)'};color:#fff">${c}</span>`;
+  }
+  function classCard(label, obj, colorVar){
+    const c=obj||{};
+    return`<div style="flex:1;min-width:7rem;padding:.6rem .9rem;border-radius:.5rem;background:${colorVar};text-align:center">
+      <div style="font-size:1.5rem;font-weight:700;color:var(--tx)">${N(c.count||0)}</div>
+      <div style="font-size:.7rem;color:var(--mu);margin:.1rem 0">itens (${c.pct_itens||0}%)</div>
+      <div style="font-size:.82rem;font-weight:600;color:var(--tx)">R$ ${BRL(c.receita||0)}</div>
+      <div style="font-size:.7rem;color:var(--mu);margin-top:.15rem">${label}</div>
+    </div>`;
+  }
 
   // ── KPIs ─────────────────────────────────────────────
   const kpEl=$('#itens-kp');
   if(kpEl) kpEl.innerHTML=
-    `<div class="k"><div class="kl">Total de linhas</div><div class="kv">${N(kpis.total_itens||0)}</div></div>`+
+    `<div class="k"><div class="kl">Total linhas</div><div class="kv">${N(kpis.total_linhas||0)}</div></div>`+
+    `<div class="k"><div class="kl">Produtos distintos</div><div class="kv">${N(kpis.produtos_distintos||0)}</div></div>`+
+    `<div class="k"><div class="kl">Total pedidos</div><div class="kv">${N(kpis.total_pedidos||0)}</div></div>`+
     `<div class="k"><div class="kl">Qtde total</div><div class="kv">${N(kpis.total_qtde||0)}</div></div>`+
     `<div class="k"><div class="kl">Receita total</div><div class="kv">R$ ${BRL(kpis.total_receita||0)}</div></div>`+
-    `<div class="k"><div class="kl">Pedidos c/ itens</div><div class="kv">${N(kpis.total_pedidos||0)}</div></div>`+
-    `<div class="k"><div class="kl">Média itens/pedido</div><div class="kv">${kpis.media_itens_pedido||0}</div></div>`+
-    `<div class="k"><div class="kl">Ticket médio</div><div class="kv">R$ ${BRL(kpis.ticket_medio||0)}</div></div>`;
+    `<div class="k"><div class="kl">Ticket médio</div><div class="kv">R$ ${BRL(kpis.ticket_medio||0)}</div></div>`+
+    `<div class="k"><div class="kl">Itens/pedido</div><div class="kv">${kpis.media_itens_pedido||0}</div></div>`;
 
-  // ── Pareto top produtos (por qtde) ───────────────────
-  const paEl=$('#c-itens-pareto');
-  if(paEl){
-    if(topProd.length===0){paEl.innerHTML=noData;}
-    else{
-      const max=topProd[0].cnt||1;
-      const cumTotal=topProd.reduce((a,x)=>a+(+x.cnt||0),0);
-      let cumSoFar=0;
-      const rows=topProd.slice(0,30).map(x=>{
-        const pct=Math.round((x.cnt||0)/max*100);
-        cumSoFar+=(+x.cnt||0);
-        const cumPct=Math.round(cumSoFar/cumTotal*100);
-        return`<div style="display:grid;grid-template-columns:12rem 1fr 5rem 4rem;align-items:center;gap:.4rem;margin-bottom:.22rem">
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')}">${esc((x.descricao||'(vazio)').substring(0,30))}</span>
-          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:13px">
+  // ── Top 20 mais vendidos ──────────────────────────────
+  const maisEl=$('#c-itens-mais');
+  if(maisEl){
+    if(!maisList.length){maisEl.innerHTML=noData;}else{
+      const max=maisList[0].qtde_total||1;
+      const header=`<div style="display:grid;grid-template-columns:13rem 1fr 5.5rem 7rem 7rem;gap:.35rem;padding:0 0 .4rem;border-bottom:1px solid var(--bd);font-size:.72rem;color:var(--mu);font-weight:600">
+        <span>Produto</span><span></span><span style="text-align:right">Qtde</span><span style="text-align:right">Pedidos</span><span style="text-align:right">Receita</span></div>`;
+      const rows=maisList.map(x=>{
+        const pct=max>0?Math.round((x.qtde_total||0)/max*100):0;
+        return`<div style="display:grid;grid-template-columns:13rem 1fr 5.5rem 7rem 7rem;align-items:center;gap:.35rem;margin-bottom:.22rem">
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:12px">
             <div style="width:${pct}%;height:100%;background:var(--ok);border-radius:3px"></div>
           </div>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.cnt)}</span>
-          <span style="font-size:.7rem;color:${cumPct<=80?'var(--y)':'var(--mu)'};text-align:right">${cumPct}%</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.num_pedidos)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
         </div>`;
       }).join('');
-      paEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
+      maisEl.innerHTML=header+`<div style="padding:.3rem 0">${rows}</div>`;
+    }
+  }
+
+  // ── Top 20 menos vendidos ─────────────────────────────
+  const menosEl=$('#c-itens-menos');
+  if(menosEl){
+    if(!menosList.length){menosEl.innerHTML=noData;}else{
+      const max=Math.max(...menosList.map(x=>x.qtde_total||0))||1;
+      const rows=menosList.map(x=>{
+        const pct=max>0?Math.round((x.qtde_total||0)/max*100):0;
+        return`<div style="display:grid;grid-template-columns:13rem 1fr 5.5rem 7rem;align-items:center;gap:.35rem;margin-bottom:.22rem">
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:12px">
+            <div style="width:${pct}%;height:100%;background:var(--er);opacity:.7;border-radius:3px"></div>
+          </div>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+        </div>`;
+      }).join('');
+      menosEl.innerHTML=`<div style="padding:.3rem 0">${rows}</div>`;
+    }
+  }
+
+  // ── Mais saídas por pedido ────────────────────────────
+  const saiEl=$('#c-itens-saidas');
+  if(saiEl){
+    if(!saidasList.length){saiEl.innerHTML=noData;}else{
+      const max=saidasList[0].pedidos_distintos||1;
+      const rows=saidasList.map(x=>{
+        const pct=max>0?Math.round((x.pedidos_distintos||0)/max*100):0;
+        return`<div style="display:grid;grid-template-columns:13rem 1fr 5rem 5.5rem 7rem;align-items:center;gap:.35rem;margin-bottom:.22rem">
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:12px">
+            <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
+          </div>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.pedidos_distintos)} ped.</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)} un.</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+        </div>`;
+      }).join('');
+      saiEl.innerHTML=`<div style="padding:.3rem 0">${rows}</div>`;
     }
   }
 
   // ── Top marcas ────────────────────────────────────────
   const maEl=$('#c-itens-marca');
   if(maEl){
-    if(topMarca.length===0){maEl.innerHTML=noData;}
-    else{
-      const max=topMarca[0].cnt||1;
-      const rows=topMarca.slice(0,15).map(x=>{
-        const pct=Math.round((x.cnt||0)/max*100);
-        return`<div style="display:grid;grid-template-columns:9rem 1fr 5rem;align-items:center;gap:.4rem;margin-bottom:.22rem">
+    if(!topMarca.length){maEl.innerHTML=noData;}else{
+      const max=topMarca[0].qtde_total||1;
+      const rows=topMarca.map(x=>{
+        const pct=max>0?Math.round((x.qtde_total||0)/max*100):0;
+        return`<div style="display:grid;grid-template-columns:9rem 1fr 5.5rem 7rem;align-items:center;gap:.35rem;margin-bottom:.22rem">
           <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.marca||'')}">${esc((x.marca||'Sem marca').substring(0,22))}</span>
-          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:13px">
+          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:12px">
             <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
           </div>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.cnt)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       maEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
     }
   }
 
-  // ── Receita por produto (top 20) ──────────────────────
-  const recEl=$('#c-itens-receita');
-  if(recEl){
-    const byRec=[...topProd].sort((a,b)=>(b.receita||0)-(a.receita||0)).slice(0,20);
-    if(byRec.length===0){recEl.innerHTML=noData;}
-    else{
-      const maxR=byRec[0].receita||1;
-      const rows=byRec.map(x=>{
-        const pct=Math.round((x.receita||0)/maxR*100);
-        return`<div style="display:grid;grid-template-columns:12rem 1fr 8rem;align-items:center;gap:.4rem;margin-bottom:.22rem">
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')}">${esc((x.descricao||'(vazio)').substring(0,30))}</span>
-          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:13px">
-            <div style="width:${pct}%;height:100%;background:var(--y);border-radius:3px"></div>
-          </div>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita||0)}</span>
-        </div>`;
-      }).join('');
-      recEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
-    }
-  }
-
-  // ── Receita por marca ─────────────────────────────────
-  const recMEl=$('#c-itens-receita-marca');
-  if(recMEl){
-    const byMarcaRec=[...topMarca].sort((a,b)=>(b.receita||0)-(a.receita||0));
-    if(byMarcaRec.length===0){recMEl.innerHTML=noData;}
-    else{
-      const maxM=byMarcaRec[0].receita||1;
-      const rows=byMarcaRec.map(x=>{
-        const pct=Math.round((x.receita||0)/maxM*100);
-        return`<div style="display:grid;grid-template-columns:9rem 1fr 8rem;align-items:center;gap:.4rem;margin-bottom:.22rem">
-          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.marca||'')}">${esc((x.marca||'Sem marca').substring(0,22))}</span>
-          <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:13px">
-            <div style="width:${pct}%;height:100%;background:var(--y);border-radius:3px"></div>
-          </div>
-          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita||0)}</span>
-        </div>`;
-      }).join('');
-      recMEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
-    }
-  }
-
   // ── Distribuição por loja ─────────────────────────────
   const lojaEl=$('#c-itens-loja');
   if(lojaEl){
-    if(porLoja.length===0){lojaEl.innerHTML=noData;}
-    else{
-      const maxL=porLoja[0].cnt||1;
+    if(!porLoja.length){lojaEl.innerHTML=noData;}else{
+      const maxL=Math.max(...porLoja.map(x=>x.qtde_total||0))||1;
       const rows=porLoja.map(x=>{
-        const pct=Math.round((x.cnt||0)/maxL*100);
-        return`<div style="display:grid;grid-template-columns:5rem 1fr 5rem 8rem;align-items:center;gap:.5rem;margin-bottom:.3rem">
-          <span style="font-size:.8rem;font-weight:600;color:var(--tx)">${esc(x.loja||'')}</span>
+        const pct=maxL>0?Math.round((x.qtde_total||0)/maxL*100):0;
+        return`<div style="display:grid;grid-template-columns:4.5rem 1fr 5.5rem 7rem 6rem;align-items:center;gap:.5rem;margin-bottom:.3rem">
+          <span style="font-size:.85rem;font-weight:700;color:var(--tx)">${esc(x.loja||'')}</span>
           <div style="background:var(--s2);border-radius:3px;overflow:hidden;height:14px">
             <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
           </div>
-          <span style="font-size:.76rem;color:var(--mu)">${N(x.cnt)} itens</span>
-          <span style="font-size:.76rem;color:var(--mu)">R$ ${BRL(x.receita||0)}</span>
+          <span style="font-size:.76rem;color:var(--mu)">${N(x.qtde_total)} un.</span>
+          <span style="font-size:.76rem;color:var(--mu)">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.74rem;color:var(--mu)">${N(x.produtos_distintos)} prod.</span>
         </div>`;
       }).join('');
       lojaEl.innerHTML=`<div style="padding:.5rem 0">${rows}</div>`;
+    }
+  }
+
+  // ── Curva ABC ─────────────────────────────────────────
+  const abcEl=$('#c-itens-abc');
+  if(abcEl){
+    const r=abc.resumo||{}; const top50=abc.top50||[];
+    if(!top50.length){abcEl.innerHTML=noData;}else{
+      const cards=`<div style="display:flex;gap:.7rem;margin-bottom:1rem;flex-wrap:wrap">
+        ${classCard('Classe A — 80% receita',r.A,'rgba(34,197,94,.12)')}
+        ${classCard('Classe B — 80–95% receita',r.B,'rgba(245,158,11,.12)')}
+        ${classCard('Classe C — 95–100% receita',r.C,'rgba(148,163,184,.12)')}
+      </div>`;
+      const header=`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem 4rem;gap:.35rem;padding:0 0 .35rem;border-bottom:1px solid var(--bd);font-size:.72rem;color:var(--mu);font-weight:600">
+        <span>Cl.</span><span>Produto</span><span style="text-align:right">Receita</span><span style="text-align:right">% Acum.</span><span style="text-align:right">Qtde</span><span style="text-align:right">Pedidos</span></div>`;
+      const rows=top50.map(x=>{
+        return`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem 4rem;align-items:center;gap:.35rem;margin-bottom:.2rem">
+          ${classBadge(x.classe||'C')}
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${x.pct_acumulado||0}%</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.num_pedidos)}</span>
+        </div>`;
+      }).join('');
+      abcEl.innerHTML=cards+header+`<div style="padding:.3rem 0">${rows}</div>`;
+    }
+  }
+
+  // ── Curva PQR ─────────────────────────────────────────
+  const pqrEl=$('#c-itens-pqr');
+  if(pqrEl){
+    const r=pqr.resumo||{}; const top50=pqr.top50||[];
+    if(!top50.length){pqrEl.innerHTML=noData;}else{
+      const cards=`<div style="display:flex;gap:.7rem;margin-bottom:1rem;flex-wrap:wrap">
+        ${classCard('Classe P — top 20% frequência',r.P,'rgba(59,130,246,.12)')}
+        ${classCard('Classe Q — 20–50% frequência',r.Q,'rgba(139,92,246,.12)')}
+        ${classCard('Classe R — 50%+ frequência',r.R,'rgba(236,72,153,.12)')}
+      </div>`;
+      const header=`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem;gap:.35rem;padding:0 0 .35rem;border-bottom:1px solid var(--bd);font-size:.72rem;color:var(--mu);font-weight:600">
+        <span>Cl.</span><span>Produto</span><span style="text-align:right">Pedidos</span><span style="text-align:right">Receita</span><span style="text-align:right">Qtde</span></div>`;
+      const rows=top50.map(x=>{
+        return`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem;align-items:center;gap:.35rem;margin-bottom:.2rem">
+          ${classBadge(x.classe||'R')}
+          <span style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.frequencia)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.74rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
+        </div>`;
+      }).join('');
+      pqrEl.innerHTML=cards+header+`<div style="padding:.3rem 0">${rows}</div>`;
     }
   }
 }
@@ -2456,15 +2523,17 @@ async function go(tab){
     const spin='<div style="text-align:center;padding:3rem;color:var(--mu)"><div style="display:inline-block;width:2rem;height:2rem;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="margin-top:.75rem;font-size:.85rem">Carregando dados de itens...</p></div>';
     cg.innerHTML=
       `<div class="kp" id="itens-kp"></div>`+
+      `<article class="pn w2"><h3>🏆 Top 20 — Mais Vendidos (por qtde)</h3><div id="c-itens-mais">${spin}</div></article>`+
       `<div class="vend-row">
-        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Itens mais vendidos (Pareto 80/20)</h3><div id="c-itens-pareto">${spin}</div></article>
-        <article class="pn vend-col-sm"><h3>Itens por marca</h3><div id="c-itens-marca">${spin}</div></article>
+        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>📉 Top 20 — Menos Vendidos</h3><div id="c-itens-menos">${spin}</div></article>
+        <article class="pn vend-col-sm"><h3>🔁 Mais Saídas por Pedido (top 20)</h3><div id="c-itens-saidas">${spin}</div></article>
       </div>`+
-      `<article class="pn w2"><h3>Distribuição por loja</h3><div id="c-itens-loja">${spin}</div></article>`+
       `<div class="vend-row">
-        <article class="pn vend-col-sm"><h3>Receita por marca</h3><div id="c-itens-receita-marca">${spin}</div></article>
-        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>Receita por produto (top 20)</h3><div id="c-itens-receita">${spin}</div></article>
-      </div>`;
+        <article class="pn vend-col-sm"><h3>🏷️ Top Marcas</h3><div id="c-itens-marca">${spin}</div></article>
+        <article class="pn vend-col-lg" style="grid-column:span 2"><h3>🏪 Distribuição por Loja</h3><div id="c-itens-loja">${spin}</div></article>
+      </div>`+
+      `<article class="pn w2"><h3>📊 Curva ABC — Classificação por Receita</h3><div id="c-itens-abc">${spin}</div></article>`+
+      `<article class="pn w2"><h3>📈 Curva PQR — Classificação por Frequência de Pedidos</h3><div id="c-itens-pqr">${spin}</div></article>`;
     // Carrega dados pré-agregados via RPC (rápido: 1 chamada vs 69)
     carregarItensSupa().then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
     return; // render() será chamado após promise
