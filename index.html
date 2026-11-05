@@ -958,6 +958,7 @@ async function carregarItensSupa(lojaFilter){
     _itensDashLoja = lojaFilter;
     console.log('[itens] dashboard carregado via RPC fetch', _itensDash);
   }catch(e){ console.warn('[carregarItensSupa]',e.message); }
+}
 
 function renderIfItens(){
   // Busca o cur interno do bootP via evento customizado
