@@ -937,25 +937,33 @@ async function parseCSV(file){
 // _itensDash: objeto com dados pré-agregados do server (kpis, top_produtos, top_marcas, por_loja)
 let _itensDash=null;
 let _itensDashLoja=undefined; // loja do último fetch
+let _itensDashMes1=null;
+let _itensDashMes2=null;
+let _itensMes1=''; // filtro de período ativo na aba itens
+let _itensMes2='';
 
-async function carregarItensSupa(lojaFilter){
+async function carregarItensSupa(lojaFilter, mes1Filter, mes2Filter){
   // Chama RPC que retorna apenas dados agregados — muito mais rápido que baixar 68k linhas
   try{
     const p = lojaFilter !== undefined ? lojaFilter : null;
+    const m1 = mes1Filter || null;
+    const m2 = mes2Filter || null;
     // Usa fetch direto para evitar problemas com session/RLS do cliente JS
-    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard_v2',{
+    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard_v3',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
         'apikey': SUPA_ANON_KEY,
         'Authorization':'Bearer '+SUPA_ANON_KEY
       },
-      body: JSON.stringify({p_loja: p})
+      body: JSON.stringify({p_loja: p, p_mes1: m1, p_mes2: m2})
     });
     if(!resp.ok){ const t=await resp.text(); throw new Error(resp.status+' '+t); }
     const data = await resp.json();
     _itensDash = data || null;
     _itensDashLoja = lojaFilter;
+    _itensDashMes1 = mes1Filter||null;
+    _itensDashMes2 = mes2Filter||null;
     console.log('[itens] dashboard carregado via RPC fetch', _itensDash);
   }catch(e){
     console.error('[carregarItensSupa] ERRO:', e.message, e);
@@ -1214,6 +1222,52 @@ function renderItensTab(dash){
       <div style="font-size:.82rem;font-weight:600;color:var(--tx)">R$ ${BRL(c.receita||0)}</div>
       <div style="font-size:.82rem;color:var(--mu);margin-top:.15rem">${label}</div>
     </div>`;
+  }
+
+  // ── Histórico mensal ─────────────────────────────────
+  const histList = dash.historico_mensal||[];
+  const histEl=$('#c-itens-hist');
+  if(histEl){
+    if(!histList.length){histEl.innerHTML=noData;}else{
+      const W=Math.max(420, histList.length*58+80), H=200;
+      const PAD={t:24,r:24,b:40,l:52};
+      const cw=W-PAD.l-PAD.r, ch=H-PAD.t-PAD.b;
+      const xs=i=>PAD.l+(histList.length>1?i*(cw/(histList.length-1)):cw/2);
+      const maxQtde=Math.max(...histList.map(x=>x.qtde_total||0),1);
+      const maxDist=Math.max(...histList.map(x=>x.produtos_distintos||0),1);
+      const yvQ=v=>PAD.t+ch-(v/maxQtde*ch);
+      const yvD=v=>PAD.t+ch-(v/maxDist*ch);
+      // Grid
+      let grid='';
+      const nT=4;
+      for(let i=0;i<=nT;i++){
+        const v=Math.round(maxQtde/nT*i);
+        const y=yvQ(v);
+        grid+=`<line x1="${PAD.l}" y1="${y.toFixed(1)}" x2="${W-PAD.r}" y2="${y.toFixed(1)}" stroke="var(--bd)" stroke-width="0.6" stroke-dasharray="4,3"/>`;
+        grid+=`<text x="${(PAD.l-5).toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--mu)">${N(v)}</text>`;
+      }
+      // Áreas e linhas
+      const ptsQ=histList.map((x,i)=>`${xs(i).toFixed(1)},${yvQ(x.qtde_total||0).toFixed(1)}`).join(' ');
+      const ptsD=histList.map((x,i)=>`${xs(i).toFixed(1)},${yvD(x.produtos_distintos||0).toFixed(1)}`).join(' ');
+      const polyQ=ptsQ+` ${xs(histList.length-1).toFixed(1)},${(PAD.t+ch).toFixed(1)} ${xs(0).toFixed(1)},${(PAD.t+ch).toFixed(1)}`;
+      const polyD=ptsD+` ${xs(histList.length-1).toFixed(1)},${(PAD.t+ch).toFixed(1)} ${xs(0).toFixed(1)},${(PAD.t+ch).toFixed(1)}`;
+      // Dots com tooltip nativo
+      const dotsQ=histList.map((x,i)=>`<circle cx="${xs(i).toFixed(1)}" cy="${yvQ(x.qtde_total||0).toFixed(1)}" r="4" fill="var(--y)" stroke="var(--bg)" stroke-width="1.5"><title>${fmtMes(x.mes)}: ${N(x.qtde_total)} un. | ${N(x.produtos_distintos)} produtos | ${N(x.pedidos)} pedidos</title></circle>`).join('');
+      const dotsD=histList.map((x,i)=>`<circle cx="${xs(i).toFixed(1)}" cy="${yvD(x.produtos_distintos||0).toFixed(1)}" r="3.5" fill="var(--bl)" stroke="var(--bg)" stroke-width="1.5"><title>${fmtMes(x.mes)}: ${N(x.produtos_distintos)} produtos distintos</title></circle>`).join('');
+      // Labels valor Qtde (apenas últimos e primeiros, ou todos se couber)
+      const stepLbl=Math.max(1,Math.ceil(histList.length/8));
+      const valLbls=histList.map((x,i)=>i%stepLbl!==0&&i!==histList.length-1?'':
+        `<text x="${xs(i).toFixed(1)}" y="${(yvQ(x.qtde_total||0)-8).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--y)" font-weight="700">${N(x.qtde_total)}</text>`).join('');
+      // Eixo X
+      const xlbls=histList.map((x,i)=>`<text x="${xs(i).toFixed(1)}" y="${(H-8).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--mu)">${fmtMes(x.mes)}</text>`).join('');
+      const defs=`<defs>
+        <linearGradient id="gIQ" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--y)" stop-opacity=".35"/><stop offset="100%" stop-color="var(--y)" stop-opacity=".03"/></linearGradient>
+        <linearGradient id="gID" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--bl)" stop-opacity=".3"/><stop offset="100%" stop-color="var(--bl)" stop-opacity=".03"/></linearGradient>
+      </defs>`;
+      const svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible">${defs}${grid}<polygon points="${polyQ}" fill="url(#gIQ)"/><polygon points="${polyD}" fill="url(#gID)"/><polyline points="${ptsQ}" fill="none" stroke="var(--y)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${ptsD}" fill="none" stroke="var(--bl)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6,3"/>${valLbls}${dotsQ}${dotsD}${xlbls}</svg>`;
+      histEl.innerHTML=`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">${svg}</div>`+
+        `<div class="hlgd" style="margin-top:.4rem"><span style="color:var(--y)">— Qtde total</span><span style="color:var(--bl)">- - Produtos distintos</span><span class="mu2" style="font-size:.7rem">passe o mouse para ver detalhes</span></div>`;
+    }
   }
 
   // ── KPIs ─────────────────────────────────────────────
@@ -2634,16 +2688,17 @@ function render(){
   }
   // ── Itens tab ───────────────────────────────────────────
   if(cur==='itens'){
-    // Se loja mudou desde o último fetch, busca novamente; senão usa cache
     const lojaAgora = F.loja||null;
-    if(_itensDash && _itensDashLoja===lojaAgora){
+    const m1Agora = _itensMes1||null;
+    const m2Agora = _itensMes2||null;
+    const cacheOk = _itensDash && _itensDashLoja===lojaAgora && _itensDashMes1===m1Agora && _itensDashMes2===m2Agora;
+    if(cacheOk){
       renderItensTab(_itensDash);
     } else {
-      // loja mudou ou sem dados — busca silenciosamente sem refazer spinners
-      const allIds=['itens-kp','c-itens-mais','c-itens-menos','c-itens-saidas','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'];
+      const allIds=['itens-kp','c-itens-hist','c-itens-mais','c-itens-menos','c-itens-saidas','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'];
       const spin='<div style="text-align:center;padding:3rem;color:var(--mu)"><div style="display:inline-block;width:2rem;height:2rem;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="margin-top:.75rem;font-size:.85rem">Carregando dados de itens...</p></div>';
       allIds.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=spin;});
-      carregarItensSupa(lojaAgora).then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
+      carregarItensSupa(lojaAgora,m1Agora,m2Agora).then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
     }
   }
   // ── Tempos tab ──────────────────────────────────────────
@@ -2687,8 +2742,26 @@ async function go(tab){
   }
   if(tab==='itens'){
     const spin='<div style="text-align:center;padding:3rem;color:var(--mu)"><div style="display:inline-block;width:2rem;height:2rem;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="margin-top:.75rem;font-size:.85rem">Carregando dados de itens...</p></div>';
+    // Monta filtros de período usando meses disponíveis do dashboard de pedidos
+    const meses=(D&&D.meses)||[];
+    const selM1=_itensMes1,selM2=_itensMes2;
+    const fHtml=meses.length?
+      `<div id="itens-filtros" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-bottom:.75rem;padding:.6rem .9rem;background:var(--s2);border-radius:.5rem;border:1px solid var(--bd)">
+        <span style="font-size:.8rem;color:var(--mu);font-weight:600">Período:</span>
+        <label style="font-size:.82rem">De <select id="itens-mes1" style="margin-left:.3rem;font-size:.82rem;border:1px solid var(--bd);border-radius:4px;padding:.15rem .4rem;background:var(--bg);color:var(--tx)">
+          <option value="">Todos</option>${meses.map(m=>`<option value="${m}"${selM1===m?' selected':''}>${fmtMes(m)}</option>`).join('')}
+        </select></label>
+        <label style="font-size:.82rem">Até <select id="itens-mes2" style="margin-left:.3rem;font-size:.82rem;border:1px solid var(--bd);border-radius:4px;padding:.15rem .4rem;background:var(--bg);color:var(--tx)">
+          <option value="">Todos</option>${meses.map(m=>`<option value="${m}"${selM2===m?' selected':''}>${fmtMes(m)}</option>`).join('')}
+        </select></label>
+        <button id="itens-filtrar" class="bt" style="font-size:.8rem;padding:.25rem .75rem">Filtrar</button>
+        ${(selM1||selM2)?`<button id="itens-limpar" class="bt" style="font-size:.8rem;padding:.25rem .75rem">Limpar filtro</button>`:''}
+        ${(selM1||selM2)?`<span style="font-size:.78rem;color:var(--ok);font-weight:600">● Período: ${selM1?fmtMes(selM1):'início'} → ${selM2?fmtMes(selM2):'fim'}</span>`:''}
+      </div>`:'' ;
     cg.innerHTML=
+      fHtml+
       `<div class="kp" id="itens-kp"></div>`+
+      `<article class="pn w2"><h3>📅 Histórico mensal de itens</h3><div id="c-itens-hist">${spin}</div></article>`+
       `<article class="pn w2"><h3>🏆 Top 20 — Mais Vendidos (por qtde)</h3><div id="c-itens-mais">${spin}</div></article>`+
       `<div class="vend-row">
         <article class="pn vend-col-lg" style="grid-column:span 2"><h3>📉 Top 20 — Menos Vendidos</h3><div id="c-itens-menos">${spin}</div></article>
@@ -2700,12 +2773,25 @@ async function go(tab){
       </div>`+
       `<article class="pn w2"><h3>📊 Curva ABC — Classificação por Receita</h3><div id="c-itens-abc">${spin}</div></article>`+
       `<article class="pn w2"><h3>📈 Curva PQR — Classificação por Frequência de Pedidos</h3><div id="c-itens-pqr">${spin}</div></article>`;
-    // Usa cache se a loja não mudou; caso contrário busca com a loja correta
+    // Eventos dos filtros de período
+    const btnFiltrar=$('#itens-filtrar');
+    if(btnFiltrar) btnFiltrar.addEventListener('click',()=>{
+      _itensMes1=$('#itens-mes1')?.value||'';
+      _itensMes2=$('#itens-mes2')?.value||'';
+      _itensDash=null; // força recarregamento
+      go('itens');
+    });
+    const btnLimpar=$('#itens-limpar');
+    if(btnLimpar) btnLimpar.addEventListener('click',()=>{_itensMes1='';_itensMes2='';_itensDash=null;go('itens');});
+    // Carrega dados
     const lojaAgora = F.loja||null;
-    if(_itensDash && _itensDashLoja===lojaAgora){
+    const m1Agora = _itensMes1||null;
+    const m2Agora = _itensMes2||null;
+    const cacheOk = _itensDash && _itensDashLoja===lojaAgora && _itensDashMes1===m1Agora && _itensDashMes2===m2Agora;
+    if(cacheOk){
       renderItensTab(_itensDash);
     } else {
-      carregarItensSupa(lojaAgora).then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
+      carregarItensSupa(lojaAgora,m1Agora,m2Agora).then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
     }
     return; // render() será chamado após promise
   } else if(tab==='tempos'){
