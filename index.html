@@ -1736,11 +1736,12 @@ function bootP(D){
 const $=(s,r=document)=>r.querySelector(s);
 
 const TABS=[
-  {k:'ov',   ic:'📊', l:'Visão Geral'},
-  {k:'vend', ic:'👤', l:'Vendedores'},
-  {k:'cli',  ic:'🏢', l:'Clientes'},
-  {k:'transp',ic:'🚚',l:'Transportadoras'},
-  {k:'hist', ic:'📅', l:'Histórico'},
+  {k:'ov',    ic:'📊', l:'Visão Geral'},
+  {k:'vend',  ic:'👤', l:'Vendedores'},
+  {k:'cli',   ic:'🏢', l:'Clientes'},
+  {k:'transp',ic:'🚚', l:'Transportadoras'},
+  {k:'hist',  ic:'📅', l:'Histórico'},
+  {k:'itens', ic:'📦', l:'Itens'},
 ];
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
