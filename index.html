@@ -933,6 +933,14 @@ async function parseCSV(file){
   });
 }
 
+// Helpers globais usados pelo renderItensTab (definido fora de bootP/bootE)
+const $G=(s,r=document)=>r.querySelector(s);
+const BRL_G=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const N_G=v=>Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+const esc_G=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MESES_PT_G=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const fmtMes_G=s=>{const[y,m]=(s||'').split('-');return(MESES_PT_G[+m]||'')+' '+(y||'').slice(2)};
+
 // Botão Atualizar dados — recarrega do Supabase sem fazer upload
 // _itensDash: objeto com dados pré-agregados do server (kpis, top_produtos, top_marcas, por_loja)
 let _itensDash=null;
@@ -1193,6 +1201,8 @@ async function enviarAoSupabase(pedidos, lojaDefault, statusEl){
 // ITENS TAB — usa dados pré-agregados do server (RPC)
 // ═══════════════════════════════════════════════════════
 function renderItensTab(dash){
+  // Aliases para helpers de formatação (definidos globalmente como *_G)
+  const $=$G, BRL=BRL_G, N=N_G, esc=esc_G, fmtMes=fmtMes_G;
   const noData='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados — aguarde o carregamento</p>';
   const allIds=['itens-kp','c-itens-mais','c-itens-menos','c-itens-saidas','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'];
   if(!dash){
