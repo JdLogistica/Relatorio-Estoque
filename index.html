@@ -1203,6 +1203,8 @@ async function enviarAoSupabase(pedidos, lojaDefault, statusEl){
 function renderItensTab(dash){
   // Aliases para helpers de formatação (definidos globalmente como *_G)
   const $=$G, BRL=BRL_G, N=N_G, esc=esc_G, fmtMes=fmtMes_G;
+  const hide=document.documentElement.dataset.itensHide==='1';
+  const R=v=>hide?'••••':('R$ '+BRL(v)); // receita mascarável
   const noData='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados — aguarde o carregamento</p>';
   const allIds=['itens-kp','c-itens-mais','c-itens-menos','c-itens-saidas','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'];
   if(!dash){
@@ -1229,7 +1231,7 @@ function renderItensTab(dash){
     return`<div style="flex:1;min-width:7rem;padding:.6rem .9rem;border-radius:.5rem;background:${colorVar};text-align:center">
       <div style="font-size:1.5rem;font-weight:700;color:var(--tx)">${N(c.count||0)}</div>
       <div style="font-size:.82rem;color:var(--mu);margin:.1rem 0">itens (${c.pct_itens||0}%)</div>
-      <div style="font-size:.82rem;font-weight:600;color:var(--tx)">R$ ${BRL(c.receita||0)}</div>
+      <div style="font-size:.82rem;font-weight:600;color:var(--tx)">${R(c.receita||0)}</div>
       <div style="font-size:.82rem;color:var(--mu);margin-top:.15rem">${label}</div>
     </div>`;
   }
@@ -1282,14 +1284,30 @@ function renderItensTab(dash){
 
   // ── KPIs ─────────────────────────────────────────────
   const kpEl=$('#itens-kp');
-  if(kpEl) kpEl.innerHTML=
-    `<div class="k"><div class="kl">Total linhas</div><div class="kv">${N(kpis.total_linhas||0)}</div></div>`+
-    `<div class="k"><div class="kl">Produtos distintos</div><div class="kv">${N(kpis.produtos_distintos||0)}</div></div>`+
-    `<div class="k"><div class="kl">Total pedidos</div><div class="kv">${N(kpis.total_pedidos||0)}</div></div>`+
-    `<div class="k"><div class="kl">Qtde total</div><div class="kv">${N(kpis.total_qtde||0)}</div></div>`+
-    `<div class="k"><div class="kl">Receita total</div><div class="kv">R$ ${BRL(kpis.total_receita||0)}</div></div>`+
-    `<div class="k"><div class="kl">Ticket médio</div><div class="kv">R$ ${BRL(kpis.ticket_medio||0)}</div></div>`+
-    `<div class="k"><div class="kl">Itens/pedido</div><div class="kv">${kpis.media_itens_pedido||0}</div></div>`;
+  if(kpEl){
+    // Verifica estado atual do olho (persiste entre re-renders)
+    const hidden=document.documentElement.dataset.itensHide==='1';
+    const eye=hidden?'🙈':'👁️';
+    const mask=v=>hidden?'••••••':v;
+    kpEl.innerHTML=
+      `<div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:.5rem;grid-column:1/-1">
+        <span style="font-size:.82rem;color:var(--mu);font-weight:600">Indicadores da aba Itens</span>
+        <button id="itens-eye" title="${hidden?'Mostrar valores':'Ocultar valores sensíveis'}" style="background:none;border:1px solid var(--bd);border-radius:.4rem;cursor:pointer;padding:.2rem .55rem;font-size:1rem;color:var(--mu);line-height:1">${eye}</button>
+      </div>`+
+      `<div class="k"><div class="kl">Total linhas</div><div class="kv">${N(kpis.total_linhas||0)}</div></div>`+
+      `<div class="k"><div class="kl">Produtos distintos</div><div class="kv">${N(kpis.produtos_distintos||0)}</div></div>`+
+      `<div class="k"><div class="kl">Total pedidos</div><div class="kv">${N(kpis.total_pedidos||0)}</div></div>`+
+      `<div class="k"><div class="kl">Qtde total</div><div class="kv">${N(kpis.total_qtde||0)}</div></div>`+
+      `<div class="k"><div class="kl">Receita total</div><div class="kv" data-sensivel="1">R$ ${mask(BRL(kpis.total_receita||0))}</div></div>`+
+      `<div class="k"><div class="kl">Ticket médio</div><div class="kv" data-sensivel="1">R$ ${mask(BRL(kpis.ticket_medio||0))}</div></div>`+
+      `<div class="k"><div class="kl">Itens/pedido</div><div class="kv">${kpis.media_itens_pedido||0}</div></div>`;
+    // Botão olho — alterna sem recarregar dados
+    const eyeBtn=$('#itens-eye');
+    if(eyeBtn) eyeBtn.addEventListener('click',()=>{
+      document.documentElement.dataset.itensHide=hidden?'0':'1';
+      renderItensTab(_itensDash);
+    });
+  }
 
   // ── Top 20 mais vendidos ──────────────────────────────
   const maisEl=$('#c-itens-mais');
@@ -1307,7 +1325,7 @@ function renderItensTab(dash){
           </div>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.num_pedidos)}</span>
-          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${R(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       maisEl.innerHTML=header+`<div style="padding:.3rem 0">${rows}</div>`;
@@ -1327,7 +1345,7 @@ function renderItensTab(dash){
             <div style="width:${pct}%;height:100%;background:var(--er);opacity:.7;border-radius:3px"></div>
           </div>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
-          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${R(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       menosEl.innerHTML=`<div style="padding:.3rem 0">${rows}</div>`;
@@ -1348,7 +1366,7 @@ function renderItensTab(dash){
           </div>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.pedidos_distintos)} ped.</span>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)} un.</span>
-          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${R(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       saiEl.innerHTML=`<div style="padding:.3rem 0">${rows}</div>`;
@@ -1368,7 +1386,7 @@ function renderItensTab(dash){
             <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
           </div>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
-          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${R(x.receita_total||0)}</span>
         </div>`;
       }).join('');
       maEl.innerHTML=`<div style="padding:.25rem 0">${rows}</div>`;
@@ -1388,7 +1406,7 @@ function renderItensTab(dash){
             <div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div>
           </div>
           <span style="font-size:.85rem;color:var(--mu)">${N(x.qtde_total)} un.</span>
-          <span style="font-size:.85rem;color:var(--mu)">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.85rem;color:var(--mu)">${R(x.receita_total||0)}</span>
           <span style="font-size:.83rem;color:var(--mu)">${N(x.produtos_distintos)} prod.</span>
         </div>`;
       }).join('');
@@ -1412,7 +1430,7 @@ function renderItensTab(dash){
         return`<div style="display:grid;grid-template-columns:2.5rem 13rem 5.5rem 7rem 5.5rem 4rem;align-items:center;gap:.35rem;margin-bottom:.2rem">
           ${classBadge(x.classe||'C')}
           <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
-          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${R(x.receita_total||0)}</span>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${x.pct_acumulado||0}%</span>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.num_pedidos)}</span>
@@ -1439,7 +1457,7 @@ function renderItensTab(dash){
           ${classBadge(x.classe||'R')}
           <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,32))}</span>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.frequencia)}</span>
-          <span style="font-size:.83rem;color:var(--mu);text-align:right">R$ ${BRL(x.receita_total||0)}</span>
+          <span style="font-size:.83rem;color:var(--mu);text-align:right">${R(x.receita_total||0)}</span>
           <span style="font-size:.83rem;color:var(--mu);text-align:right">${N(x.qtde_total)}</span>
         </div>`;
       }).join('');
