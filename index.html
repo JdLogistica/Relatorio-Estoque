@@ -957,7 +957,7 @@ async function carregarItensSupa(lojaFilter, mes1Filter, mes2Filter){
     const m1 = mes1Filter || null;
     const m2 = mes2Filter || null;
     // Usa fetch direto para evitar problemas com session/RLS do cliente JS
-    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard_v3',{
+    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard_v4',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
