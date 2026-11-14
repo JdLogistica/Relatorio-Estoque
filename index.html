@@ -3064,7 +3064,7 @@ function buildTmFilters(){
   const o=(v,l,s)=>`<option value="${esc(v)}"${String(s)===String(v)?' selected':''}>${esc(l)}</option>`;
   const sel=(k,lbl,vals,todos='Todos')=>`<label class="fl">${lbl}<select class="tmf" data-k="${k}">${o('',todos,F[k])}${vals.map(v=>Array.isArray(v)?o(v[0],v[1],F[k]):o(v,v,F[k])).join('')}</select></label>`;
   const meses=(D.meses||[]).slice();
-  const TMF=window._TMF||{};
+  const TMF=window._TMF||{k:window._TMFpend||''};
   const fxs=[];for(let b=0;b<=_FX_MAX;b+=5)fxs.push([b,_fxLbl(b)]);
   el.innerHTML=
     `<label class="fl grow">Buscar<input class="tmf" data-k="q" type="search" placeholder="Cliente, pedido ou vendedor" value="${esc(F.q)}"></label>`+
@@ -3098,10 +3098,11 @@ document.addEventListener('change',e=>{
   const el=e.target.closest('.tmfx'); if(!el) return;
   const fb=document.getElementById('tm-fb');
   const k=fb.querySelector('.tmfx[data-k=k]').value, b=fb.querySelector('.tmfx[data-k=b]').value;
-  window._TMF=(k&&b!=='')?{k,b:+b}:null; tmApply();
+  if(k&&b===''){ window._TMFpend=k; if(window._TMF){window._TMF=null; tmApply();} return; } // só a etapa: espera a faixa
+  window._TMFpend=''; window._TMF=(k&&b!=='')?{k,b:+b}:null; tmApply();
 });
 document.addEventListener('click',e=>{
-  if(e.target.closest('#tm-clr')){Object.keys(F).forEach(k=>F[k]='');_itemBusca=null;window._TMF=null;const fb=document.getElementById('tm-fb');if(fb)fb.innerHTML='';tmApply();return}
+  if(e.target.closest('#tm-clr')){Object.keys(F).forEach(k=>F[k]='');_itemBusca=null;window._TMF=null;window._TMFpend='';const fb=document.getElementById('tm-fb');if(fb)fb.innerHTML='';tmApply();return}
   const el=e.target.closest('[data-tmk]'); if(!el||cur!=='tempos') return;
   const k=el.dataset.tmk, v=el.dataset.tmv;
   if(k==='vend'||k==='conf'){F[k]=F[k]===v?'':v}
@@ -3965,7 +3966,8 @@ function render(){
     }
   }
   // ── Tempos tab ──────────────────────────────────────────
-  if(cur==='tempos'){ buildTmFilters(); const _sv={mes1:F.mes1,mes2:F.mes2,dt1:F.dt1,dt2:F.dt2}; F.dt1=F.dt2=''; if(!window._TME||window._TME.modo!=='dia'){F.mes1=F.mes2='';} const rsEv=filtered(); Object.assign(F,_sv); renderTemposTab(rs,rsEv); renderItemPanel(rs); }
+  if(cur==='tempos'){ buildTmFilters(); const _sv={mes1:F.mes1,mes2:F.mes2,dt1:F.dt1,dt2:F.dt2}; const _diaUnico=F.dt1&&F.dt1===F.dt2, _mesUnico=F.mes1&&F.mes1===F.mes2&&!F.dt1&&!F.dt2;
+    if(_diaUnico){F.dt1=F.dt2='';} if(_mesUnico&&(!window._TME||window._TME.modo!=='dia')){F.mes1=F.mes2='';} const rsEv=filtered(); Object.assign(F,_sv); renderTemposTab(rs,rsEv); renderItemPanel(rs); }
   if(!isItens&&!isTempos) renderTable(rs);
   buildSidebarFilters();
 }
