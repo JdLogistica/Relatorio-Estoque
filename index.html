@@ -3023,8 +3023,19 @@ function renderItemPanel(rs){
   const seps=grp(p=>p.conf), clis=grp(p=>p.cli), vends=grp(p=>p.vend);
   const kpi=(l,v,s)=>`<div class="k"><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`;
   const fD=d=>d?d.split('-').reverse().join('/'):'—';
-  const estHtml=B.est.length?`<div class="tw"><table class="ped-tb"><thead><tr><th>Loja</th><th>Cód. produto</th><th>Cód. Danfe</th><th>Descrição</th><th>Locação</th><th style="text-align:center">Saldo</th><th style="text-align:center">Custo un.</th></tr></thead><tbody>`+
-      B.est.map(e=>`<tr><td>${esc(e.loja)}</td><td class="mono">${esc(e.cod_marca)}</td><td class="mono">${esc(e.cod)}</td><td>${esc(e.descricao||'')}</td><td>${esc(e.locacao||'sem locação')}</td><td data-v="${+e.saldo||0}" style="text-align:center"><b>${N0(e.saldo)}</b></td><td data-v="${+e.custo||0}" style="text-align:center">${BRL_G(+e.custo||0)}</td></tr>`).join('')+`</tbody></table></div>`
+  // Estoque: segue o filtro de loja; para cada loja/produto sem linha na planilha, mostra "sem saldo"
+  const lojasEst=F.loja?[F.loja]:['LT','LL'];
+  const codsEst=prods.map(([c])=>c).filter(c=>c&&c!=='—').slice(0,24);
+  const estRows=[];
+  codsEst.forEach(c=>lojasEst.forEach(lj=>{
+    const ach=B.est.filter(e=>e.loja===lj&&String(e.cod_marca)===String(c));
+    if(ach.length) estRows.push(...ach);
+    else estRows.push({loja:lj,cod_marca:c,cod:null,descricao:(prod.get(c)||{}).d||'',locacao:null,saldo:0,custo:null,_sem:true});
+  }));
+  const estHtml=estRows.length?`<div class="tw"><table class="ped-tb"><thead><tr><th>Loja</th><th>Cód. produto</th><th>Cód. Danfe</th><th>Descrição</th><th>Locação</th><th style="text-align:center">Saldo</th><th style="text-align:center">Custo un.</th></tr></thead><tbody>`+
+      estRows.map(e=>e._sem
+        ?`<tr style="opacity:.75"><td>${esc(e.loja)}</td><td class="mono">${esc(e.cod_marca)}</td><td style="color:var(--mu)">—</td><td>${esc(e.descricao)}</td><td colspan="3" style="color:var(--mu)">Sem saldo — não consta na planilha ESTOQUE${esc(e.loja)}</td></tr>`
+        :`<tr><td>${esc(e.loja)}</td><td class="mono">${esc(e.cod_marca)}</td><td class="mono">${esc(e.cod)}</td><td>${esc(e.descricao||'')}</td><td>${esc(e.locacao||'sem locação')}</td><td data-v="${+e.saldo||0}" style="text-align:center"><b>${N0(e.saldo)}</b></td><td data-v="${+e.custo||0}" style="text-align:center">${BRL_G(+e.custo||0)}</td></tr>`).join('')+`</tbody></table></div>`
     :'<p style="color:var(--mu);font-size:.82rem">Sem saldo em estoque nas planilhas ESTOQUELT/LL para esses códigos.</p>';
   const rank=(arr,tit,k)=>`<div><h4 style="margin:.2rem 0 .35rem;font-size:.82rem">${tit}</h4>`+arr.slice(0,8).map(([n,c])=>`<div${k?` data-tmk="${k}" data-tmv="${esc(n)}" title="Clique para filtrar"`:''} style="display:flex;justify-content:space-between;gap:.5rem;padding:.2rem .45rem;border-radius:5px;background:var(--s2);margin-bottom:.2rem;font-size:.8rem${k?';cursor:pointer':''}"><span>${esc(n)}</span><b>${c} ped. · ${Math.round(c/peds.length*100)}%</b></div>`).join('')+`</div>`;
   const linhas=its.slice().sort((a,b)=>String(ped.get(b.pedido_id+'|'+b.loja).dia).localeCompare(String(ped.get(a.pedido_id+'|'+a.loja).dia))).slice(0,500);
@@ -3050,7 +3061,7 @@ function renderItemPanel(rs){
     `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.75rem;margin-bottom:.6rem">`+
       rank(seps,'🔧 Quem separou','conf')+rank(vends,'👤 Quem vendeu','vend')+rank(clis,'🏢 Clientes que compraram',null)+
     `</div>`+
-    `<h4 style="margin:.4rem 0 .35rem;font-size:.85rem">📦 Estoque atual (ESTOQUELT/LL)</h4>${estHtml}`+
+    `<h4 style="margin:.4rem 0 .35rem;font-size:.85rem">📦 Estoque atual (${F.loja?'ESTOQUE'+esc(F.loja):'ESTOQUELT/LL'})</h4>${estHtml}`+
     `<div style="display:flex;justify-content:space-between;align-items:center;margin:.7rem 0 .35rem"><h4 style="margin:0;font-size:.85rem">🧾 Pedidos em que o item saiu</h4><button type="button" class="bt" id="tm-item-csv">Exportar CSV</button></div>${tb}`;
   const csvBtn=document.getElementById('tm-item-csv');
   if(csvBtn) csvBtn.onclick=()=>{
