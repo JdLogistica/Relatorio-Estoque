@@ -3966,8 +3966,11 @@ function render(){
     }
   }
   // ── Tempos tab ──────────────────────────────────────────
-  if(cur==='tempos'){ buildTmFilters(); const _sv={mes1:F.mes1,mes2:F.mes2,dt1:F.dt1,dt2:F.dt2}; const _diaUnico=F.dt1&&F.dt1===F.dt2, _mesUnico=F.mes1&&F.mes1===F.mes2&&!F.dt1&&!F.dt2;
-    if(_diaUnico){F.dt1=F.dt2='';} if(_mesUnico&&(!window._TME||window._TME.modo!=='dia')){F.mes1=F.mes2='';} const rsEv=filtered(); Object.assign(F,_sv); renderTemposTab(rs,rsEv); renderItemPanel(rs); }
+  if(cur==='tempos'){ buildTmFilters(); const _sv={mes1:F.mes1,mes2:F.mes2,dt1:F.dt1,dt2:F.dt2}; const _diaUnico=F.dt1&&F.dt1===F.dt2;
+    if(_diaUnico){F.dt1=F.dt2='';} const rsEv=filtered(); Object.assign(F,_sv); renderTemposTab(rs,rsEv); renderItemPanel(rs);
+    const _per=(F.mes1||F.mes2||F.dt1||F.dt2)?'(período filtrado'+(F.mes1&&F.mes1===F.mes2?': '+F.mes1.slice(5)+'/'+F.mes1.slice(0,4):'')+')':null;
+    const p1=document.getElementById('tm-per1'),p2=document.getElementById('tm-per2');
+    if(p1)p1.textContent=_per?_per.replace(')',' · até 60 dias)'):'(últimos 60 dias)'; if(p2)p2.textContent=_per?_per.replace(')',' · até 200 com separação)'):'(últimos 200 com separação)'; }
   if(!isItens&&!isTempos) renderTable(rs);
   buildSidebarFilters();
 }
@@ -4051,8 +4054,8 @@ async function go(tab){
       `<article class="pn w2"><h3>🔧 T2 (Separação) médio por separador/conferente</h3><div id="c-tm-conf-t2"></div></article>`+
       `<article class="pn w2"><h3>👤 Lead Total médio por vendedor</h3><div id="c-tm-vend-lead"></div></article>`+
       `<article class="pn w2"><h3>🔧 T1 e T2 médios por vendedor</h3><div id="c-tm-vend-t1t2"></div></article>`+
-      `<article class="pn w2"><h3>📅 T1 e T2 médios por dia (últimos 60 dias)</h3><div id="c-tm-dia-t1t2"></div></article>`+
-      `<article class="pn w2"><h3>📋 T2 por pedido (últimos 200 com separação)</h3><div id="c-tm-ped-t2"></div></article>`;
+      `<article class="pn w2"><h3>📅 T1 e T2 médios por dia <small id="tm-per1" style="font-weight:400;color:var(--mu)">(últimos 60 dias)</small></h3><div id="c-tm-dia-t1t2"></div></article>`+
+      `<article class="pn w2"><h3>📋 T2 por pedido <small id="tm-per2" style="font-weight:400;color:var(--mu)">(últimos 200 com separação)</small></h3><div id="c-tm-ped-t2"></div></article>`;
   } else if(tab==='estoque'){
     $('#p-kp').hidden=true; $('#p-tb').hidden=true;
     cg.innerHTML=
@@ -4585,29 +4588,32 @@ function renderTmEvol(rows,el){
     Object.entries(_TM_ET).map(([kk,[n]])=>btn('k',kk,kk===k,n)).join('')+
     (TMF?`<span style="font-size:.72rem;color:var(--y);margin-left:.4rem">filtrado: ${nm} ${_fxLbl(TMF.b)}</span>`:'')+`</div>`;
   // agrupa média por período
-  const key=r=>st.modo==='mes'?r.mes:r.dia;
+  // com um único mês no filtro, a visão mensal mostra os dias desse mês
+  const _meses=new Set(rows.map(r=>r.mes).filter(Boolean));
+  const modo=(st.modo==='mes'&&_meses.size===1)?'dia':st.modo;
+  const key=r=>modo==='mes'?r.mes:r.dia;
   const g=new Map();
   rows.forEach(r=>{const v=r['_'+k];if(v==null||v<0||v>2880)return;const p=key(r);if(!p)return;if(!g.has(p))g.set(p,{s:0,c:0});const o=g.get(p);o.s+=v;o.c++;});
   if(!g.size){el.innerHTML=head+`<p class="mu2" style="padding:1rem;color:var(--mu)">Sem dados de ${nm} para os filtros escolhidos.</p>`;return;}
   let pers=[...g.keys()].sort();
   let nota='';
-  if(st.modo==='dia'){const a=[],c=new Date(pers[0]+'T00:00:00'),e=new Date(pers[pers.length-1]+'T00:00:00');while(c<=e){a.push(c.toISOString().slice(0,10));c.setDate(c.getDate()+1)}pers=a;
-    if(!PF.mes1&&!PF.mes2&&pers.length>90){pers=pers.slice(-90);nota=' · últimos 90 dias (escolha um mês para ver os dias dele)'}}
+  if(modo==='dia'){const a=[],c=new Date(pers[0]+'T00:00:00'),e=new Date(pers[pers.length-1]+'T00:00:00');while(c<=e){a.push(c.toISOString().slice(0,10));c.setDate(c.getDate()+1)}pers=a;
+    if(!PF.mes1&&!PF.mes2&&!PF.dt1&&!PF.dt2&&pers.length>90){pers=pers.slice(-90);nota=' · últimos 90 dias (escolha um mês para ver os dias dele)'}}
   const pts=pers.map(p=>{const o=g.get(p);return{p,v:o?Math.round(o.s/o.c):null,c:o?o.c:0}});
   if(!pts.some(x=>x.v!=null)){el.innerHTML=head+`<p class="mu2" style="padding:1rem;color:var(--mu)">Sem dados de ${nm} no período.</p>`;return;}
   const vals=pts.filter(x=>x.v!=null);
   const totC=vals.reduce((s,x)=>s+x.c,0), mediaGeral=Math.round(vals.reduce((s,x)=>s+x.v*x.c,0)/totC);
   const melhor=vals.reduce((a,x)=>x.v<a.v?x:a,vals[0]), pior=vals.reduce((a,x)=>x.v>a.v?x:a,vals[0]);
   const hoje=new Date(), mesAtual=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
-  const lbl=p=>st.modo==='mes'?`${MN[+p.slice(5,7)-1]}/${p.slice(2,4)}`:`${p.slice(8)}/${p.slice(5,7)}`;
+  const lbl=p=>modo==='mes'?`${MN[+p.slice(5,7)-1]}/${p.slice(2,4)}`:`${p.slice(8)}/${p.slice(5,7)}`;
   const ult=vals[vals.length-1], pen=vals[vals.length-2];
   const varUlt=pen&&pen.v?((ult.v-pen.v)/pen.v*100):null;
   const fV=v=>v==null?'—':(v>0?'+':'')+v.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
   const kpi=(l,v,c)=>`<div class="dia-kpi"${c?` style="border-left-color:${c}"`:''}><span>${l}</span><b${c?` style="color:${c}"`:''}>${v}</b></div>`;
   const resumo=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem">`+
     kpi(`Média ${nm} no período`,fmtMin(mediaGeral),cor)+
-    kpi(`Melhor ${st.modo==='mes'?'mês':'dia'}: ${lbl(melhor.p)}`,fmtMin(melhor.v),'#66bb6a')+
-    kpi(`Pior ${st.modo==='mes'?'mês':'dia'}: ${lbl(pior.p)}`,fmtMin(pior.v),'#ef5350')+
+    kpi(`Melhor ${modo==='mes'?'mês':'dia'}: ${lbl(melhor.p)}`,fmtMin(melhor.v),'#66bb6a')+
+    kpi(`Pior ${modo==='mes'?'mês':'dia'}: ${lbl(pior.p)}`,fmtMin(pior.v),'#ef5350')+
     kpi(`${lbl(ult.p)} vs ${pen?lbl(pen.p):'—'}`,`<i style="font-style:normal;color:${varUlt==null?'var(--mu)':varUlt>0?'#ef5350':'#66bb6a'}">${fV(varUlt)}</i>`)+
     kpi('Pedidos considerados',totC.toLocaleString('pt-BR'))+`</div>`;
   // SVG
@@ -4618,22 +4624,22 @@ function renderTmEvol(rows,el){
   const bw=Math.max(2,(cW-gap*Math.max(0,n-1))/n), bx=i=>PL+i*(bw+gap);
   const grid=Array.from({length:5},(_,i)=>{const f=i/4,y=yv(mx*f).toFixed(1);return`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--bd)" opacity="${i?.3:0}"/>`+(i?`<text x="${PL-4}" y="${y}" text-anchor="end" font-size="8.5" fill="var(--mu)" dominant-baseline="middle">${fmtMin(Math.round(mx*f))}</text>`:'')}).join('');
   const xStep=Math.max(1,Math.ceil(30/(bw+gap)));
-  const selP=st.modo==='mes'?((PF.mes1&&PF.mes1===PF.mes2)?PF.mes1:''):((PF.dt1&&PF.dt1===PF.dt2)?PF.dt1:'');
+  const selP=modo==='mes'?((PF.mes1&&PF.mes1===PF.mes2)?PF.mes1:''):((PF.dt1&&PF.dt1===PF.dt2)?PF.dt1:'');
   const yMed=yv(mediaGeral).toFixed(1);
   const bars=pts.map((x,i)=>{
-    const X=bx(i), on=selP===x.p, dim=selP&&!on, parcial=st.modo==='mes'&&x.p===mesAtual;
+    const X=bx(i), on=selP===x.p, dim=selP&&!on, parcial=modo==='mes'&&x.p===mesAtual;
     const tip=`${lbl(x.p)}${parcial?' (mês em andamento)':''}: ${x.v==null?'sem dados':fmtMin(x.v)+' · '+x.c+' pedidos'}`;
-    let s=`<g data-tmk="${st.modo}" data-tmv="${x.p}" style="cursor:pointer${dim?';opacity:.35':''}"><title>${tip} — clique para filtrar</title>`+
+    let s=`<g data-tmk="${modo}" data-tmv="${x.p}" style="cursor:pointer${dim?';opacity:.35':''}"><title>${tip} — clique para filtrar</title>`+
       `<rect x="${X}" y="${PT}" width="${bw}" height="${cH}" fill="transparent"/>`;
     if(x.v!=null){const y=yv(x.v);s+=`<rect x="${X.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(PT+cH-y).toFixed(1)}" rx="${Math.min(3,bw/3)}" fill="${cor}"${parcial?' fill-opacity=".55"':''}${on?' stroke="var(--tx)" stroke-width="1.5"':''}/>`;
       if(bw>=14) s+=`<text x="${(X+bw/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" font-size="${bw>=30?9.5:8}" font-weight="700" fill="var(--tx)">${fmtMin(x.v)}</text>`;
       if(bw>=26&&i>0&&pts[i-1].v){const vp=(x.v-pts[i-1].v)/pts[i-1].v*100;s+=`<text x="${(X+bw/2).toFixed(1)}" y="${(y-15).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="${vp>0?'#ef5350':'#66bb6a'}">${fV(vp)}</text>`}}
     if(i%xStep===0) s+=`<text x="${(X+bw/2).toFixed(1)}" y="${H-PB+13}" text-anchor="middle" font-size="8.5" fill="var(--mu)">${lbl(x.p)}</text>`;
-    if(st.modo==='mes'&&bw>=26) s+=`<text x="${(X+bw/2).toFixed(1)}" y="${H-PB+25}" text-anchor="middle" font-size="7.5" fill="var(--mu)">${x.c} ped.</text>`;
+    if(modo==='mes'&&bw>=26) s+=`<text x="${(X+bw/2).toFixed(1)}" y="${H-PB+25}" text-anchor="middle" font-size="7.5" fill="var(--mu)">${x.c} ped.</text>`;
     return s+'</g>';
   }).join('');
   const linha=`<line x1="${PL}" y1="${yMed}" x2="${W-PR}" y2="${yMed}" stroke="${cor}" stroke-dasharray="4 3" opacity=".8"/>`;
-  el.innerHTML=head+resumo+`<div style="font-size:.74rem;color:var(--mu);margin-bottom:.2rem">${nm}: ${desc} · tempo médio por ${st.modo==='mes'?'mês':'dia'}${nota} · linha tracejada = média do período (${fmtMin(mediaGeral)}) · % em vermelho = piorou, em verde = melhorou · clique numa barra para filtrar</div>`+
+  el.innerHTML=head+resumo+`<div style="font-size:.74rem;color:var(--mu);margin-bottom:.2rem">${nm}: ${desc} · tempo médio por ${modo==='mes'?'mês':'dia'}${nota}${modo!==st.modo?' (dias do mês filtrado)':''} · linha tracejada = média do período (${fmtMin(mediaGeral)}) · % em vermelho = piorou, em verde = melhorou · clique numa barra para filtrar</div>`+
     `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Evolução do tempo médio ${nm}">${grid}${bars}${linha}</svg>`;
 }
 document.addEventListener('click',e=>{
