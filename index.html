@@ -185,6 +185,11 @@ tr.ped-row{cursor:pointer}tr.ped-row:hover td{background:color-mix(in srgb,var(-
 .ped-kp{margin-top:.6rem}
 #ped-itens .tw{overflow-x:auto;max-width:100%}.ped-tb{font-size:.78rem;width:100%;border-collapse:collapse}.ped-tb td,.ped-tb th{white-space:nowrap;padding:.4rem .45rem;text-align:left}.ped-tb thead th{border-bottom:2px solid var(--ln);color:var(--mu);font-size:.72rem}.ped-tb tbody tr{border-bottom:1px solid var(--ln)}.ped-tb td:nth-child(5){white-space:normal;min-width:11rem}.ped-tb .mono{font-family:monospace}
 .tmfb{display:flex;flex-wrap:wrap;gap:.55rem;align-items:flex-end;padding:.6rem;background:var(--sf);border:1px solid var(--ln);border-left:3px solid var(--y);border-radius:var(--r);margin-bottom:.25rem}.tmfb .fl{flex:1 1 8rem;min-width:0}.tmfb .fl.grow{flex:2 1 12rem}.tmfb select,.tmfb input{width:100%}.tmfb .fa{flex:0 0 auto;margin-left:0}[data-tmk]:hover{background:color-mix(in srgb,var(--y) 10%,transparent)}
+.tm-dist{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:.75rem;align-items:start}
+.tm-dist h3 small{font-weight:400;color:var(--mu);font-size:.72rem;margin-left:.25rem}
+.tm-dist [data-tmk]{grid-template-columns:4.4rem minmax(0,1fr) 11.2rem!important;gap:.4rem!important}.tm-dist [data-tmk]>span:last-child{text-align:right!important}
+.tm-dist [data-tmk]>span{font-size:.7rem!important}
+.tm-dist [data-tmk]>span:last-child b{margin-left:.2rem!important}.tm-dist [data-tmk]>span:last-child small{margin-left:.2rem!important;font-size:.65rem}
 th.gs{cursor:pointer;user-select:none}th.gs:hover{color:var(--y)}.gs-ind{color:var(--y)}
 .kpi-g{display:inline-block;margin-top:.35rem;font-size:.72rem;font-weight:700;padding:.1rem .4rem;border-radius:4px;background:rgba(255,255,255,.07);color:var(--mu)}
 .kpi-g.up{background:rgba(102,187,106,.15);color:#66bb6a}
@@ -4044,12 +4049,12 @@ async function go(tab){
       `<article class="pn w2" hidden><h3>🔎 Tudo sobre o item</h3><div id="c-tm-item"></div></article>`+
       `<article class="pn w2"><h3>📈 Evolução do tempo médio</h3><div id="c-tm-evol"></div></article>`+
       `<div id="tempos-kp" style="grid-column:1/-1"></div>`+
-      `<article class="pn w2"><h3>📊 Distribuição — Lead Total (Emissão → Fim Separação)</h3><div id="c-tm-lead-hist"></div></article>`+
-      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;grid-column:1/-1">`+
-        `<article class="pn"><h3>⏱️ Distribuição — T1 (Emissão → Início Sep.)</h3><div id="c-tm-t1-hist"></div></article>`+
-        `<article class="pn"><h3>⏱️ Distribuição — T2 (Início Sep. → Fim Sep.)</h3><div id="c-tm-t2-hist"></div></article>`+
-        `<article class="pn"><h3>⏱️ Distribuição — T3 (Fim Sep. → Emissão NF-e)</h3><div id="c-tm-t3-hist"></div></article>`+
-        `<article class="pn"><h3>⏱️ Distribuição — T4 (Emissão NF-e → Expedição)</h3><div id="c-tm-t4-hist"></div></article>`+
+      `<div class="tm-dist" style="grid-column:1/-1">`+
+        `<article class="pn"><h3>⏱️ 1 · T1 <small>Emissão → Início sep.</small></h3><div id="c-tm-t1-hist"></div></article>`+
+        `<article class="pn"><h3>⏱️ 2 · T2 <small>Início sep. → Fim sep.</small></h3><div id="c-tm-t2-hist"></div></article>`+
+        `<article class="pn"><h3>⏱️ 3 · T3 <small>Fim sep. → Emissão NF-e</small></h3><div id="c-tm-t3-hist"></div></article>`+
+        `<article class="pn"><h3>⏱️ 4 · T4 <small>Emissão NF-e → Expedição</small></h3><div id="c-tm-t4-hist"></div></article>`+
+        `<article class="pn"><h3>📊 Lead Total <small>Emissão → Fim sep.</small></h3><div id="c-tm-lead-hist"></div></article>`+
       `</div>`+
       `<article class="pn w2"><h3>🔧 T2 (Separação) médio por separador/conferente</h3><div id="c-tm-conf-t2"></div></article>`+
       `<article class="pn w2"><h3>👤 Lead Total médio por vendedor</h3><div id="c-tm-vend-lead"></div></article>`+
