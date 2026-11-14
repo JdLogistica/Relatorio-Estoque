@@ -7,6 +7,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lojão dos Tratores · Painel Gerencial</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23FFC500'/%3E%3Ctext x='16' y='23' font-size='18' font-weight='900' font-style='italic' text-anchor='middle' font-family='Arial' fill='%230a0a0a'%3ELT%3C/text%3E%3C/svg%3E">
+<script>window._dsem=d=>{const x=new Date(String(d).slice(0,10)+'T12:00:00');return isNaN(x)?'':['dom','seg','ter','qua','qui','sex','sáb'][x.getDay()]};</script>
 <script>try{document.documentElement.dataset.t=localStorage.getItem('lt-tema')||'dark'}catch(e){document.documentElement.dataset.t='dark'}</script>
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -3251,7 +3252,7 @@ function renderHistDia(rs,el){
   const ltPer=tots.reduce((a,x)=>a+x.LT,0);
   const llPer=tots.reduce((a,x)=>a+x.LL,0);
   const pkIdx=tots.reduce((a,x,i)=>x.tot>tots[a].tot?i:a,0);
-  const fmtDia=d=>d?d.slice(8)+'/'+d.slice(5,7):'';
+  const fmtDia=d=>d?_dsem(d)+' '+d.slice(8)+'/'+d.slice(5,7):'';
   const n=tots.length;
 
   // ── Painel de resumo gerencial ─────────────────────────────────────────
@@ -3314,8 +3315,8 @@ function renderHistDia(rs,el){
       if(hLT>=20&&x.LT>0) lblLT=`<text x="${cx}" y="${(+yLT+hLT/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-weight="700" fill="rgba(0,0,0,.85)">${x.LT}<tspan font-weight="400" font-size="7"> ${pLT}%</tspan></text>`;
     }
     // label X: alinhado ao centro da barra
-    const lblX=(i%xStep===0||i===n-1)?
-      `<text x="${cx}" y="${H-10}" text-anchor="middle" font-size="${bw>=10?8.5:7}" fill="var(--mu)">${fmtDia(x.m)}</text>`:'';
+    const lblX=((i%xStep===0&&(n-1-i>=xStep*0.7||i===n-1))||i===n-1)?
+      `<text x="${cx}" y="${H-17}" text-anchor="middle" font-size="${bw>=10?8.5:7}" fill="var(--mu)">${x.m.slice(8)+'/'+x.m.slice(5,7)}</text><text x="${cx}" y="${H-6}" text-anchor="middle" font-size="${bw>=10?8:6.5}" fill="var(--mu)" opacity=".85">${_dsem(x.m)}</text>`:'';
     // separador de mês (linha vertical fina quando muda o mês)
     const sepMes=(i>0&&x.m.slice(0,7)!==tots[i-1].m.slice(0,7))?
       `<line x1="${bL1}" y1="${PT}" x2="${bL1}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1" opacity=".5"/>`:'';
@@ -3829,7 +3830,7 @@ function renderCliHist(rs,el){
       if(i%step!==0&&i!==dias.length-1)return;
       const parts=d.split('-');
       const lbl=parts.length>=3?`${parts[2]}/${parts[1]}`:(parts[1]&&parts[2]?`${parts[2]}/${parts[1]}`:d);
-      xlbls+=`<text x="${xs(i).toFixed(1)}" y="${(H-8).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--mu)">${lbl}</text>`;
+      xlbls+=`<text x="${xs(i).toFixed(1)}" y="${(H-16).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--mu)">${lbl}</text><text x="${xs(i).toFixed(1)}" y="${(H-5).toFixed(1)}" text-anchor="middle" font-size="8" fill="var(--mu)" opacity=".85">${_dsem(d)}</text>`;
     });
 
     const svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible">${grid}${lines}${dots}${xlbls}</svg>`;
@@ -4454,7 +4455,7 @@ function renderTemposTab(rs,rsEvol){
     if(diaLead&&vLead.length>0){
       const byD={};
       vLead.forEach(r=>{const d=r.dia||'?';if(!byD[d])byD[d]={sum:0,cnt:0};byD[d].sum+=r._lead;byD[d].cnt++;});
-      const dData=Object.entries(byD).map(([k,o])=>({k,v:Math.round(o.sum/o.cnt)})).sort((a,b2)=>a.k<b2.k?-1:1).slice(-60);
+      const dData=Object.entries(byD).map(([k,o])=>({k,v:Math.round(o.sum/o.cnt)})).sort((a,b2)=>a.k<b2.k?-1:1).slice(-60).map(x=>/^\d{4}-\d{2}-\d{2}$/.test(x.k)?{k:_dsem(x.k)+' '+x.k.slice(8)+'/'+x.k.slice(5,7)+'/'+x.k.slice(2,4),fv:x.k,v:x.v}:x);
       renderBarsRaw(dData,diaLead,{label:'dias',fmt:v=>fmtMin(v),color:'var(--ac,var(--y))',fk:'dia',sel:(window._PF&&window._PF.dt1&&window._PF.dt1===window._PF.dt2)?window._PF.dt1:null});
     } else noData(diaLead);
 
@@ -4510,9 +4511,9 @@ function renderTemposTab(rs,rsEvol){
         `<polyline points="${pts(dT1)}" fill="none" stroke="var(--y)" stroke-width="2"/>`+
         `<polyline points="${pts(dT2)}" fill="none" stroke="var(--ok)" stroke-width="2"/>`+
         dias.map((d,i)=>{
-          const lbl=d.slice(8,10)+'/'+d.slice(5,7);
-          return i%Math.max(1,Math.floor(dias.length/8))===0?
-            `<text x="${sx(i)}" y="${H}" font-size="9" fill="var(--mu)" text-anchor="middle">${lbl}</text>`:'';
+          const lbl=_dsem(d)+' '+d.slice(8,10)+'/'+d.slice(5,7);
+          const stp=Math.max(4,Math.ceil(dias.length/7));return ((i%stp===0&&sx(dias.length-1)-sx(i)>=62)||i===dias.length-1)?
+            `<text x="${sx(i)}" y="${H}" font-size="9" fill="var(--mu)" text-anchor="${i===0?'start':(sx(i)>W-40?'end':'middle')}">${lbl}</text>`:'';
         }).join('')+
         `<text x="4" y="12" font-size="9" fill="var(--y)">■ T1</text>`+
         `<text x="40" y="12" font-size="9" fill="var(--ok)">■ T2</text>`+
@@ -4621,7 +4622,7 @@ function renderTmEvol(rows,el){
   const totC=vals.reduce((s,x)=>s+x.c,0), mediaGeral=Math.round(vals.reduce((s,x)=>s+x.v*x.c,0)/totC);
   const melhor=vals.reduce((a,x)=>x.v<a.v?x:a,vals[0]), pior=vals.reduce((a,x)=>x.v>a.v?x:a,vals[0]);
   const hoje=new Date(), mesAtual=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
-  const lbl=p=>modo==='mes'?`${MN[+p.slice(5,7)-1]}/${p.slice(2,4)}`:`${p.slice(8)}/${p.slice(5,7)}`;
+  const lbl=p=>modo==='mes'?`${MN[+p.slice(5,7)-1]}/${p.slice(2,4)}`:`${_dsem(p)} ${p.slice(8)}/${p.slice(5,7)}`;
   const ult=vals[vals.length-1], pen=vals[vals.length-2];
   const varUlt=pen&&pen.v?((ult.v-pen.v)/pen.v*100):null;
   const fV=v=>v==null?'—':(v>0?'+':'')+v.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
@@ -4650,7 +4651,7 @@ function renderTmEvol(rows,el){
     if(x.v!=null){const y=yv(x.v);s+=`<rect x="${X.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(PT+cH-y).toFixed(1)}" rx="${Math.min(3,bw/3)}" fill="${cor}"${parcial?' fill-opacity=".55"':''}${on?' stroke="var(--tx)" stroke-width="1.5"':''}/>`;
       if(bw>=14) s+=`<text x="${(X+bw/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" font-size="${bw>=30?9.5:8}" font-weight="700" fill="var(--tx)">${fmtMin(x.v)}</text>`;
       if(bw>=26&&i>0&&pts[i-1].v){const vp=(x.v-pts[i-1].v)/pts[i-1].v*100;s+=`<text x="${(X+bw/2).toFixed(1)}" y="${(y-15).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="${vp>0?'#ef5350':'#66bb6a'}">${fV(vp)}</text>`}}
-    if(i%xStep===0) s+=`<text x="${(X+bw/2).toFixed(1)}" y="${H-PB+13}" text-anchor="middle" font-size="8.5" fill="var(--mu)">${lbl(x.p)}</text>`;
+    if(i%xStep===0) s+=modo==='mes'?`<text x="${(X+bw/2).toFixed(1)}" y="${H-PB+13}" text-anchor="middle" font-size="8.5" fill="var(--mu)">${lbl(x.p)}</text>`:`<text x="${(X+bw/2).toFixed(1)}" y="${H-PB+13}" text-anchor="middle" font-size="8.5" fill="var(--mu)">${x.p.slice(8)}/${x.p.slice(5,7)}</text><text x="${(X+bw/2).toFixed(1)}" y="${H-PB+24}" text-anchor="middle" font-size="8" fill="var(--mu)" opacity=".85">${_dsem(x.p)}</text>`;
     if(modo==='mes'&&bw>=26) s+=`<text x="${(X+bw/2).toFixed(1)}" y="${H-PB+25}" text-anchor="middle" font-size="7.5" fill="var(--mu)">${x.c} ped.</text>`;
     return s+'</g>';
   }).join('');
