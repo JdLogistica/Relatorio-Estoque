@@ -4092,7 +4092,7 @@ async function go(tab){
         `<article class="pn"><h3>📊 Lead Total <small>Emissão → Fim sep.</small></h3><div id="c-tm-lead-hist"></div></article>`+
       `</div>`+
       `<article class="pn w2" id="wms-ll"><h3>🏷️ WMS · LL — Separação e Conferência <small style="font-weight:400;color:var(--mu)">(tempos medidos no WMS, vinculados aos pedidos da LL)</small></h3><div id="c-wms-ll"><p class="mu2" style="padding:1rem">Carregando tempos do WMS…</p></div></article>`+
-      `<article class="pn w2" id="wms-oc"><h3>🕗 Tempo até o 1º pedido e entre pedidos, por operador <small style="font-weight:400;color:var(--mu)">(WMS · LL · jornada a partir das 08:00)</small></h3><div id="c-wms-oc"></div></article>`+
+      `<article class="pn w2" id="wms-oc"><h3>🕗 Tempo até o 1º pedido e entre pedidos, por operador <small style="font-weight:400;color:var(--mu)">(LT: separação · LL: separação e conferência no WMS · jornada a partir das 08:00)</small></h3><div id="c-wms-oc"></div></article>`+
       `<article class="pn w2"><h3>🔧 T2 (Separação) médio por separador/conferente</h3><div id="c-tm-conf-t2"></div></article>`+
       `<article class="pn w2"><h3>👤 Lead Total médio por vendedor</h3><div id="c-tm-vend-lead"></div></article>`+
       `<article class="pn w2"><h3>🔧 T1 e T2 médios por vendedor</h3><div id="c-tm-vend-t1t2"></div></article>`+
@@ -4637,14 +4637,15 @@ function renderWmsLL(rsF){
   const el=document.getElementById('c-wms-ll'); if(!el) return;
   if(!window._WMS){ carregarWms().then(()=>renderWmsLL(rsF)).catch(e=>{el.innerHTML=`<p style="color:var(--bad);padding:1rem">Erro ao carregar WMS: ${_escP(e.message||e)}</p>`;}); return; }
   const lj=(window._PF&&window._PF.loja)||'';
+  try{ renderOciosidade(); }catch(e){ console.warn('[ocios]',e); }
   const _ch=document.getElementById('c-tm-conf-hist');
   const _eh=document.getElementById('c-tm-esp-hist'), _oc=document.getElementById('c-wms-oc');
-  if(lj==='LT'){ if(_eh)_eh.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Medido no WMS só para a LL</p>'; if(_oc)_oc.innerHTML='<p class="mu2" style="padding:1rem">Os tempos do WMS são da loja LL. Selecione a loja LL ou Todas para ver.</p>'; }
+  if(lj==='LT'){ if(_eh)_eh.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Medido no WMS só para a LL</p>'; }
   if(lj==='LT'){ el.innerHTML='<p class="mu2" style="padding:1rem">Os tempos do WMS são da loja LL. Selecione a loja LL ou Todas para ver.</p>'; if(_ch)_ch.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Conferência medida no WMS só para a LL</p>'; return; }
   const ids=new Set(rsF.filter(r=>r.loja==='LL').map(r=>String(r.id)));
   const W=window._WMS.filter(w=>w.pedido_id&&ids.has(String(w.pedido_id)));
   const semV=window._WMS.filter(w=>!w.pedido_id).length;
-  if(!W.length){ if(_eh)_eh.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>'; renderOciosidade(); if(_ch)_ch.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>'; el.innerHTML='<p class="mu2" style="padding:1rem">Nenhum pedido da LL com tempo do WMS nos filtros atuais (o WMS cobre de 16/10/2026 em diante).</p>'; return; }
+  if(!W.length){ if(_eh)_eh.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>'; if(_ch)_ch.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>'; el.innerHTML='<p class="mu2" style="padding:1rem">Nenhum pedido da LL com tempo do WMS nos filtros atuais (o WMS cobre de 16/10/2026 em diante).</p>'; return; }
   const N=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
   const med=a=>{if(!a.length)return null;const s=a.slice().sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
@@ -4669,7 +4670,6 @@ function renderWmsLL(rsF){
     C.forEach(r=>{const k=r.pedido_id;if(r.inicio&&(!iC[k]||r.inicio<iC[k]))iC[k]=r.inicio;});
     _hist('c-tm-esp-hist',Object.keys(fS).filter(k=>iC[k]).map(k=>(new Date(iC[k])-new Date(fS[k]))/60000).filter(v=>v>=0),'#b48cf2','faixa espera');
   }
-  renderOciosidade();
   const ch=document.getElementById('c-tm-conf-hist');
   if(ch){
     const porPed={}; C.forEach(r=>{porPed[r.pedido_id]=(porPed[r.pedido_id]||0)+(+r.tempo_min||0);});
@@ -4709,49 +4709,65 @@ function renderWmsLL(rsF){
 const OC_INI='08:00', OC_PAUSA=90; // intervalos acima de 90 min = pausa (almoço etc.), fora da média
 function renderOciosidade(){
   const el=document.getElementById('c-wms-oc'); if(!el||!window._WMS) return;
-  const F=window._PF||{}; if(F.loja==='LT') return;
+  const F=window._PF||{};
   const N=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
-  const fm=v=>v==null?'—':(typeof fmtMin==='function'?fmtMin(Math.round(v)):Math.round(v)+'min');
+  const fm=v=>v==null||isNaN(v)?'—':(typeof fmtMin==='function'?fmtMin(Math.round(v)):Math.round(v)+'min');
   const hh=m=>m==null?'—':String(Math.floor(m/60)).padStart(2,'0')+':'+String(Math.round(m%60)).padStart(2,'0');
   const med=a=>{if(!a.length)return null;const s=a.slice().sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   const okDia=d=>(!F.mes1||d.slice(0,7)>=F.mes1)&&(!F.mes2||d.slice(0,7)<=F.mes2)&&(!F.dt1||d>=F.dt1)&&(!F.dt2||d<=F.dt2);
-  const T=window._WMS.filter(w=>w.inicio&&okDia(w.inicio.slice(0,10)));
-  if(!T.length){ el.innerHTML='<p class="mu2" style="padding:1rem">Sem tarefas do WMS no período filtrado.</p>'; return; }
-  const minDia=t=>{const d=new Date(t);return d.getHours()*60+d.getMinutes()+d.getSeconds()/60;};
-  const [h0,m0]=OC_INI.split(':').map(Number), ini0=h0*60+m0;
-  const g={}; T.forEach(w=>{const k=w.operador+'|'+w.inicio.slice(0,10);(g[k]=g[k]||[]).push(w);});
+  const ts=(d,h)=>d&&h?new Date(d+'T'+String(h).slice(0,5)+':00'):null;
+  // tarefas: LL = WMS (separação + conferência) · LT = separação da planilha de pedidos (separador)
+  const T=[];
+  if(F.loja!=='LT') window._WMS.forEach(w=>{ if(!w.inicio) return; const a=new Date(w.inicio), b=new Date(w.fim||w.inicio);
+    T.push({op:w.operador,loja:'LL',tipo:w.tipo==='Separação'?'S':'C',ini:a,fim:b,dur:+w.tempo_min||((b-a)/60000),ped:w.pedido_id}); });
+  if(F.loja!=='LL') ((typeof _dP!=='undefined'&&_dP&&_dP.rows)||[]).forEach(r=>{ if(r.loja!=='LT'||!r.conf) return;
+    const a=ts(r.dt_sep_ini||r.dia,r.hr_sep_ini), b=ts(r.dt_sep_fim||r.dt_sep_ini||r.dia,r.hr_sep_fim); if(!a||!b||b<a) return;
+    T.push({op:String(r.conf).trim().toUpperCase(),loja:'LT',tipo:'S',ini:a,fim:b,dur:(b-a)/60000,ped:r.id}); });
+  const dIso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const TT=T.filter(t=>okDia(dIso(t.ini)));
+  if(!TT.length){ el.innerHTML='<p class="mu2" style="padding:1rem">Sem tarefas no período filtrado.</p>'; return; }
+  // espera fim sep. → início conf. (LL, atribuída a quem conferiu)
+  const fimS={}; window._WMS.forEach(w=>{ if(w.tipo==='Separação'&&w.pedido_id&&w.fim&&(!fimS[w.pedido_id]||w.fim>fimS[w.pedido_id])) fimS[w.pedido_id]=w.fim; });
+  const iniC={}; TT.forEach(t=>{ if(t.tipo==='C'&&t.ped&&(!iniC[t.ped]||t.ini<iniC[t.ped].ini)) iniC[t.ped]=t; });
+  const espOp={}; Object.values(iniC).forEach(t=>{ const f=fimS[t.ped]; if(!f) return; const v=(t.ini-new Date(f))/60000; if(v<0||v>480) return; (espOp[t.op]=espOp[t.op]||[]).push(v); });
+  const mDia=d=>d.getHours()*60+d.getMinutes()+d.getSeconds()/60, ini0=8*60;
+  const g={}; TT.forEach(t=>{const k=t.op+'|'+dIso(t.ini);(g[k]=g[k]||[]).push(t);});
   const dias=[], ops={};
-  Object.entries(g).forEach(([k,ts])=>{
-    const [op,dia]=k.split('|');
-    ts.sort((a,b)=>a.inicio<b.inicio?-1:1);
-    const ate1=Math.max(0,minDia(ts[0].inicio)-ini0);
-    let fimMax=new Date(ts[0].fim||ts[0].inicio), gaps=[];
-    for(let i=1;i<ts.length;i++){ const ini=new Date(ts[i].inicio); gaps.push(Math.max(0,(ini-fimMax)/60000)); const f=new Date(ts[i].fim||ts[i].inicio); if(f>fimMax) fimMax=f; }
-    const ok=gaps.filter(v=>v<=OC_PAUSA), pausas=gaps.filter(v=>v>OC_PAUSA);
-    const d={op,dia,n:ts.length,pri:minDia(ts[0].inicio),ult:minDia(ts[ts.length-1].fim||ts[ts.length-1].inicio),ate1,gm:avg(ok),gmed:med(gaps),pausas:pausas.length,pausaMin:pausas.reduce((x,y)=>x+y,0)};
-    dias.push(d); const o=ops[op]=ops[op]||{op,dias:[],gaps:[],gok:[],pausas:0};
-    o.dias.push(d); o.gaps.push(...gaps); o.gok.push(...ok); o.pausas+=pausas.length;
+  Object.entries(g).forEach(([k,L])=>{
+    const [op,dia]=k.split('|'); L.sort((a,b)=>a.ini-b.ini);
+    const ate1=Math.max(0,mDia(L[0].ini)-ini0); let fmx=L[0].fim; const gaps=[];
+    for(let i=1;i<L.length;i++){ gaps.push(Math.max(0,(L[i].ini-fmx)/60000)); if(L[i].fim>fmx) fmx=L[i].fim; }
+    const ok=gaps.filter(v=>v<=OC_PAUSA), pz=gaps.filter(v=>v>OC_PAUSA);
+    const lojas=[...new Set(L.map(t=>t.loja))].sort().join('+');
+    const d={op,dia,lojas,n:L.length,nS:L.filter(t=>t.tipo==='S').length,nC:L.filter(t=>t.tipo==='C').length,pri:mDia(L[0].ini),ult:mDia(fmx),ate1,gm:avg(ok),gmed:med(gaps),pausas:pz.length,pausaMin:pz.reduce((x,y)=>x+y,0)};
+    dias.push(d); const o=ops[op]=ops[op]||{op,dias:[],gaps:[],gok:[],pausas:0,L:[]};
+    o.dias.push(d); o.gaps.push(...gaps); o.gok.push(...ok); o.pausas+=pz.length; o.L.push(...L);
   });
-  const linhas=Object.values(ops).map(o=>({op:o.op,nd:o.dias.length,n:o.dias.reduce((x,d)=>x+d.n,0),ate1:avg(o.dias.map(d=>d.ate1)),pri:avg(o.dias.map(d=>d.pri)),gm:avg(o.gok),gmed:med(o.gaps),pausas:o.pausas,porDia:o.dias.reduce((x,d)=>x+d.n,0)/o.dias.length}))
-    .sort((a,b)=>(a.gm??1e9)-(b.gm??1e9));
-  const geral={ate1:avg(dias.map(d=>d.ate1)),gm:avg(Object.values(ops).flatMap(o=>o.gok)),gmed:med(Object.values(ops).flatMap(o=>o.gaps))};
+  const durM=(L,tp)=>avg(L.filter(t=>t.tipo===tp&&t.dur<=480).map(t=>t.dur));
+  const linhas=Object.values(ops).map(o=>({op:o.op,lojas:[...new Set(o.L.map(t=>t.loja))].sort().join('+'),nd:o.dias.length,n:o.L.length,
+      nS:o.L.filter(t=>t.tipo==='S').length,nC:o.L.filter(t=>t.tipo==='C').length,porDia:o.L.length/o.dias.length,
+      ate1:avg(o.dias.map(d=>d.ate1)),pri:avg(o.dias.map(d=>d.pri)),gm:avg(o.gok),gmed:med(o.gaps),pausas:o.pausas,
+      dS:durM(o.L,'S'),dC:durM(o.L,'C'),esp:avg(espOp[o.op]||[]),nesp:(espOp[o.op]||[]).length}))
+    .sort((a,b)=>b.n-a.n);
+  const all=Object.values(ops), allEsp=Object.values(espOp).flat();
   const mk=(l,v,sub,cor)=>`<div class="k" style="display:flex;flex-direction:column;gap:.15rem${cor?';border-left:3px solid '+cor:''}"><div class="kl" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)">${l}</div><div class="kv" style="font-size:1.35rem;font-weight:700">${v}</div>${sub?`<div style="font-size:.72rem;color:var(--mu)">${sub}</div>`:''}</div>`;
-  const R=t=>`style="text-align:right"`;
+  const R='style="text-align:right"', bdg=l=>l.split('+').map(x=>`<span class="bd ${x==='LT'?'ok':'bl2c'}" style="margin-right:.2rem">${x}</span>`).join('');
   el.innerHTML=
     `<div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">`+
-      mk('08:00 → 1º pedido (média)',fm(geral.ate1),`${N(dias.length)} dias-operador`,'var(--y)')+
-      mk('Tempo médio entre pedidos',fm(geral.gm),`mediana ${fm(geral.gmed)} · sem pausas > ${OC_PAUSA}min`,'#b48cf2')+
+      mk('08:00 → 1º pedido (média)',fm(avg(dias.map(d=>d.ate1))),`${N(dias.length)} dias-operador`,'var(--y)')+
+      mk('Tempo médio entre pedidos',fm(avg(all.flatMap(o=>o.gok))),`mediana ${fm(med(all.flatMap(o=>o.gaps)))} · sem pausas > ${OC_PAUSA}min`,'#b48cf2')+
+      mk('Espera fim sep. → início conf.',fm(avg(allEsp)),`LL · mediana ${fm(med(allEsp))} · ${N(allEsp.length)} pedidos`,'#5aa9e6')+
       mk('Pausas > '+OC_PAUSA+'min',N(dias.reduce((x,d)=>x+d.pausas,0)),'almoço/intervalos, fora da média')+
     `</div>`+
-    `<div class="tw"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th ${R()}>Dias</th><th ${R()}>Tarefas</th><th ${R()}>Tarefas/dia</th><th ${R()}>1º pedido (hora média)</th><th ${R()}>08:00 → 1º pedido</th><th ${R()}>Média entre pedidos</th><th ${R()}>Mediana entre pedidos</th><th ${R()}>Pausas &gt; ${OC_PAUSA}min</th></tr></thead><tbody>`+
-      linhas.map(l=>`<tr><td><b>${_escP(l.op)}</b></td><td data-v="${l.nd}" ${R()}>${N(l.nd)}</td><td data-v="${l.n}" ${R()}>${N(l.n)}</td><td data-v="${l.porDia}" ${R()}>${N(l.porDia)}</td><td data-v="${l.pri}" ${R()}>${hh(l.pri)}</td><td data-v="${l.ate1}" ${R()}><b>${fm(l.ate1)}</b></td><td data-v="${l.gm??0}" ${R()}><b>${fm(l.gm)}</b></td><td data-v="${l.gmed??0}" ${R()}>${fm(l.gmed)}</td><td data-v="${l.pausas}" ${R()}>${N(l.pausas)}</td></tr>`).join('')+
+    `<div class="tw"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R}>Sep.</th><th ${R}>Conf.</th><th ${R}>Tarefas/dia</th><th ${R} title="Horário médio do 1º pedido">Hora 1º ped.</th><th ${R}>08:00 → 1º</th><th ${R}>Média entre pedidos</th><th ${R}>Mediana entre</th><th ${R}>Sep. média</th><th ${R}>Conf. média</th><th ${R}>Espera sep. → conf.</th><th ${R}>Pausas</th></tr></thead><tbody>`+
+      linhas.map(l=>`<tr><td><b>${_escP(l.op)}</b></td><td>${bdg(l.lojas)}</td><td data-v="${l.nd}" ${R}>${N(l.nd)}</td><td data-v="${l.nS}" ${R}>${N(l.nS)}</td><td data-v="${l.nC}" ${R}>${l.nC?N(l.nC):'—'}</td><td data-v="${l.porDia}" ${R}>${N(l.porDia)}</td><td data-v="${l.pri}" ${R}>${hh(l.pri)}</td><td data-v="${l.ate1}" ${R}><b>${fm(l.ate1)}</b></td><td data-v="${l.gm??0}" ${R}><b>${fm(l.gm)}</b></td><td data-v="${l.gmed??0}" ${R}>${fm(l.gmed)}</td><td data-v="${l.dS??0}" ${R}>${fm(l.dS)}</td><td data-v="${l.dC??0}" ${R}>${fm(l.dC)}</td><td data-v="${l.esp??0}" ${R} title="${l.nesp} pedidos conferidos">${fm(l.esp)}</td><td data-v="${l.pausas}" ${R}>${N(l.pausas)}</td></tr>`).join('')+
     `</tbody></table></div>`+
     `<details style="margin-top:.6rem"><summary style="cursor:pointer;font-size:.85rem;font-weight:600">📅 Detalhe por dia (${dias.length} linhas)</summary>`+
-      `<div class="tw" style="max-height:26rem;overflow:auto;margin-top:.4rem"><table class="ped-tb wms-tb"><thead><tr><th>Dia</th><th>Operador</th><th ${R()}>Tarefas</th><th ${R()}>1º pedido</th><th ${R()}>Último fim</th><th ${R()}>08:00 → 1º</th><th ${R()}>Média entre pedidos</th><th ${R()}>Mediana</th><th ${R()}>Pausas &gt; ${OC_PAUSA}min</th></tr></thead><tbody>`+
-      dias.sort((a,b)=>a.dia<b.dia?1:a.dia>b.dia?-1:a.op<b.op?-1:1).map(d=>`<tr><td data-v="${d.dia}">${(typeof _dsem==='function'?_dsem(d.dia)+' ':'')+d.dia.slice(8)+'/'+d.dia.slice(5,7)}</td><td>${_escP(d.op)}</td><td data-v="${d.n}" ${R()}>${d.n}</td><td data-v="${d.pri}" ${R()}>${hh(d.pri)}</td><td data-v="${d.ult}" ${R()}>${hh(d.ult)}</td><td data-v="${d.ate1}" ${R()}>${fm(d.ate1)}</td><td data-v="${d.gm??0}" ${R()}>${fm(d.gm)}</td><td data-v="${d.gmed??0}" ${R()}>${fm(d.gmed)}</td><td data-v="${d.pausas}" ${R()}>${d.pausas?d.pausas+' ('+fm(d.pausaMin)+')':'—'}</td></tr>`).join('')+
+      `<div class="tw" style="max-height:26rem;overflow:auto;margin-top:.4rem"><table class="ped-tb wms-tb"><thead><tr><th>Dia</th><th>Operador</th><th>Loja</th><th ${R}>Separações</th><th ${R}>Conferências</th><th ${R}>1º pedido</th><th ${R}>Último fim</th><th ${R}>08:00 → 1º</th><th ${R}>Média entre pedidos</th><th ${R}>Mediana</th><th ${R}>Pausas &gt; ${OC_PAUSA}min</th></tr></thead><tbody>`+
+      dias.sort((a,b)=>a.dia<b.dia?1:a.dia>b.dia?-1:a.op<b.op?-1:1).map(d=>`<tr><td data-v="${d.dia}">${(typeof _dsem==='function'?_dsem(d.dia)+' ':'')+d.dia.slice(8)+'/'+d.dia.slice(5,7)}</td><td>${_escP(d.op)}</td><td>${bdg(d.lojas)}</td><td data-v="${d.nS}" ${R}>${d.nS}</td><td data-v="${d.nC}" ${R}>${d.nC||'—'}</td><td data-v="${d.pri}" ${R}>${hh(d.pri)}</td><td data-v="${d.ult}" ${R}>${hh(d.ult)}</td><td data-v="${d.ate1}" ${R}>${fm(d.ate1)}</td><td data-v="${d.gm??0}" ${R}>${fm(d.gm)}</td><td data-v="${d.gmed??0}" ${R}>${fm(d.gmed)}</td><td data-v="${d.pausas}" ${R}>${d.pausas?d.pausas+' ('+fm(d.pausaMin)+')':'—'}</td></tr>`).join('')+
       `</tbody></table></div></details>`+
-    `<p class="mu2" style="margin:.5rem 0 0;font-size:.75rem">Considera todas as tarefas do operador no WMS (separação e conferência) no período filtrado. "Entre pedidos" = do fim de uma tarefa até o início da próxima; tarefas sobrepostas contam 0. Intervalos acima de ${OC_PAUSA} min são tratados como pausa e ficam fora da média (a mediana usa todos). Se o 1º pedido começou antes das 08:00, conta 0.</p>`;
+    `<p class="mu2" style="margin:.5rem 0 0;font-size:.75rem">LT: tarefas = separações da planilha de pedidos (separador, início e fim da separação). LL: separações e conferências do WMS. "Entre pedidos" = do fim de uma tarefa até o início da próxima do mesmo operador no dia (LT e LL juntas); tarefas sobrepostas contam 0. Intervalos acima de ${OC_PAUSA} min são pausa e ficam fora da média (a mediana usa todos). Se o 1º pedido começou antes das 08:00, conta 0. "Espera sep. → conf." = do fim da separação até o início da conferência do mesmo pedido, atribuída a quem conferiu. Segue os filtros de loja e período.</p>`;
 }
 // ── Evolução do tempo médio (mensal/diária) — mesmo padrão do "Pedidos por mês" ──
 window._TME=window._TME||{modo:'mes',k:'lead'};
