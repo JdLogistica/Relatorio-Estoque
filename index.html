@@ -186,11 +186,11 @@ tr.ped-row{cursor:pointer}tr.ped-row:hover td{background:color-mix(in srgb,var(-
 .ped-kp{margin-top:.6rem}
 .wms-tb td:nth-child(5){min-width:0!important;white-space:nowrap!important}.wms-tb th[colspan]{text-align:center}#ped-itens .tw{overflow-x:auto;max-width:100%}.ped-tb{font-size:.78rem;width:100%;border-collapse:collapse}.ped-tb td,.ped-tb th{white-space:nowrap;padding:.4rem .45rem;text-align:left}.ped-tb thead th{border-bottom:2px solid var(--ln);color:var(--mu);font-size:.72rem}.ped-tb tbody tr{border-bottom:1px solid var(--ln)}.ped-tb td:nth-child(5){white-space:normal;min-width:11rem}.ped-tb .mono{font-family:monospace}
 .tmfb{display:flex;flex-wrap:wrap;gap:.55rem;align-items:flex-end;padding:.6rem;background:var(--sf);border:1px solid var(--ln);border-left:3px solid var(--y);border-radius:var(--r);margin-bottom:.25rem}.tmfb .fl{flex:1 1 8rem;min-width:0}.tmfb .fl.grow{flex:2 1 12rem}.tmfb select,.tmfb input{width:100%}.tmfb .fa{flex:0 0 auto;margin-left:0}[data-tmk]:hover{background:color-mix(in srgb,var(--y) 10%,transparent)}
-.tm-dist{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:.75rem;align-items:start}
-.tm-dist h3 small{font-weight:400;color:var(--mu);font-size:.72rem;margin-left:.25rem}
-.tm-dist [data-tmk]{grid-template-columns:4.4rem minmax(0,1fr) 11.2rem!important;gap:.4rem!important}.tm-dist [data-tmk]>span:last-child{text-align:right!important}
-.tm-dist [data-tmk]>span{font-size:.7rem!important}
-.tm-dist [data-tmk]>span:last-child b{margin-left:.2rem!important}.tm-dist [data-tmk]>span:last-child small{margin-left:.2rem!important;font-size:.65rem}
+.tm-dist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9rem;align-items:start}@media(max-width:1180px){.tm-dist{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:720px){.tm-dist{grid-template-columns:1fr}}.tm-dist h3{font-size:1.05rem}
+.tm-dist h3 small{font-weight:400;color:var(--mu);font-size:.8rem;margin-left:.25rem}
+.tm-dist [data-tmk],.tm-dist .tmrow{grid-template-columns:5.2rem minmax(0,1fr) 12.6rem!important;gap:.5rem!important;padding:.12rem 0}.tm-dist [data-tmk]>span:last-child,.tm-dist .tmrow>span:last-child{text-align:right!important}
+.tm-dist [data-tmk]>span,.tm-dist .tmrow>span{font-size:.84rem!important}
+.tm-dist [data-tmk]>span:last-child b,.tm-dist .tmrow>span:last-child b{margin-left:.2rem!important}.tm-dist [data-tmk]>span:last-child small,.tm-dist .tmrow>span:last-child small{margin-left:.2rem!important;font-size:.76rem}
 th.gs{cursor:pointer;user-select:none}th.gs:hover{color:var(--y)}.gs-ind{color:var(--y)}
 .kpi-g{display:inline-block;margin-top:.35rem;font-size:.72rem;font-weight:700;padding:.1rem .4rem;border-radius:4px;background:rgba(255,255,255,.07);color:var(--mu)}
 .kpi-g.up{background:rgba(102,187,106,.15);color:#66bb6a}
@@ -4085,6 +4085,7 @@ async function go(tab){
       `<div class="tm-dist" style="grid-column:1/-1">`+
         `<article class="pn"><h3>⏱️ 1 · T1 <small>Emissão → Início sep.</small></h3><div id="c-tm-t1-hist"></div></article>`+
         `<article class="pn"><h3>⏱️ 2 · T2 <small>Início sep. → Fim sep.</small></h3><div id="c-tm-t2-hist"></div></article>`+
+        `<article class="pn"><h3>✅ Conferência <small>Início → Fim conf. · WMS (LL)</small></h3><div id="c-tm-conf-hist"></div></article>`+
         `<article class="pn"><h3>⏱️ 3 · T3 <small>Fim sep. → Emissão NF-e</small></h3><div id="c-tm-t3-hist"></div></article>`+
         `<article class="pn"><h3>⏱️ 4 · T4 <small>Emissão NF-e → Expedição</small></h3><div id="c-tm-t4-hist"></div></article>`+
         `<article class="pn"><h3>📊 Lead Total <small>Emissão → Fim sep.</small></h3><div id="c-tm-lead-hist"></div></article>`+
@@ -4634,11 +4635,12 @@ function renderWmsLL(rsF){
   const el=document.getElementById('c-wms-ll'); if(!el) return;
   if(!window._WMS){ carregarWms().then(()=>renderWmsLL(rsF)).catch(e=>{el.innerHTML=`<p style="color:var(--bad);padding:1rem">Erro ao carregar WMS: ${_escP(e.message||e)}</p>`;}); return; }
   const lj=(window._PF&&window._PF.loja)||'';
-  if(lj==='LT'){ el.innerHTML='<p class="mu2" style="padding:1rem">Os tempos do WMS são da loja LL. Selecione a loja LL ou Todas para ver.</p>'; return; }
+  const _ch=document.getElementById('c-tm-conf-hist');
+  if(lj==='LT'){ el.innerHTML='<p class="mu2" style="padding:1rem">Os tempos do WMS são da loja LL. Selecione a loja LL ou Todas para ver.</p>'; if(_ch)_ch.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Conferência medida no WMS só para a LL</p>'; return; }
   const ids=new Set(rsF.filter(r=>r.loja==='LL').map(r=>String(r.id)));
   const W=window._WMS.filter(w=>w.pedido_id&&ids.has(String(w.pedido_id)));
   const semV=window._WMS.filter(w=>!w.pedido_id).length;
-  if(!W.length){ el.innerHTML='<p class="mu2" style="padding:1rem">Nenhum pedido da LL com tempo do WMS nos filtros atuais (o WMS cobre de 16/10/2026 em diante).</p>'; return; }
+  if(!W.length){ if(_ch)_ch.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>'; el.innerHTML='<p class="mu2" style="padding:1rem">Nenhum pedido da LL com tempo do WMS nos filtros atuais (o WMS cobre de 16/10/2026 em diante).</p>'; return; }
   const N=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
   const med=a=>{if(!a.length)return null;const s=a.slice().sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
@@ -4652,6 +4654,13 @@ function renderWmsLL(rsF){
   };
   const S=W.filter(w=>w.tipo==='Separação'), C=W.filter(w=>w.tipo==='Conferência');
   const es=est(S), ec=est(C);
+  const ch=document.getElementById('c-tm-conf-hist');
+  if(ch){
+    const porPed={}; C.forEach(r=>{porPed[r.pedido_id]=(porPed[r.pedido_id]||0)+(+r.tempo_min||0);});
+    const bk={}; Object.values(porPed).forEach(v=>{const b=Math.min(Math.floor(v/5)*5,_FX_MAX);bk[b]=bk[b]||{lbl:_fxLbl(b),v:0};bk[b].v++;});
+    if(Object.keys(bk).length){ renderBarsRaw(_fxSerie(bk),ch,{label:'faixa conferência',fmt:v=>Number(v).toLocaleString('pt-BR')+' pedidos',color:'#5aa9e6',pct:true,acum:true}); ch.querySelectorAll(':scope>div>div').forEach(d=>d.classList.add('tmrow')); }
+    else ch.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>';
+  }
   // tempo entre fim da separação e início da conferência (mesmo pedido)
   const fimS={},iniC={};
   S.forEach(r=>{const k=r.pedido_id;if(r.fim&&(!fimS[k]||r.fim>fimS[k]))fimS[k]=r.fim;});
