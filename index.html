@@ -853,7 +853,7 @@ async function carregarPedidosSupa(){
     from += PAGE;
   }
   // Normaliza tipos (booleanos vindos do Supabase já são bool, datas são strings)
-  return all.map(r=>({
+  const out=all.map(r=>({
     ...r,
     urg:        !!r.urg,
     canc:       !!r.canc,
@@ -873,6 +873,18 @@ async function carregarPedidosSupa(){
     dt_coleta:  r.dt_coleta  || null,
     hr_coleta:  r.hr_coleta  || null,
   }));
+  // LL: a planilha de pedidos não traz o fim da separação → completa com o WMS (início/fim da separação)
+  try{
+    if(window.carregarWms){
+      const W=await window.carregarWms(), m={};
+      W.forEach(w=>{ if(w.tipo!=='Separação'||!w.pedido_id||!w.fim) return; const o=m[w.pedido_id]||(m[w.pedido_id]={ini:w.inicio,fim:w.fim});
+        if(w.inicio<o.ini) o.ini=w.inicio; if(w.fim>o.fim) o.fim=w.fim; });
+      out.forEach(r=>{ if(r.loja!=='LL') return; const o=m[String(r.id)]; if(!o) return;
+        if(!r.hr_sep_fim){ r.dt_sep_fim=o.fim.slice(0,10); r.hr_sep_fim=o.fim.slice(11,16); r._wms=true; }
+        if(!r.hr_sep_ini){ r.dt_sep_ini=o.ini.slice(0,10); r.hr_sep_ini=o.ini.slice(11,16); r._wms=true; } });
+    }
+  }catch(e){ console.warn('[pedidos+wms]',e); }
+  return out;
 }
 
 function abrirDashboard(){
