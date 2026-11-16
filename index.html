@@ -184,7 +184,7 @@ tr.ped-row{cursor:pointer}tr.ped-row:hover td{background:color-mix(in srgb,var(-
 .pe-et span{display:block;font-size:.7rem;color:var(--mu);font-weight:600}.pe-et b{font-size:.92rem;font-variant-numeric:tabular-nums}
 .pe-et.pe-vz{opacity:.5}.pe-arr{align-self:center;color:var(--y);font-style:normal}
 .ped-kp{margin-top:.6rem}
-.wms-tb td:nth-child(5){min-width:0!important;white-space:nowrap!important}.wms-tb th[colspan]{text-align:center}#ped-itens .tw{overflow-x:auto;max-width:100%}.ped-tb{font-size:.78rem;width:100%;border-collapse:collapse}.ped-tb td,.ped-tb th{white-space:nowrap;padding:.4rem .45rem;text-align:left}.ped-tb thead th{border-bottom:2px solid var(--ln);color:var(--mu);font-size:.72rem}.ped-tb tbody tr{border-bottom:1px solid var(--ln)}.ped-tb td:nth-child(5){white-space:normal;min-width:11rem}.ped-tb .mono{font-family:monospace}
+.wms-map{border-collapse:separate;border-spacing:3px;font-size:.8rem}.wms-map th{color:var(--mu);font-weight:600;padding:.2rem .4rem;white-space:nowrap}.wms-map td{min-width:2.4rem;height:1.9rem;padding:0 .35rem;border-radius:4px;font-variant-numeric:tabular-nums}.wms-map td:first-child{background:none!important;white-space:nowrap}.wms-tb td:nth-child(5){min-width:0!important;white-space:nowrap!important}.wms-tb th[colspan]{text-align:center}#ped-itens .tw{overflow-x:auto;max-width:100%}.ped-tb{font-size:.78rem;width:100%;border-collapse:collapse}.ped-tb td,.ped-tb th{white-space:nowrap;padding:.4rem .45rem;text-align:left}.ped-tb thead th{border-bottom:2px solid var(--ln);color:var(--mu);font-size:.72rem}.ped-tb tbody tr{border-bottom:1px solid var(--ln)}.ped-tb td:nth-child(5){white-space:normal;min-width:11rem}.ped-tb .mono{font-family:monospace}
 .tmfb{display:flex;flex-wrap:wrap;gap:.55rem;align-items:flex-end;padding:.6rem;background:var(--sf);border:1px solid var(--ln);border-left:3px solid var(--y);border-radius:var(--r);margin-bottom:.25rem}.tmfb .fl{flex:1 1 8rem;min-width:0}.tmfb .fl.grow{flex:2 1 12rem}.tmfb select,.tmfb input{width:100%}.tmfb .fa{flex:0 0 auto;margin-left:0}[data-tmk]:hover{background:color-mix(in srgb,var(--y) 10%,transparent)}
 .tm-dist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9rem;align-items:start}@media(max-width:1180px){.tm-dist{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:720px){.tm-dist{grid-template-columns:1fr}}.tm-dist h3{font-size:1.05rem}
 .tm-dist h3 small{font-weight:400;color:var(--mu);font-size:.8rem;margin-left:.25rem}
@@ -598,6 +598,38 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
           </label>
         </div>
         <div id="imp-estoque-status" class="imp-status" style="display:none"></div>
+      </div>
+      <!-- Estoque WMS import cards -->
+      <div id="imp-ewms-upload-area">
+        <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
+          <span style="font-size:.8rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Estoque WMS (posições)</span>
+          <span style="font-size:.7rem;color:var(--mu);background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:.1rem .4rem">Estoque WMS · substitui a carga anterior da filial</span>
+        </div>
+        <div class="imp-cards">
+          <label class="imp-card" id="lbl-ewms-lt">
+            <input type="file" id="imp-ewms-lt" accept=".xlsx,.xls,.csv" onchange="importarEstoqueWms(this,'LT')">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">🏬</span>
+              <div>
+                <strong>Estoque WMS LT</strong>
+                <small id="nm-ewms-lt">Nenhum arquivo selecionado</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar</span>
+          </label>
+          <label class="imp-card" id="lbl-ewms-ll">
+            <input type="file" id="imp-ewms-ll" accept=".xlsx,.xls,.csv" onchange="importarEstoqueWms(this,'LL')">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">🏬</span>
+              <div>
+                <strong>Estoque WMS LL</strong>
+                <small id="nm-ewms-ll">Nenhum arquivo selecionado</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar</span>
+          </label>
+        </div>
+        <div id="imp-ewms-status" class="imp-status" style="display:none"></div>
       </div>
       <!-- Relatório Erica import card -->
       <div id="imp-erica-upload-area">
@@ -2101,6 +2133,7 @@ function renderGeral(){
  if(cur==='ov'){$('#e-kp').innerHTML='';comFiltroGeral(overview)}
  else if(cur==='ce'){$('#e-kp').innerHTML='';comFiltroGeral(bootCE)}
  else if(cur==='end'){comFiltroGeral(bootEnd)}
+ else if(cur==='wms'){comFiltroGeral(bootWmsE)}
  else if(TB[cur]){S[cur].pg=0;render()}
 }
 function gfSet(k,v){GF[k]=GF[k]===v?'':v;renderGeral()}
@@ -2255,14 +2288,15 @@ function overview(){
 window._rerenderE=()=>go(cur);
 function go(tab){
  cur=tab;try{history.replaceState(null,'','#'+tab);localStorage.setItem('lt-tab-e',tab)}catch(e){}
- const extraTabs=[['ov','Visão geral'],...Object.entries(TB).map(([k,t])=>[k,t.n]),['end','Endereços'],['ce','Controle de Estoque']];
+ const extraTabs=[['ov','Visão geral'],...Object.entries(TB).flatMap(([k,t])=>k==='inv'?[[k,t.n],['wms','Estoque WMS']]:[[k,t.n]]),['end','Endereços'],['ce','Controle de Estoque']];
  $('#e-tabs').innerHTML=extraTabs.map(([k,l])=>`<button role="tab" type="button" data-tab="${k}" aria-selected="${k==tab}">${l}</button>`).join('');
- const ovw=tab=='ov',ce=tab=='ce',en=tab=='end';
- $('#e-fb').hidden=ovw||ce;$('#e-tb').hidden=ovw||ce||en;
+ const ovw=tab=='ov',ce=tab=='ce',en=tab=='end',wm=tab=='wms';
+ $('#e-fb').hidden=ovw||ce;$('#e-tb').hidden=ovw||ce||en||wm;
  if(!$('#e-gf').childElementCount)buildFiltrosGerais();else gfSync();
  if(ovw){$('#e-tb').innerHTML='';$('#e-fb').innerHTML='';return comFiltroGeral(overview)}
  if(ce){$('#e-tb').innerHTML='';$('#e-fb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootCE)}
  if(en){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootEnd)}
+ if(wm){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootWmsE)}
  buildFilters();
  $('#ch').innerHTML=TB[tab].ch.map((c,i)=>`<article class="pn${c.heat||c.type=='pareto'?' w2':''}" data-tab="${tab}"><h3>${c.t}${c.heat?'<span class="seg"><button type="button" data-hm="sku">Endereços</button><button type="button" data-hm="pcs">Peças</button></span>':''}</h3><div id="c${i}"></div></article>`).join('');
  render();
@@ -2400,6 +2434,127 @@ document.addEventListener('click',e=>{
  const k=b.dataset.endk,v=b.dataset.endv;
  if(k==='sem'){GF.lc=GF.lc==='Sem locação'?'':'Sem locação';return go('sl')}
  EF[k]=EF[k]===v?'':v; if(k==='sel'){window.scrollTo({top:0,behavior:'smooth'})}
+ renderGeral();
+});
+
+// ═══════════════════════════════════════════════════════
+// ESTOQUE WMS — posição atual do estoque no WMS (planilha "Estoque WMS"), no estilo do Inventário
+// ═══════════════════════════════════════════════════════
+const WF={rua:'',pr:'',ni:'',fx:'',st:'',pos:''};
+const WFX=[['0','Zerado',-1e9,0],['1','1 peça',1,1],['2-5','2 a 5',2,5],['6-10','6 a 10',6,10],['11-50','11 a 50',11,50],['51+','Mais de 50',51,1e12]];
+const WST=['Igual ao ERP','WMS maior que ERP','WMS menor que ERP','Só no WMS','Só no ERP (sem posição)'];
+const _ck=v=>String(v??'').trim().toUpperCase();
+function bootWmsE(){
+ const kp=$('#e-kp'), ch=$('#ch');
+ if(!window._EWMS){
+  kp.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando Estoque WMS…</span>'; ch.innerHTML='';
+  carregarEstoqueWms().then(()=>{if(cur==='wms')renderGeral()}).catch(e=>{ch.innerHTML=`<article class="pn w2"><p style="color:var(--bad)">Erro ao carregar o Estoque WMS: ${esc(e.message||e)}</p></article>`});
+  return;
+ }
+ const N0=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+ const low=v=>String(v??'').toLowerCase();
+ // ERP (ESTOQUELT/LL) por loja+código do produto — para cruzar saldo e locação
+ const erp=new Map();((window._DFULL&&(window._DFULL.sp_all||window._DFULL.sp))||D.sp_all||D.sp||[]).forEach(r=>{const k=r.lj+'|'+_ck(r.c);const o=erp.get(k)||{s:0,l:new Set(),cu:r.cu||0,d:r.d,m:r.m,dn:r.r};o.s+=r.s||0;if(r.l)o.l.add(r.l);erp.set(k,o)});
+ const lojasWms=new Set(window._EWMS.map(r=>r.loja));
+ // linhas do WMS (filtros gerais: filial, código, descrição, marca, locação)
+ const W=window._EWMS.map(r=>{const c=_ck(r.cod_produto),e=erp.get(r.loja+'|'+c);return{lj:r.loja,e:r.endereco||'—',ru:r.rua||'—',pr:r.predio||'—',ni:r.nivel||'—',ap:r.apto||'',c,d:r.descricao||(e&&e.d)||'',m:r.marca||(e&&e.m)||'',q:Number(r.qtde)||0,cu:e?e.cu:0,arq:r.arquivo,dt:r.importado_em}});
+ const passG=r=>(!GF.lj||r.lj===GF.lj)&&(!GF.cod||low(r.c).includes(low(GF.cod).trim()))&&(!GF.desc||low(r.d).includes(low(GF.desc).trim()))&&(!GF.m||r.m===GF.m)&&(!GF.loc||_ck(r.e).startsWith(_ck(GF.loc)));
+ const WG=W.filter(passG);
+ // por produto (soma das posições) × ERP
+ const prodM=new Map();WG.forEach(r=>{const k=r.lj+'|'+r.c;const o=prodM.get(k)||{lj:r.lj,c:r.c,d:r.d,m:r.m,q:0,pos:new Set(),cu:r.cu};o.q+=r.q;o.pos.add(r.e);prodM.set(k,o)});
+ const prods=[...prodM.values()];
+ prods.forEach(p=>{const e=erp.get(p.lj+'|'+p.c);p.erp=e?e.s:null;p.locErp=e?[...e.l].join(', '):'';p.dn=e?e.dn:'';p.dif=e?p.q-e.s:null;p.st=!e?'Só no WMS':p.q===e.s?'Igual ao ERP':p.q>e.s?'WMS maior que ERP':'WMS menor que ERP'});
+ const soErp=[];erp.forEach((e,k)=>{const [lj,c]=k.split('|');if(!lojasWms.has(lj)||prodM.has(k)||!(e.s>0))return;const r={lj,c,d:e.d,m:e.m,q:0,erp:e.s,locErp:[...e.l].join(', '),dn:e.dn,dif:-e.s,st:'Só no ERP (sem posição)',pos:new Set(),cu:e.cu};
+  if((!GF.lj||lj===GF.lj)&&(!GF.cod||low(c).includes(low(GF.cod).trim()))&&(!GF.desc||low(e.d).includes(low(GF.desc).trim()))&&(!GF.m||e.m===GF.m))soErp.push(r)});
+ const stOf=new Map(prods.map(p=>[p.lj+'|'+p.c,p.st]));
+ const fxOf=q=>WFX.find(f=>q>=f[2]&&q<=f[3])[0];
+ const passW=(r,ex)=>(ex==='rua'||!WF.rua||r.ru===WF.rua)&&(ex==='pr'||!WF.pr||r.pr===WF.pr)&&(ex==='ni'||!WF.ni||r.ni===WF.ni)&&(ex==='fx'||!WF.fx||fxOf(r.q)===WF.fx)&&(ex==='st'||!WF.st||stOf.get(r.lj+'|'+r.c)===WF.st)&&(!WF.pos||_ck(r.e).startsWith(_ck(WF.pos)));
+ const WF_=WG.filter(r=>passW(r));
+ // ── barra de filtros ──
+ const op=(v,l,s)=>`<option value="${esc(v)}"${s===v?' selected':''}>${esc(l)}</option>`;
+ const srt=a=>[...new Set(a)].filter(x=>x&&x!=='—').sort((x,y)=>String(x).localeCompare(String(y),'pt-BR',{numeric:true}));
+ const nWF=Object.values(WF).filter(Boolean).length;
+ $('#e-fb').hidden=false;
+ $('#e-fb').innerHTML=
+  `<label class="fl">Rua<select class="wmsel" data-k="rua">${op('','Todas',WF.rua)}${srt(WG.filter(r=>passW(r,'rua')).map(r=>r.ru)).map(v=>op(v,v,WF.rua)).join('')}</select></label>`+
+  `<label class="fl">Prédio<select class="wmsel" data-k="pr">${op('','Todos',WF.pr)}${srt(WG.filter(r=>passW(r,'pr')).map(r=>r.pr)).map(v=>op(v,v,WF.pr)).join('')}</select></label>`+
+  `<label class="fl">Nível<select class="wmsel" data-k="ni">${op('','Todos',WF.ni)}${srt(WG.filter(r=>passW(r,'ni')).map(r=>r.ni)).map(v=>op(v,v,WF.ni)).join('')}</select></label>`+
+  `<label class="fl">Faixa de estoque<select class="wmsel" data-k="fx">${op('','Todas',WF.fx)}${WFX.map(f=>op(f[0],f[1],WF.fx)).join('')}</select></label>`+
+  `<label class="fl">WMS × ERP<select class="wmsel" data-k="st">${op('','Todos',WF.st)}${WST.slice(0,4).map(s=>op(s,s,WF.st)).join('')}</select></label>`+
+  `<label class="fl">Posição<input class="wmsin" data-k="pos" type="search" placeholder="Ex.: 01-02" value="${esc(WF.pos)}"></label>`+
+  `<div class="fa"><button id="wms-clr" class="bt" type="button"${nWF?'':' disabled'}>${nWF?`Limpar (${nWF})`:'Limpar'}</button></div>`;
+ if(!window._EWMS.length){kp.innerHTML='';ch.innerHTML=`<article class="pn w2"><h3>🏬 Estoque WMS</h3><p style="color:var(--mu)">Nenhuma planilha do Estoque WMS importada ainda. Importe na <b>tela inicial</b> (bloco de planilhas → <b>Estoque WMS (posições)</b>), escolhendo a filial.</p></article>`;return}
+ // ── KPIs ──
+ const posS=new Set(WF_.map(r=>r.lj+'|'+r.e)), skuS=new Set(WF_.map(r=>r.lj+'|'+r.c));
+ const pcs=WF_.reduce((s,r)=>s+r.q,0), val=WF_.reduce((s,r)=>s+r.q*(r.cu||0),0);
+ const zer=WF_.filter(r=>r.q<=0).length;
+ const prF=prods.filter(p=>skuS.has(p.lj+'|'+p.c));
+ const esp=prF.filter(p=>p.pos.size>1).length, iguais=prF.filter(p=>p.st==='Igual ao ERP').length, difs=prF.filter(p=>p.dif!=null&&p.dif!==0).length, soW=prF.filter(p=>p.st==='Só no WMS').length;
+ const ult=window._EWMS.reduce((m,r)=>r.importado_em>m?r.importado_em:m,'');
+ const lojasTxt=[...lojasWms].sort().join(' + ');
+ kp.innerHTML=
+  `<div class="k"><span>Posições ocupadas</span><b>${N(posS.size)}</b><small>${N(new Set(WF_.map(r=>r.ru)).size)} ruas · ${esc(lojasTxt)}</small></div>`+
+  `<div class="k"><span>Produtos (SKU)</span><b>${N(skuS.size)}</b><small>${N(WF_.length)} linhas produto × posição</small></div>`+
+  `<div class="k"><span>Peças no WMS</span><b>${N0(pcs)}</b><small>${BRL(val)} (custo do ERP)</small></div>`+
+  `<div class="k"><span>Posições zeradas</span><b style="color:var(--bad)">${N(zer)}</b><small>linhas com quantidade 0</small></div>`+
+  `<div class="k"><span>Produtos em 2+ posições</span><b style="color:var(--y)">${N(esp)}</b><small>mesmo código espalhado</small></div>`+
+  `<div class="k"><span>WMS × ERP (saldo)</span><b style="color:${difs?'var(--bad)':'var(--ok)'}">${N(difs)}</b><small>com diferença · ${N(iguais)} iguais${soW?' · '+N(soW)+' só no WMS':''}</small></div>`+
+  `<div class="k" data-wmsk="st" data-wmsv="Só no ERP (sem posição)" title="Produtos com saldo no ERP e sem posição no WMS"><span>No ERP sem posição WMS</span><b style="color:var(--y)">${N(soErp.length)}</b><small>itens com saldo no ERP</small></div>`;
+ // ── helpers ──
+ const barras=(arr,k,sel,cor,fmt)=>{const mx=Math.max(1,...arr.map(x=>x.v));return arr.length?arr.map(x=>`<div data-wmsk="${k}" data-wmsv="${esc(x.k)}" title="Clique para filtrar" style="display:grid;grid-template-columns:minmax(4.5rem,12rem) minmax(0,1fr) 10.5rem;gap:.5rem;align-items:center;margin-bottom:.14rem;cursor:pointer;border-radius:4px;padding:.08rem .2rem;${sel===x.k?'background:color-mix(in srgb,var(--y) 18%,transparent)':''}"><span style="font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.l||x.k)}</span><div style="background:var(--s2);border-radius:3px;height:10px;overflow:hidden"><div style="width:${Math.round(x.v/mx*100)}%;height:100%;background:${cor};border-radius:3px"></div></div><span style="font-size:.8rem;color:var(--mu);text-align:right;white-space:nowrap">${fmt(x)}</span></div>`).join(''):'<p style="color:var(--mu)">Sem dados</p>'};
+ const tab=(cols,rows,max=300)=>`<div class="tw" style="max-height:460px;overflow:auto"><table class="ped-tb"><thead><tr>${cols.map(c=>`<th${c[1]?' style="text-align:center"':''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.slice(0,max).join('')}</tbody></table></div>${rows.length>max?`<p style="font-size:.74rem;color:var(--mu);margin:.3rem 0 0">Mostrando ${N(max)} de ${N(rows.length)} — use os filtros ou exporte o CSV.</p>`:''}`;
+ const td=(v,c,dv)=>`<td${dv!=null?` data-v="${dv}"`:''}${c?' style="text-align:center"':''}>${v}</td>`;
+ const posLink=e=>`<span data-wmsk="pos" data-wmsv="${esc(e)}" style="cursor:pointer;text-decoration:underline dotted;color:var(--y)" title="Ver esta posição">${esc(e)}</span>`;
+ const stBd=s=>`<span class="bd ${s==='Igual ao ERP'?'ok':s==='Só no WMS'||s.startsWith('Só no ERP')?'wn':'bad'}">${esc(s)}</span>`;
+ const dif=v=>v==null?'—':v===0?'0':`<b style="color:${v>0?'var(--y)':'var(--bad)'}">${v>0?'+':''}${N0(v)}</b>`;
+ // ── mapa rua × prédio ──
+ const ruas=srt(WG.filter(r=>passW(r,'rua')&&passW(r,'pr')).map(r=>r.ru)).slice(0,40), preds=srt(WG.filter(r=>passW(r,'rua')&&passW(r,'pr')).map(r=>r.pr)).slice(0,40);
+ const hmM={};WG.filter(r=>passW(r,'rua')&&passW(r,'pr')).forEach(r=>{const k=r.ru+'|'+r.pr;(hmM[k]=hmM[k]||new Set()).add(r.e)});
+ const hmMax=Math.max(1,...Object.values(hmM).map(s=>s.size));
+ const mapa=ruas.length&&preds.length?`<div class="tw" style="overflow:auto"><table class="wms-map"><thead><tr><th>Rua \\ Prédio</th>${preds.map(p=>`<th style="text-align:center">${esc(p)}</th>`).join('')}</tr></thead><tbody>${ruas.map(ru=>`<tr><td><b>${esc(ru)}</b></td>${preds.map(p=>{const v=(hmM[ru+'|'+p]||new Set()).size,on=WF.rua===ru&&WF.pr===p;return `<td data-wmshm="${esc(ru)}|${esc(p)}" title="Rua ${esc(ru)}, prédio ${esc(p)}: ${v} posições" style="text-align:center;cursor:${v?'pointer':'default'};background:${v?`color-mix(in srgb,var(--y) ${Math.round(15+v/hmMax*70)}%,transparent)`:'transparent'};${on?'outline:2px solid var(--tx)':''}">${v||''}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">Sem rua/prédio identificados na planilha.</p>';
+ // ── séries ──
+ const cnt=(arr,kf)=>{const m=new Map();arr.forEach(r=>{const k=kf(r);const o=m.get(k)||{k,pos:new Set(),q:0,sku:new Set()};o.pos.add(r.e);o.q+=r.q;o.sku.add(r.c);m.set(k,o)});return [...m.values()]};
+ const porFx=WFX.map(f=>{const rs=WG.filter(r=>passW(r,'fx')&&fxOf(r.q)===f[0]);return{k:f[0],l:f[1],v:rs.length,q:rs.reduce((s,r)=>s+r.q,0)}});
+ const porRua=cnt(WG.filter(r=>passW(r,'rua')),r=>r.ru).map(o=>({k:o.k,v:o.pos.size,q:o.q,s:o.sku.size})).sort((a,b)=>String(a.k).localeCompare(String(b.k),'pt-BR',{numeric:true}));
+ const porNiv=cnt(WG.filter(r=>passW(r,'ni')),r=>r.ni).map(o=>({k:o.k,l:'Nível '+o.k,v:o.pos.size,q:o.q})).sort((a,b)=>String(a.k).localeCompare(String(b.k),'pt-BR',{numeric:true}));
+ const stC=WST.map(s=>({k:s,v:s.startsWith('Só no ERP')?soErp.length:prods.filter(p=>p.st===s&&WG.some(r=>r.lj===p.lj&&r.c===p.c&&passW(r,'st'))).length}));
+ const topPos=cnt(WF_,r=>r.e).map(o=>({k:o.k,v:o.sku.size,q:o.q})).sort((a,b)=>b.v-a.v).slice(0,20);
+ // ── tabelas ──
+ const divs=prF.filter(p=>p.dif!=null&&p.dif!==0).sort((a,b)=>Math.abs(b.dif)-Math.abs(a.dif));
+ const espR=prF.filter(p=>p.pos.size>1).sort((a,b)=>b.pos.size-a.pos.size);
+ const painel=WF.pos?`<article class="pn w2"><h3>📍 Posição ${esc(WF.pos)} <small style="font-weight:400;color:var(--mu)">— ${N(WF_.length)} linha(s)</small></h3>`+tab([['Posição'],['Filial'],['Código'],['Descrição'],['Marca'],['Qtde WMS',1],['Saldo ERP (total)',1],['Locação ERP'],['WMS × ERP']],
+   WF_.map(r=>{const p=prodM.get(r.lj+'|'+r.c)||{};return `<tr>${td(esc(r.e))}${td(esc(r.lj))}${td(esc(r.c))}${td(esc(r.d))}${td(esc(r.m))}${td('<b>'+N0(r.q)+'</b>',1,r.q)}${td(p.erp==null?'—':N0(p.erp),1,p.erp??'')}${td(esc(p.locErp||'—'))}${td(stBd(p.st||'—'))}</tr>`}),200)+`</article>`:'';
+ ch.innerHTML=painel+
+  `<article class="pn w2"><h3>🗺️ Mapa do depósito (rua × prédio) <small style="font-weight:400;color:var(--mu)">— posições ocupadas · clique para filtrar</small></h3>${mapa}</article>`+
+  `<article class="pn"><h3>📦 Posições por faixa de estoque</h3>${barras(porFx,'fx',WF.fx,'var(--y)',x=>`${N(x.v)} linhas · ${N0(x.q)} pç`)}</article>`+
+  `<article class="pn"><h3>⚖️ WMS × ERP (saldo por produto)</h3>${barras(stC,'st',WF.st,'var(--bl)',x=>`${N(x.v)} produtos`)}</article>`+
+  `<article class="pn"><h3>🛣️ Posições por rua</h3>${barras(porRua,'rua',WF.rua,'var(--ok)',x=>`${N(x.v)} pos. · ${N0(x.q)} pç`)}</article>`+
+  `<article class="pn"><h3>🪜 Posições por nível</h3>${barras(porNiv,'ni',WF.ni,'#b48cf2',x=>`${N(x.v)} pos. · ${N0(x.q)} pç`)}</article>`+
+  `<article class="pn" style="grid-column:span 2"><h3>🏷️ Top 20 posições com mais produtos</h3>${barras(topPos,'pos',WF.pos,'var(--bad)',x=>`${N(x.v)} produtos · ${N0(x.q)} pç`)}</article>`+
+  `<article class="pn w2"><h3>⚖️ Diferenças de saldo WMS × ERP <small style="font-weight:400;color:var(--mu)">— maior diferença primeiro</small> <button type="button" class="bt" id="wms-csv-div" style="float:right;font-size:.75rem;padding:.2rem .6rem">Exportar CSV</button></h3>`+
+   tab([['Filial'],['Código'],['Cód. Danfe'],['Descrição'],['Marca'],['Qtde WMS',1],['Saldo ERP',1],['Diferença',1],['Posições WMS'],['Locação ERP'],['Situação']],
+    divs.map(p=>`<tr>${td(esc(p.lj))}${td(esc(p.c))}${td(esc(p.dn||''))}${td(esc(p.d))}${td(esc(p.m))}${td('<b>'+N0(p.q)+'</b>',1,p.q)}${td(N0(p.erp),1,p.erp)}${td(dif(p.dif),1,p.dif)}${td([...p.pos].map(posLink).join(', '))}${td(esc(p.locErp||'—'))}${td(stBd(p.st))}</tr>`),300)+`</article>`+
+  `<article class="pn w2"><h3>🔀 Produtos em mais de uma posição</h3>`+
+   tab([['Filial'],['Código'],['Descrição'],['Nº de posições',1],['Qtde WMS',1],['Posições']],espR.map(p=>`<tr>${td(esc(p.lj))}${td(esc(p.c))}${td(esc(p.d))}${td('<b>'+p.pos.size+'</b>',1,p.pos.size)}${td(N0(p.q),1,p.q)}${td([...p.pos].map(posLink).join(', '))}</tr>`),200)+`</article>`+
+  `<article class="pn w2"><h3>🚫 Com saldo no ERP e sem posição no WMS <small style="font-weight:400;color:var(--mu)">— ${N(soErp.length)} produto(s)</small></h3>`+
+   tab([['Filial'],['Código'],['Cód. Danfe'],['Descrição'],['Marca'],['Saldo ERP',1],['Locação ERP']],soErp.sort((a,b)=>b.erp-a.erp).map(p=>`<tr>${td(esc(p.lj))}${td(esc(p.c))}${td(esc(p.dn||''))}${td(esc(p.d))}${td(esc(p.m))}${td(N0(p.erp),1,p.erp)}${td(esc(p.locErp||'—'))}</tr>`),200)+`</article>`+
+  `<article class="pn w2"><h3>📋 Estoque WMS completo <small style="font-weight:400;color:var(--mu)">— ${N(WF_.length)} linhas · importado em ${ult?new Date(ult).toLocaleString('pt-BR'):'—'}</small> <button type="button" class="bt" id="wms-csv" style="float:right;font-size:.75rem;padding:.2rem .6rem">Exportar CSV</button></h3>`+
+   tab([['Posição'],['Filial'],['Rua'],['Prédio'],['Nível'],['Apto'],['Código'],['Descrição'],['Marca'],['Qtde',1],['Valor',1],['WMS × ERP']],
+    WF_.slice().sort((a,b)=>String(a.e).localeCompare(String(b.e),'pt-BR',{numeric:true})).map(r=>`<tr>${td(posLink(r.e))}${td(esc(r.lj))}${td(esc(r.ru))}${td(esc(r.pr))}${td(esc(r.ni))}${td(esc(r.ap||'—'))}${td(esc(r.c))}${td(esc(r.d))}${td(esc(r.m))}${td('<b>'+N0(r.q)+'</b>',1,r.q)}${td(BRL(r.q*(r.cu||0)),1,r.q*(r.cu||0))}${td(stBd(stOf.get(r.lj+'|'+r.c)||'—'))}</tr>`),500)+`</article>`;
+ const csv=(nome,cab,lin)=>{const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+[cab.map(q).join(';'),...lin.map(l=>l.map(q).join(';'))].join('\n')],{type:'text/csv;charset=utf-8'}));a.download=nome;a.click();URL.revokeObjectURL(a.href)};
+ const nb=v=>String(v??'').replace('.',',');
+ const b1=document.getElementById('wms-csv'); if(b1) b1.onclick=()=>csv('estoque-wms.csv',['Posição','Filial','Rua','Prédio','Nível','Apto','Código','Descrição','Marca','Qtde WMS','Saldo ERP','WMS × ERP'],WF_.map(r=>{const p=prodM.get(r.lj+'|'+r.c)||{};return[r.e,r.lj,r.ru,r.pr,r.ni,r.ap,r.c,r.d,r.m,nb(r.q),p.erp==null?'':nb(p.erp),p.st||'']}));
+ const b2=document.getElementById('wms-csv-div'); if(b2) b2.onclick=()=>csv('estoque-wms-x-erp.csv',['Filial','Código','Cód. Danfe','Descrição','Marca','Qtde WMS','Saldo ERP','Diferença','Posições WMS','Locação ERP','Situação'],divs.map(p=>[p.lj,p.c,p.dn,p.d,p.m,nb(p.q),nb(p.erp),nb(p.dif),[...p.pos].join(', '),p.locErp,p.st]));
+}
+let _wmsT=null;
+document.addEventListener('change',e=>{const el=e.target.closest('.wmsel');if(el){WF[el.dataset.k]=el.value;renderGeral()}});
+document.addEventListener('input',e=>{const el=e.target.closest('.wmsin');if(el){clearTimeout(_wmsT);_wmsT=setTimeout(()=>{WF.pos=el.value.trim();renderGeral()},400)}});
+document.addEventListener('click',e=>{
+ if(cur!=='wms') return;
+ if(e.target.closest('#wms-clr')){Object.keys(WF).forEach(k=>WF[k]='');return renderGeral()}
+ const h=e.target.closest('[data-wmshm]'); if(h){const [ru,pr]=h.dataset.wmshm.split('|');const on=WF.rua===ru&&WF.pr===pr;WF.rua=on?'':ru;WF.pr=on?'':pr;return renderGeral()}
+ const b=e.target.closest('[data-wmsk]'); if(!b) return;
+ const k=b.dataset.wmsk,v=b.dataset.wmsv; WF[k]=WF[k]===v?'':v; if(k==='pos') window.scrollTo({top:0,behavior:'smooth'});
  renderGeral();
 });
 
@@ -2574,9 +2729,9 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{if(e.target.id=='q'){S[cur].q=e.target.value;S[cur].pg=0;render()}});
 document.addEventListener('change',e=>{const el=e.target.closest('.fsel');if(el){S[cur].sel[el.dataset.k]=el.value;S[cur].pg=0;render()}});
 const themeBtn=()=>{$('#th').textContent=document.documentElement.dataset.t=='dark'?'Tema claro':'Tema escuro'};
-window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if((h=='ov'||h=='ce'||h=='end'||TB[h])&&h!=cur)go(h)});
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if((h=='ov'||h=='ce'||h=='end'||h=='wms'||TB[h])&&h!=cur)go(h)});
 themeBtn();
-let h0=location.hash.slice(1);if(!(h0=='ov'||h0=='ce'||h0=='end'||TB[h0])){try{h0=localStorage.getItem('lt-tab-e')||''}catch(e){h0=''}}go(h0=='ov'||h0=='ce'||h0=='end'||TB[h0]?h0:'ov');
+const _okT=h=>h=='ov'||h=='ce'||h=='end'||h=='wms'||TB[h];let h0=location.hash.slice(1);if(!_okT(h0)){try{h0=localStorage.getItem('lt-tab-e')||''}catch(e){h0=''}}go(_okT(h0)?h0:'ov');
 }
 // ══════════════════════════════════════════════════════════════
 // ESTOQUE — importação, carga Supabase, renderização
@@ -2663,6 +2818,102 @@ async function parseXLSXEstoque(file){
     return o;
   });
 }
+
+// ── Estoque WMS (posição atual por endereço) — importação flexível de cabeçalho ──
+const _EWMS_COLS={
+  endereco:['endereco','posicao','localizacao','enderecamento','local','end','posicaoestoque','enderecoestoque','codendereco'],
+  rua:['rua','r','corredor'], predio:['predio','p','coluna','modulo','pred'], nivel:['nivel','n','andar','niv'], apto:['apto','apartamento','a','ap','vao','apt'],
+  cod_produto:['codigoproduto','codproduto','codigo','cod','sku','referencia','codigointerno','coditem','produtocodigo','codprod','codmarca'],
+  descricao:['descricao','descricaoproduto','nomeproduto','produto','desc','nome','item'],
+  marca:['marca','fabricante'],
+  qtde:['quantidade','qtde','qtd','saldo','saldoatual','estoque','qt','quant','qtdeestoque','qtdestoque','qtdatual','quantidadeatual']
+};
+function _ewmsNorm(s){return String(s??'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');}
+function _ewmsNum(v){if(v==null||v==='')return null;if(typeof v==='number')return v;const s=String(v).trim().replace(/\s/g,'');if(!s)return null;const t=/,\d{1,3}$/.test(s)?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');const n=Number(t);return isNaN(n)?null:n;}
+function _ewmsMapear(headers){
+  const hn=headers.map(_ewmsNorm), used=new Set(), map={};
+  Object.entries(_EWMS_COLS).forEach(([k,syn])=>{
+    for(const s of syn){ const i=hn.findIndex((h,j)=>!used.has(j)&&h===s); if(i>=0){map[k]=i;used.add(i);return;} }
+    for(const s of syn){ if(s.length<4) continue; const i=hn.findIndex((h,j)=>!used.has(j)&&h.startsWith(s)); if(i>=0){map[k]=i;used.add(i);return;} }
+  });
+  return map;
+}
+async function lerEstoqueWms(file){
+  await loadXLSX();
+  const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  let hi=-1,best=0,map={};
+  for(let i=0;i<Math.min(40,raw.length);i++){
+    const m=_ewmsMapear((raw[i]||[]).map(c=>String(c??'')));
+    const sc=Object.keys(m).length+(m.cod_produto!=null?1:0)+(m.endereco!=null||m.rua!=null?1:0);
+    if(sc>best&&Object.keys(m).length>=2){best=sc;hi=i;map=m;}
+  }
+  if(hi<0) throw new Error('Não encontrei o cabeçalho (procuro colunas como Endereço/Posição, Código, Descrição, Quantidade).');
+  const headers=(raw[hi]||[]).map((h,i)=>String(h??'').trim()||('Coluna '+(i+1)));
+  const g=(row,k)=>map[k]!=null?row[map[k]]:null;
+  const out=[];
+  raw.slice(hi+1).forEach(row=>{
+    if(!row||!row.some(c=>c!=null&&String(c).trim()!=='')) return;
+    const cod=String(g(row,'cod_produto')??'').trim();
+    let end=String(g(row,'endereco')??'').trim();
+    const rua=String(g(row,'rua')??'').trim(), pre=String(g(row,'predio')??'').trim(), niv=String(g(row,'nivel')??'').trim(), ap=String(g(row,'apto')??'').trim();
+    if(/^total/i.test(cod)||/^total/i.test(end)) return;
+    if(!cod&&!end&&!rua) return;
+    let R=rua,P=pre,Nv=niv,A=ap;
+    if(!end&&(R||P||Nv||A)) end=[R,P,Nv,A].filter(x=>x!=='').join('-');
+    if(end&&!R){ const p=end.split(/[-./\s]+/).filter(Boolean); [R,P,Nv,A]=[p[0]||'',p[1]||'',p[2]||'',p.slice(3).join('-')]; }
+    const dados={}; headers.forEach((h,i)=>{const v=row[i]; if(v!=null&&String(v).trim()!=='') dados[h]=typeof v==='string'?v.trim():v;});
+    out.push({endereco:end||null,rua:R||null,predio:P||null,nivel:Nv||null,apto:A||null,cod_produto:cod||null,
+      descricao:String(g(row,'descricao')??'').trim()||null,marca:String(g(row,'marca')??'').trim()||null,qtde:_ewmsNum(g(row,'qtde')),dados});
+  });
+  return {rows:out,headers,map,linhaCab:hi+1};
+}
+async function importarEstoqueWms(input, loja){
+  const file=input.files[0]; if(!file) return;
+  const st=document.getElementById('imp-ewms-status'), lbl=document.getElementById('lbl-ewms-'+loja.toLowerCase()), nm=document.getElementById('nm-ewms-'+loja.toLowerCase());
+  const msg=(t,c)=>{ if(st){st.style.display='';st.className='imp-status'+(c?' '+c:'');st.textContent=t;} };
+  if(lbl) lbl.className='imp-card loading'; if(nm) nm.textContent=file.name;
+  try{
+    msg(`📖 Lendo ${file.name}...`);
+    const {rows,headers,map,linhaCab}=await lerEstoqueWms(file);
+    if(!rows.length) throw new Error('Nenhuma linha de estoque encontrada no arquivo.');
+    const lbls={endereco:'Endereço',rua:'Rua',predio:'Prédio',nivel:'Nível',apto:'Apto',cod_produto:'Código',descricao:'Descrição',marca:'Marca',qtde:'Quantidade'};
+    msg(`📋 Cabeçalho na linha ${linhaCab}: `+Object.entries(map).map(([k,i])=>`${lbls[k]} = "${headers[i]}"`).join(' · '));
+    await new Promise(r=>setTimeout(r,2200));
+    if(map.cod_produto==null) throw new Error('Não encontrei a coluna de código do produto. Colunas do arquivo: '+headers.join(' | '));
+    msg(`🧹 Substituindo o Estoque WMS da ${loja}...`);
+    const {error:de}=await _sb.from('estoque_wms').delete().eq('loja',loja);
+    if(de) throw new Error(de.message.includes('permission')||de.code==='42501'?'Apenas administradores podem importar o Estoque WMS.':'Supabase: '+de.message);
+    const B=500, now=new Date().toISOString();
+    for(let i=0;i<rows.length;i+=B){
+      msg(`📤 Enviando ${Math.min(i+B,rows.length)} de ${rows.length} linhas (${loja})...`);
+      const {error}=await _sb.from('estoque_wms').insert(rows.slice(i,i+B).map(r=>({...r,loja,arquivo:file.name,importado_em:now})));
+      if(error) throw new Error(error.code==='42501'?'Apenas administradores podem importar o Estoque WMS.':'Supabase: '+error.message);
+    }
+    window._EWMS=null; _ewmsLoad=null;
+    if(lbl) lbl.className='imp-card done';
+    msg(`✅ ${rows.length} linhas do Estoque WMS (${loja}) importadas! Abra Estoque → Estoque WMS.`,'ok');
+    if(typeof window._rerenderE==='function') window._rerenderE();
+  }catch(e){
+    if(lbl) lbl.className='imp-card err'; msg('❌ '+e.message,'err'); input.value='';
+  }
+}
+let _ewmsLoad=null;
+function carregarEstoqueWms(){
+  if(window._EWMS) return Promise.resolve(window._EWMS);
+  if(_ewmsLoad) return _ewmsLoad;
+  _ewmsLoad=(async()=>{
+    let all=[],from=0;
+    for(;;){
+      const {data,error}=await _sb.from('estoque_wms').select('loja,endereco,rua,predio,nivel,apto,cod_produto,descricao,marca,qtde,arquivo,importado_em').order('id').range(from,from+999);
+      if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000;
+    }
+    window._EWMS=all; return all;
+  })().catch(e=>{_ewmsLoad=null;throw e;});
+  return _ewmsLoad;
+}
+window.carregarEstoqueWms=carregarEstoqueWms;
 
 async function importarEstoque(input, loja){
   const file=input.files[0]; if(!file) return;
