@@ -658,7 +658,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
     <button class="clr-fab" id="clr-fab" type="button" hidden>
       <span class="ic">🗑️</span> Limpar filtros <span id="clr-fab-n"></span>
     </button>
-    <footer style="color:var(--mu);font-size:.78rem;padding:.5rem 0 1rem">Fonte: PEDDOSLT.xlsx (LT · 12.842 pedidos) e PEDIDOSLL.xlsx (LL · 8.778 pedidos)</footer>
+    <footer style="color:var(--mu);font-size:.78rem;padding:.5rem 0 1rem">Fonte: PEDDOSLT.xlsx (LT · 12.842 pedidos) e PEDIDOSLL.xlsx (LL · 8.778 pedidos) · LL: fim da separação e conferência do WMS · <b>versão do painel 16/11 08:50</b></footer>
   </main>
 </div>
 
@@ -838,6 +838,24 @@ async function prepararEstoqueE(D){
 }
 
 // ── Carrega pedidos do Supabase (paginado, todas as páginas) ──────────────────
+// WMS (LL): carregado aqui, antes dos pedidos, para completar o fim da separação já na restauração da sessão
+let _wmsLoad=null;
+function carregarWms(){
+  if(_wmsLoad) return _wmsLoad;
+  _wmsLoad=(async()=>{
+    let all=[],from=0;
+    for(;;){
+      const {data,error}=await _sb.from('wms_tempos')
+        .select('tipo,operador,pedido_wms,pedido_id,destinatario,checkout,posicao,skus,quantidade,cortes,inicio,fim,tempo_min')
+        .order('id').range(from,from+999);
+      if(error) throw error;
+      all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000;
+    }
+    window._WMS=all; return all;
+  })().catch(e=>{_wmsLoad=null;throw e;});
+  return _wmsLoad;
+}
+window.carregarWms=carregarWms;
 async function carregarPedidosSupa(){
   const PAGE = 1000;
   let all = [], from = 0, hasMore = true;
@@ -875,8 +893,8 @@ async function carregarPedidosSupa(){
   }));
   // LL: a planilha de pedidos não traz o fim da separação → completa com o WMS (início/fim da separação)
   try{
-    if(window.carregarWms){
-      const W=await window.carregarWms(), m={};
+    {
+      const W=await carregarWms(), m={};
       W.forEach(w=>{ if(w.tipo!=='Separação'||!w.pedido_id||!w.fim) return; const o=m[w.pedido_id]||(m[w.pedido_id]={ini:w.inicio,fim:w.fim});
         if(w.inicio<o.ini) o.ini=w.inicio; if(w.fim>o.fim) o.fim=w.fim; });
       out.forEach(r=>{ if(r.loja!=='LL') return; const o=m[String(r.id)]; if(!o) return;
@@ -4615,23 +4633,6 @@ function renderTemposTab(rs,rsEvol){
   }
 }
 // ── WMS · LL: tempos de separação e conferência medidos no WMS (tabela wms_tempos) ──
-let _wmsLoad=null;
-function carregarWms(){
-  if(_wmsLoad) return _wmsLoad;
-  _wmsLoad=(async()=>{
-    let all=[],from=0;
-    for(;;){
-      const {data,error}=await _sb.from('wms_tempos')
-        .select('tipo,operador,pedido_wms,pedido_id,destinatario,checkout,posicao,skus,quantidade,cortes,inicio,fim,tempo_min')
-        .order('id').range(from,from+999);
-      if(error) throw error;
-      all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000;
-    }
-    window._WMS=all; return all;
-  })().catch(e=>{_wmsLoad=null;throw e;});
-  return _wmsLoad;
-}
-window.carregarWms=carregarWms;
 const WMS_LIM=480; // acima de 8h: pedido ficou aberto no WMS (fora da média)
 function renderWmsLL(rsF){
   const el=document.getElementById('c-wms-ll'); if(!el) return;
