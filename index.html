@@ -5449,7 +5449,7 @@ function renderProdInd(rsF){
   const totQt=sum(ind.map(i=>i.qt||0)), denU=sum(ODall.map(d=>d.jorn-d.pausa)), prodAll=sum(ODall.map(d=>d.prod));
   const tItemG=(()=>{const a=ind.filter(i=>i.tItem!=null);const q=sum(a.map(i=>i.qt));return q?sum(a.map(i=>i.tItem*i.qt))/q:null})();
   const mk=(l,v,sub,cor)=>`<div class="k" style="display:flex;flex-direction:column;gap:.15rem${cor?';border-left:3px solid '+cor:''}"><div class="kl" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)">${l}</div><div class="kv" style="font-size:1.35rem;font-weight:700">${v}</div>${sub?`<div style="font-size:.72rem;color:var(--mu)">${sub}</div>`:''}</div>`;
-  const C={a1:'#e0a43a',S:'#4a8fd4',C:'#3fb39a',oc:'#d9604c',pz:'#4b5260'};
+  const C={a1:'#8a919c',S:'#e6b422',C:'#3aa76d',oc:'#d9534f',pz:'#7e6bc4'};
   const BG={a1:C.a1,S:C.S,C:C.C,oc:C.oc,pz:C.pz};
   const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:.5rem;margin-bottom:.9rem">`+
     mk('Pedidos',N(totPed),`${N(Lall.length)} separações · ${N(T.length-Lall.length)} conferências`,'#3ecf8e')+
@@ -5463,8 +5463,8 @@ function renderProdInd(rsF){
   // ── Composição da jornada média por operador (barras empilhadas)
   const maxJ=Math.max(1,...ind.map(i=>i.ate1D+i.sepD+i.confD+i.entreD+i.pausaD));
   const leg=`<div style="display:flex;flex-wrap:wrap;gap:.8rem;font-size:.75rem;color:var(--mu);margin:.2rem 0 .5rem">`+
-    [[BG.a1,'Parado 08:00 → 1º pedido'],[BG.S,'Separando'],[BG.C,'Conferindo'],[BG.oc,'Parado entre tarefas'],[BG.pz,'Pausas > '+PZ+'min (almoço)']].map(([c,l])=>`<span><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;background:${c};vertical-align:-1px;margin-right:.3rem"></i>${l}</span>`).join('')+`</div>`;
-  const seg=(v,c,t,tot)=>v>0.5&&tot>0?`<div title="${t}: ${fm(v)} (${Math.round(v/tot*100)}%)" style="width:${v/tot*100}%;background:${c};height:100%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:600;color:#fff;overflow:hidden;white-space:nowrap;border-right:1px solid var(--bg,#111)"><span class="pi-st">${v/tot>0.09?fm(v):''}</span></div>`:'';
+    [[BG.a1,'Parado 08:00 → 1º pedido'],[BG.S,'Separando'],[BG.C,'Conferindo'],[BG.oc,'Parado entre tarefas'],[BG.pz,'Almoço / pausas > '+PZ+'min']].map(([c,l])=>`<span><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;background:${c};vertical-align:-1px;margin-right:.3rem"></i>${l}</span>`).join('')+`</div>`;
+  const seg=(v,c,t,tot)=>v>0.5&&tot>0?`<div title="${t}: ${fm(v)} (${Math.round(v/tot*100)}%)" style="width:${v/tot*100}%;background:${c};height:100%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:600;color:${c===C.S?'#1a1a1a':'#fff'};overflow:hidden;white-space:nowrap;border-right:1px solid var(--bg,#111)"><span class="pi-st">${v/tot>0.09?fm(v):''}</span></div>`:'';
   const comp=`<h4 style="margin:.4rem 0 .1rem;font-size:.88rem">⏱️ Composição da jornada média por operador <small style="font-weight:400;color:var(--mu)">(100% = das 08:00 até o fim da última tarefa)</small></h4>`+leg+
     `<div style="display:flex;flex-direction:column;gap:.35rem">`+ind.map(i=>`<div style="display:flex;align-items:center;gap:.5rem">`+
       `<div class="pi-nm" style="width:8.5rem;flex:none;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escP(i.op)}">${_escP(i.op)} <span style="font-size:.66rem;color:var(--mu)">${i.lojas}</span></div>`+
@@ -5481,7 +5481,7 @@ function renderProdInd(rsF){
   const X=m=>Math.max(0,Math.min(100,(m-a0)/span*100));
   const di=dias.indexOf(S.dia), fd=d=>(typeof _dsem==='function'?_dsem(d)+' ':'')+d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
   const hm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-  const blk=(x0,x1,c,t,lb)=>x1-x0>0?`<div title="${_escP(t)}" style="position:absolute;top:12%;bottom:12%;left:${X(x0)}%;width:max(2px,${X(x1)-X(x0)}%);background:${c};border-radius:2px;box-shadow:inset -1px 0 0 rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:.64rem;font-weight:600;color:#fff;white-space:nowrap">${lb&&X(x1)-X(x0)>3.2?'<span class="pi-st">'+lb+'</span>':''}</div>`:'';
+  const blk=(x0,x1,c,t,lb)=>x1-x0>0?`<div title="${_escP(t)}" style="position:absolute;top:12%;bottom:12%;left:${X(x0)}%;width:max(2px,${X(x1)-X(x0)}%);background:${c};border-radius:2px;box-shadow:inset -1px 0 0 rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:.64rem;font-weight:600;color:${c===C.S?'#1a1a1a':'#fff'};white-space:nowrap">${lb&&X(x1)-X(x0)>3.2?'<span class="pi-st">'+lb+'</span>':''}</div>`:'';
   const ticks=[];for(let m=a0;m<=a1;m+=60)ticks.push(m);
   const gantt=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:1rem 0 .5rem">`+
       `<h4 style="margin:0;font-size:.88rem;flex:1 1 auto">📍 Linha do tempo do dia</h4>`+
