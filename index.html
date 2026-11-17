@@ -177,6 +177,7 @@ main{padding:1rem 0 2.5rem}
 .fb-body{display:contents}
 table.hd-tb{border-collapse:separate;border-spacing:2px;font-size:.78rem;width:100%}table.hd-tb th{font-weight:600;color:var(--mu);padding:.15rem .35rem;font-size:.74rem}table.hd-tb td{text-align:center;min-width:2.1rem;height:1.7rem;border-radius:4px;font-variant-numeric:tabular-nums}table.hd-tb .hd-t,table.hd-tb .hd-tot td{color:var(--mu);font-weight:600}.bt.on{background:var(--y);color:#111;border-color:var(--y)}
 .rota-cfg{background:none;border:0;color:var(--y);font-size:.72rem;cursor:pointer;padding:0 0 0 .3rem;text-transform:none;letter-spacing:0}
+body.fhide #pv-fb,body.fhide #tm-fb,body.fhide #e-gf,body.fhide #e-fb,body.fhide #hbtn{display:none!important}
 table.pft{width:max-content;min-width:100%;border-collapse:collapse;font-size:.8rem}table.pft th{position:sticky;top:0;background:var(--s2);z-index:1;padding:.45rem .55rem;text-align:left;font-size:.74rem;color:var(--mu);border-bottom:1px solid var(--ln)}table.pft td{padding:.38rem .55rem;border-bottom:1px solid color-mix(in srgb,var(--ln) 60%,transparent)}.pft-tw{max-height:620px;overflow:auto}#pv-fb:empty{display:none}
 tr.ped-row{cursor:pointer}tr.ped-row:hover td{background:color-mix(in srgb,var(--y) 12%,transparent)}
 .ped-ov{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto}
@@ -286,7 +287,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 .sb-cl{border:0;background:none;font-size:1.3rem;line-height:1;padding:.2rem .4rem;border-radius:6px;color:var(--tx)}
 .sb-cl:hover{background:var(--s2)}
 /* nav */
-.sb-nav{flex:none;padding:.5rem .5rem;border-bottom:1px solid var(--ln)}
+.sb-nav{display:none!important;flex:none;padding:.5rem .5rem;border-bottom:1px solid var(--ln)}
 .sb-nav a{display:flex;align-items:center;gap:.65rem;padding:.55rem .75rem;border-radius:8px;border:0;background:none;width:100%;text-align:left;font-weight:600;font-size:.9rem;color:var(--mu);cursor:pointer;text-decoration:none}
 .sb-nav a:hover{background:var(--s2);color:var(--tx)}
 .sb-nav a.on{background:var(--y);color:#0a0a0a}
@@ -456,7 +457,8 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
       <h1 class="hd-home-title">Painel Gerencial</h1>
       <p class="hd-home-sub">Lojão dos Tratores &amp; LL Tratores</p>
     </div>
-    <button class="hbtn" id="hbtn" type="button" hidden>☰ <span>Filtros &amp; Menu</span><span id="fnb" class="nb" hidden></span></button>
+    <button id="fbtn-all" class="bt" type="button" hidden onclick="toggleFiltros()" title="Esconder ou mostrar todos os filtros">🔎 Esconder filtros</button>
+    <button class="hbtn" id="hbtn" type="button" hidden>☰ <span>Filtros</span><span id="fnb" class="nb" hidden></span></button>
     <button id="eye-val" class="bt" type="button" hidden onclick="toggleValores()" title="Mostrar valores em R$">👁️ Mostrar valores</button>
     <button id="th" class="bt" type="button" hidden>Tema</button>
     <button id="btn-sair" class="bt" type="button" hidden style="background:transparent;border-color:var(--bd);color:var(--mu);font-size:.8rem" onclick="async function f(){try{sessionStorage.removeItem('_sess_ok');sessionStorage.removeItem('_sess_pedidos');}catch(e){}await _sb.auth.signOut();location.reload()}f()">Sair</button>
@@ -480,7 +482,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 <!-- Sidebar (pedidos) -->
 <div class="ov2" id="ov2"></div>
 <aside class="sb" id="sb" aria-label="Menu e filtros" role="dialog" aria-modal="true">
-  <div class="sb-hd"><h2>Menu</h2><button class="sb-cl" id="sb-cl" aria-label="Fechar">✕</button></div>
+  <div class="sb-hd"><h2>Filtros</h2><button class="sb-cl" id="sb-cl" aria-label="Fechar">✕</button></div>
   <nav class="sb-nav" id="sb-nav" aria-label="Seções"></nav>
   <div class="sb-body" id="sb-body"></div>
 </aside>
@@ -774,6 +776,7 @@ function openSection(s){
   document.getElementById('e-tabs').hidden = s!=='e';
   document.getElementById('p-tabs').hidden = s!=='p';
   document.getElementById('hbtn').hidden = s!=='p';
+  document.getElementById('fbtn-all').hidden = !(s==='p'||s==='e');
   const ttl=document.getElementById('hd-ttl');
   if(s==='home'){
     ttl.innerHTML='<h1 class="hd-home-title">Painel Gerencial</h1><p class="hd-home-sub">Lojão dos Tratores &amp; LL Tratores</p>';
@@ -911,6 +914,15 @@ async function prepararEstoqueE(D){
 
 // ── Carrega pedidos do Supabase (paginado, todas as páginas) ──────────────────
 // WMS (LL): carregado aqui, antes dos pedidos, para completar o fim da separação já na restauração da sessão
+// Esconder/mostrar todos os filtros (lembra a escolha neste aparelho)
+function toggleFiltros(forcar){
+  const esc=typeof forcar==='boolean'?forcar:!document.body.classList.contains('fhide');
+  document.body.classList.toggle('fhide',esc);
+  const b=document.getElementById('fbtn-all'); if(b){ b.textContent=esc?'🔎 Mostrar filtros':'🔎 Esconder filtros'; b.classList.toggle('on',esc); }
+  if(!esc){ window._fbOpen=true; ['pv-fb','tm-fb'].forEach(id=>{const el=document.getElementById(id); if(el){el.classList.add('open'); const t=el.querySelector('[data-fbtog] span'); if(t) t.textContent='▲ recolher';}}); }
+  try{ localStorage.setItem('lt-fhide',esc?'1':'0'); }catch(e){}
+}
+document.addEventListener('DOMContentLoaded',()=>{ let v=null; try{ v=localStorage.getItem('lt-fhide'); }catch(e){} if(v==='1') toggleFiltros(true); });
 // Horário das rotas (manhã/tarde) — compartilhado no banco (app_config.rotas); usado no filtro "Rota"
 window._ROTAS={manha:['07:00','11:59'],tarde:['12:00','18:00']};
 async function carregarRotas(){ try{ const {data}=await _sb.from('app_config').select('valor').eq('chave','rotas').maybeSingle(); if(data&&data.valor&&data.valor.manha) window._ROTAS=data.valor; }catch(e){ console.warn('[rotas]',e); } }
