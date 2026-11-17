@@ -5449,7 +5449,8 @@ function renderProdInd(rsF){
   const totQt=sum(ind.map(i=>i.qt||0)), denU=sum(ODall.map(d=>d.jorn-d.pausa)), prodAll=sum(ODall.map(d=>d.prod));
   const tItemG=(()=>{const a=ind.filter(i=>i.tItem!=null);const q=sum(a.map(i=>i.qt));return q?sum(a.map(i=>i.tItem*i.qt))/q:null})();
   const mk=(l,v,sub,cor)=>`<div class="k" style="display:flex;flex-direction:column;gap:.15rem${cor?';border-left:3px solid '+cor:''}"><div class="kl" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)">${l}</div><div class="kv" style="font-size:1.35rem;font-weight:700">${v}</div>${sub?`<div style="font-size:.72rem;color:var(--mu)">${sub}</div>`:''}</div>`;
-  const C={a1:'#ff9f43',S:'#f5c518',C:'#5aa9e6',oc:'#ef5350',pz:'#7a7f87'};
+  const C={a1:'#ef5350',S:'#f5c518',C:'#5aa9e6',oc:'#ef5350',pz:'#7a7f87'};
+  const BG={a1:'repeating-linear-gradient(135deg,#c62828 0 6px,#7f1d1d 6px 12px)',S:C.S,C:C.C,oc:'repeating-linear-gradient(135deg,#ef5350 0 6px,#b71c1c 6px 12px)',pz:'repeating-linear-gradient(135deg,#6b7078 0 6px,#4a4e55 6px 12px)'};
   const kpis=`<div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.8rem">`+
     mk('Pedidos',N(totPed),`${N(Lall.length)} separações · ${N(T.length-Lall.length)} conferências`,'#3ecf8e')+
     mk('Itens separados',N(totQt),`média ${N(avg(ind.filter(i=>i.itPed!=null).map(i=>i.itPed)))} itens/pedido`,C.S)+
@@ -5462,14 +5463,14 @@ function renderProdInd(rsF){
   // ── Composição da jornada média por operador (barras empilhadas)
   const maxJ=Math.max(1,...ind.map(i=>i.ate1D+i.sepD+i.confD+i.entreD+i.pausaD));
   const leg=`<div style="display:flex;flex-wrap:wrap;gap:.8rem;font-size:.75rem;color:var(--mu);margin:.2rem 0 .5rem">`+
-    [[C.a1,'Parado 08:00 → 1º pedido'],[C.S,'Separando'],[C.C,'Conferindo'],[C.oc,'Parado entre tarefas'],[C.pz,'Pausas > '+PZ+'min']].map(([c,l])=>`<span><i style="display:inline-block;width:.75rem;height:.75rem;border-radius:2px;background:${c};vertical-align:-1px;margin-right:.3rem"></i>${l}</span>`).join('')+`</div>`;
-  const seg=(v,c,t)=>v>0.5?`<div title="${t}: ${fm(v)}" style="width:${v/maxJ*100}%;background:${c};height:100%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:#111;overflow:hidden;white-space:nowrap"><span class="pi-st">${v/maxJ>0.07?fm(v):''}</span></div>`:'';
+    [[BG.a1,'Parado 08:00 → 1º pedido'],[BG.S,'Separando'],[BG.C,'Conferindo'],[BG.oc,'Parado entre tarefas'],[BG.pz,'Pausas > '+PZ+'min (almoço)']].map(([c,l])=>`<span><i style="display:inline-block;width:1rem;height:.8rem;border-radius:2px;background:${c};vertical-align:-1px;margin-right:.3rem"></i>${l}</span>`).join('')+`</div>`;
+  const seg=(v,c,t)=>v>0.5?`<div title="${t}: ${fm(v)}" style="width:${v/maxJ*100}%;background:${c};height:100%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:${/gradient/.test(c)?'#fff;text-shadow:0 0 3px #000':'#111'};overflow:hidden;white-space:nowrap"><span class="pi-st">${v/maxJ>0.07?fm(v):''}</span></div>`:'';
   const comp=`<h4 style="margin:.4rem 0 .1rem;font-size:.88rem">⏱️ Jornada média por dia, por operador</h4>`+leg+
     `<div style="display:flex;flex-direction:column;gap:.35rem">`+ind.map(i=>`<div style="display:flex;align-items:center;gap:.5rem">`+
       `<div class="pi-nm" style="width:8.5rem;flex:none;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escP(i.op)}">${_escP(i.op)} <span style="font-size:.66rem;color:var(--mu)">${i.lojas}</span></div>`+
       `<div style="flex:1;display:flex;height:1.35rem;border-radius:4px;overflow:hidden;background:color-mix(in srgb,var(--bd) 30%,transparent)">`+
-        seg(i.ate1D,C.a1,'08:00 → 1º pedido')+seg(i.sepD,C.S,'Separando')+seg(i.confD,C.C,'Conferindo')+seg(i.entreD,C.oc,'Parado entre tarefas')+seg(i.pausaD,C.pz,'Pausas')+`</div>`+
-      `<div class="pi-sd" style="width:6.2rem;flex:none;text-align:right;font-size:.78rem"><b style="color:${i.util>=.7?'#3ecf8e':i.util>=.5?'#f5c518':'#ef5350'}">${i.util!=null?Math.round(i.util*100)+'%':'—'}</b> <span style="color:var(--mu)">útil</span></div></div>`).join('')+`</div>`;
+        seg(i.ate1D,BG.a1,'Parado 08:00 → 1º pedido')+seg(i.sepD,BG.S,'Separando')+seg(i.confD,BG.C,'Conferindo')+seg(i.entreD,BG.oc,'Parado entre tarefas')+seg(i.pausaD,BG.pz,'Pausas')+`</div>`+
+      `<div class="pi-sd" style="width:7.6rem;flex:none;text-align:right;font-size:.74rem;line-height:1.15"><span style="color:var(--mu)">parado</span> <b style="color:#ef5350">${fm(i.ociosoD)}</b><br><b style="color:${i.util>=.7?'#3ecf8e':i.util>=.5?'#f5c518':'#ef5350'}">${i.util!=null?Math.round(i.util*100)+'%':'—'}</b> <span style="color:var(--mu)">útil</span></div></div>`).join('')+`</div>`;
   // ── Linha do tempo do dia
   const dias=[...new Set(OD.map(d=>d.dia))].sort().reverse();
   if(!dias.includes(S.dia)) S.dia=dias[0];
@@ -5480,7 +5481,7 @@ function renderProdInd(rsF){
   const X=m=>Math.max(0,Math.min(100,(m-a0)/span*100));
   const di=dias.indexOf(S.dia), fd=d=>(typeof _dsem==='function'?_dsem(d)+' ':'')+d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
   const hm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-  const blk=(x0,x1,c,t,extra)=>x1-x0>0?`<div title="${_escP(t)}" style="position:absolute;top:${extra||'15%'};bottom:${extra||'15%'};left:${X(x0)}%;width:max(2px,${X(x1)-X(x0)}%);background:${c};border-radius:2px"></div>`:'';
+  const blk=(x0,x1,c,t,lb)=>x1-x0>0?`<div title="${_escP(t)}" style="position:absolute;top:12%;bottom:12%;left:${X(x0)}%;width:max(2px,${X(x1)-X(x0)}%);background:${c};border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:.64rem;font-weight:700;color:#fff;text-shadow:0 0 3px #000;white-space:nowrap">${lb&&X(x1)-X(x0)>3.2?'<span class="pi-st">'+lb+'</span>':''}</div>`:'';
   const ticks=[];for(let m=a0;m<=a1;m+=60)ticks.push(m);
   const gantt=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:1rem 0 .5rem">`+
       `<h4 style="margin:0;font-size:.88rem;flex:1 1 auto">📍 Linha do tempo do dia</h4>`+
@@ -5489,17 +5490,17 @@ function renderProdInd(rsF){
       `<button type="button" class="bt" data-pi-nav="-1" ${di<=0?'disabled':''}>▶</button>`+
       `<select class="tmf" data-pi="op"><option value="">Todos os operadores</option>${ops.map(o=>`<option ${o===S.op?'selected':''}>${_escP(o)}</option>`).join('')}</select>`+
     `</div>`+
-    `<div style="display:flex;gap:.5rem;font-size:.7rem;color:var(--mu)"><div class="pi-nm" style="width:8.5rem;flex:none"></div><div style="flex:1;position:relative;height:1rem">${ticks.map(m=>`<span class="${(m/60)%2?'pi-odd':''}" style="position:absolute;left:${X(m)}%;transform:translateX(-50%)">${hh(m).slice(0,2)}h</span>`).join('')}</div><div class="pi-sd" style="width:6.2rem;flex:none"></div></div>`+
+    `<div style="display:flex;gap:.5rem;font-size:.7rem;color:var(--mu)"><div class="pi-nm" style="width:8.5rem;flex:none"></div><div style="flex:1;position:relative;height:1rem">${ticks.map(m=>`<span class="${(m/60)%2?'pi-odd':''}" style="position:absolute;left:${X(m)}%;transform:translateX(-50%)">${hh(m).slice(0,2)}h</span>`).join('')}</div><div class="pi-sd" style="width:7.6rem;flex:none"></div></div>`+
     `<div style="display:flex;flex-direction:column;gap:.3rem">`+(DD.length?DD.map(d=>{
       let h='';
       ticks.forEach(m=>{h+=`<div style="position:absolute;top:0;bottom:0;left:${X(m)}%;border-left:1px dashed color-mix(in srgb,var(--bd) 70%,transparent)"></div>`;});
-      if(d.ate1>0) h+=blk(J0,d.p0,C.a1,`Parado 08:00 → 1º pedido: ${fm(d.ate1)}`,'38%');
-      d.seq.forEach((s,i)=>{ if(i>0&&s.gap>0){const b=mDia(s.t.ini);h+=blk(b-s.gap,b,s.pz?C.pz:C.oc,`${s.pz?'Pausa':'Parado'}: ${fm(s.gap)} (${hm(new Date(+s.t.ini-s.gap*60000))} → ${hm(s.t.ini)})`,'38%');}
-        const t=s.t; h+=blk(mDia(t.ini),mDia(t.fim),C[t.tipo],`${t.tipo==='S'?'Separação':'Conferência'} · ${t.loja} pedido ${t.ped||('WMS '+t.pw)}${t.cli?' · '+t.cli:''}\n${hm(t.ini)} → ${hm(t.fim)} · ${fm(t.dur)}${t.qt!=null?' · '+N(t.qt)+' itens':''}`); });
+      if(d.ate1>0) h+=blk(J0,d.p0,BG.a1,`Parado 08:00 → 1º pedido: ${fm(d.ate1)}`,fm(d.ate1));
+      d.seq.forEach((s,i)=>{ if(i>0&&s.gap>0){const b=mDia(s.t.ini);h+=blk(b-s.gap,b,s.pz?BG.pz:BG.oc,`${s.pz?'Pausa':'Parado'}: ${fm(s.gap)} (${hm(new Date(+s.t.ini-s.gap*60000))} → ${hm(s.t.ini)})`,fm(s.gap));}
+        const t=s.t; h+=blk(mDia(t.ini),mDia(t.fim),BG[t.tipo],`${t.tipo==='S'?'Separação':'Conferência'} · ${t.loja} pedido ${t.ped||('WMS '+t.pw)}${t.cli?' · '+t.cli:''}\n${hm(t.ini)} → ${hm(t.fim)} · ${fm(t.dur)}${t.qt!=null?' · '+N(t.qt)+' itens':''}`); });
       return `<div style="display:flex;align-items:center;gap:.5rem;cursor:pointer" data-pi-op="${_escP(d.op)}" title="Clique para ver a sequência de ${_escP(d.op)}">`+
         `<div class="pi-nm" style="width:8.5rem;flex:none;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escP(d.op)} <span style="font-size:.66rem;color:var(--mu)">${d.lojas}</span></div>`+
         `<div style="flex:1;position:relative;height:1.6rem;background:color-mix(in srgb,var(--bd) 18%,transparent);border-radius:4px">${h}</div>`+
-        `<div class="pi-sd" style="width:6.2rem;flex:none;text-align:right;font-size:.74rem;line-height:1.15"><b>${new Set(d.L.map(t=>t.ped||t.pw)).size}</b> ped · <b style="color:${d.util>=.7?'#3ecf8e':d.util>=.5?'#f5c518':'#ef5350'}">${d.util!=null?Math.round(d.util*100)+'%':'—'}</b><br><span style="color:var(--mu)">${hh(d.p0)}–${hh(d.fimD)}</span></div></div>`;
+        `<div class="pi-sd" style="width:7.6rem;flex:none;text-align:right;font-size:.74rem;line-height:1.15"><b>${new Set(d.L.map(t=>t.ped||t.pw)).size}</b> ped · <b style="color:${d.util>=.7?'#3ecf8e':d.util>=.5?'#f5c518':'#ef5350'}">${d.util!=null?Math.round(d.util*100)+'%':'—'}</b><br><span style="color:var(--mu)">parado</span> <b style="color:#ef5350">${fm(d.ocioso)}</b></div></div>`;
     }).join(''):'<p class="mu2" style="padding:.6rem">Sem tarefas neste dia.</p>')+`</div>`;
   // ── Sequência do operador no dia
   let seqH='';
