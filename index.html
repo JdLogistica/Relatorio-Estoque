@@ -801,8 +801,9 @@ function _etapasPedido(p){
   return {
     et:[
       ['Emissão do pedido',p.dia,p.hr_emissao],
-      ['Início da separação',p.hr_sep_ini?dSi:null,p.hr_sep_ini],
-      ['Fim da separação',p.hr_sep_fim?dSf:null,p.hr_sep_fim],
+      ['Início da separação'+(p._wms?' (WMS)':''),p.hr_sep_ini?dSi:null,p.hr_sep_ini],
+      ['Fim da separação'+(p._wms?' (WMS)':''),p.hr_sep_fim?dSf:null,p.hr_sep_fim],
+      ...(p._wms&&p.hr_conf_ini?[['Início da conferência (WMS)',p.dt_conf_ini,p.hr_conf_ini],['Fim da conferência (WMS)',p.dt_conf_fim,p.hr_conf_fim]]:[]),
       ['Emissão da NF-e',p.dt_nf,p.hr_nf],
       ['Expedição',dEx,p.hr_exp],
     ],
@@ -957,15 +958,22 @@ async function carregarPedidosSupa(){
     dt_coleta:  r.dt_coleta  || null,
     hr_coleta:  r.hr_coleta  || null,
   }));
-  // LL: a planilha de pedidos não traz o fim da separação → completa com o WMS (início/fim da separação)
+  // Memória de cálculo das etapas: pedido que está no WMS (hoje só LL) usa as etapas do WMS
+  // (início/fim da separação e da conferência); os demais seguem o ERP. Ordem: emissão → separação → conferência → NF-e → expedição.
   try{
     {
       const W=await carregarWms(), m={};
-      W.forEach(w=>{ if(w.tipo!=='Separação'||!w.pedido_id||!w.fim) return; const o=m[w.pedido_id]||(m[w.pedido_id]={ini:w.inicio,fim:w.fim});
-        if(w.inicio<o.ini) o.ini=w.inicio; if(w.fim>o.fim) o.fim=w.fim; });
-      out.forEach(r=>{ if(r.loja!=='LL') return; const o=m[String(r.id)]; if(!o) return;
-        if(!r.hr_sep_fim){ r.dt_sep_fim=o.fim.slice(0,10); r.hr_sep_fim=o.fim.slice(11,16); r._wms=true; }
-        if(!r.hr_sep_ini){ r.dt_sep_ini=o.ini.slice(0,10); r.hr_sep_ini=o.ini.slice(11,16); r._wms=true; } });
+      W.forEach(w=>{ if(!w.pedido_id||!w.inicio) return; const o=m[w.pedido_id]||(m[w.pedido_id]={si:null,sf:null,ci:null,cf:null});
+        const fim=w.fim||w.inicio;
+        if(w.tipo==='Separação'){ if(!o.si||w.inicio<o.si) o.si=w.inicio; if(!o.sf||fim>o.sf) o.sf=fim; }
+        else { if(!o.ci||w.inicio<o.ci) o.ci=w.inicio; if(!o.cf||fim>o.cf) o.cf=fim; } });
+      out.forEach(r=>{ const o=m[String(r.id)]; if(r.loja!=='LL'||!o||!o.si) return;
+        r._erp={dt_sep_ini:r.dt_sep_ini,hr_sep_ini:r.hr_sep_ini,dt_sep_fim:r.dt_sep_fim,hr_sep_fim:r.hr_sep_fim,tempo_sep:r.tempo_sep};
+        r.dt_sep_ini=o.si.slice(0,10); r.hr_sep_ini=o.si.slice(11,16);
+        r.dt_sep_fim=o.sf.slice(0,10); r.hr_sep_fim=o.sf.slice(11,16);
+        r.tempo_sep=null; // T2 passa a ser calculado pelo início/fim do WMS
+        if(o.ci){ r.dt_conf_ini=o.ci.slice(0,10); r.hr_conf_ini=o.ci.slice(11,16); r.dt_conf_fim=o.cf.slice(0,10); r.hr_conf_fim=o.cf.slice(11,16); }
+        r._wms=true; });
     }
   }catch(e){ console.warn('[pedidos+wms]',e); }
   return out;
