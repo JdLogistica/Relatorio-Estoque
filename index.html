@@ -446,8 +446,8 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
   .itens-g2{grid-template-columns:1fr}
   .itens-gabc{grid-template-columns:1fr}
 }
-#c-prod-ind .pi-nm{min-width:0}
-@media (max-width:720px){#c-prod-ind .pi-nm{width:5.6rem!important;font-size:.72rem!important}#c-prod-ind .pi-sd{width:4rem!important;font-size:.66rem!important}#c-prod-ind .pi-st,#c-prod-ind .pi-odd,#c-prod-ind .pi-w{display:none}}
+#c-prod-ind .pi-nm{min-width:0}#c-prod-ind .pi-br{display:none}
+@media (max-width:720px){#c-prod-ind .pi-nm{width:5.6rem!important;font-size:.72rem!important}#c-prod-ind .pi-sd{width:4rem!important;font-size:.66rem!important;white-space:normal!important}#c-prod-ind .pi-st,#c-prod-ind .pi-odd,#c-prod-ind .pi-w{display:none}#c-prod-ind .pi-br{display:inline}}
 </style>
 </head>
 <body>
@@ -5468,9 +5468,9 @@ function renderProdInd(rsF){
   const comp=`<h4 style="margin:.4rem 0 .1rem;font-size:.88rem">⏱️ Composição da jornada média por operador <small style="font-weight:400;color:var(--mu)">(100% = das 08:00 até o fim da última tarefa)</small></h4>`+leg+
     `<div style="display:flex;flex-direction:column;gap:.35rem">`+ind.map(i=>`<div style="display:flex;align-items:center;gap:.5rem">`+
       `<div class="pi-nm" style="width:8.5rem;flex:none;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escP(i.op)}">${_escP(i.op)} <span style="font-size:.66rem;color:var(--mu)">${i.lojas}</span></div>`+
-      `<div style="flex:1;display:flex;height:1.45rem;border-radius:3px;overflow:hidden">`+
+      `<div style="flex:1;display:flex;height:1.25rem;border-radius:3px;overflow:hidden">`+
         (t=>seg(i.ate1D,BG.a1,'Parado 08:00 → 1º pedido',t)+seg(i.sepD,BG.S,'Separando',t)+seg(i.confD,BG.C,'Conferindo',t)+seg(i.entreD,BG.oc,'Parado entre tarefas',t)+seg(i.pausaD,BG.pz,'Pausas',t))(i.ate1D+i.sepD+i.confD+i.entreD+i.pausaD)+`</div>`+
-      `<div class="pi-sd" style="width:7.6rem;flex:none;text-align:right;font-size:.74rem;line-height:1.15"><span class="pi-w" style="color:var(--mu)">parado</span> <b style="color:#d9604c">${fm(i.ociosoD)}</b><br><b style="color:${i.util>=.7?'#3ecf8e':i.util>=.5?'#f5c518':'#ef5350'}">${i.util!=null?Math.round(i.util*100)+'%':'—'}</b> <span style="color:var(--mu)">útil</span></div></div>`).join('')+`</div>`;
+      `<div class="pi-sd" style="width:13.5rem;flex:none;text-align:right;font-size:.76rem;white-space:nowrap"><span class="pi-w" style="color:var(--mu)">parado</span> <b style="color:#d9604c">${fm(i.ociosoD)}</b><span class="pi-w" style="color:var(--mu)"> · </span><br class="pi-br"><b style="color:${i.util>=.7?'#3ecf8e':i.util>=.5?'#f5c518':'#ef5350'}">${i.util!=null?Math.round(i.util*100)+'%':'—'}</b> <span style="color:var(--mu)">útil</span></div></div>`).join('')+`</div>`;
   // ── Linha do tempo do dia
   const dias=[...new Set(OD.map(d=>d.dia))].sort().reverse();
   if(!dias.includes(S.dia)) S.dia=dias[0];
@@ -5490,7 +5490,7 @@ function renderProdInd(rsF){
       `<button type="button" class="bt" data-pi-nav="-1" ${di<=0?'disabled':''}>▶</button>`+
       `<select class="tmf" data-pi="op"><option value="">Todos os operadores</option>${ops.map(o=>`<option ${o===S.op?'selected':''}>${_escP(o)}</option>`).join('')}</select>`+
     `</div>`+
-    `<div style="display:flex;gap:.5rem;font-size:.7rem;color:var(--mu)"><div class="pi-nm" style="width:8.5rem;flex:none"></div><div style="flex:1;position:relative;height:1rem">${ticks.map(m=>`<span class="${(m/60)%2?'pi-odd':''}" style="position:absolute;left:${X(m)}%;transform:translateX(-50%)">${hh(m).slice(0,2)}h</span>`).join('')}</div><div class="pi-sd" style="width:7.6rem;flex:none"></div></div>`+
+    `<div style="display:flex;gap:.5rem;font-size:.7rem;color:var(--mu)"><div class="pi-nm" style="width:8.5rem;flex:none"></div><div style="flex:1;position:relative;height:1rem">${ticks.map(m=>`<span class="${(m/60)%2?'pi-odd':''}" style="position:absolute;left:${X(m)}%;transform:translateX(-50%)">${hh(m).slice(0,2)}h</span>`).join('')}</div><div class="pi-sd" style="width:13.5rem;flex:none"></div></div>`+
     `<div style="display:flex;flex-direction:column;gap:.3rem">`+(DD.length?DD.map(d=>{
       let h='';
       ticks.forEach(m=>{h+=`<div style="position:absolute;top:0;bottom:0;left:${X(m)}%;border-left:1px solid color-mix(in srgb,var(--bd) 45%,transparent)"></div>`;});
@@ -5500,7 +5500,7 @@ function renderProdInd(rsF){
       return `<div style="display:flex;align-items:center;gap:.5rem;cursor:pointer" data-pi-op="${_escP(d.op)}" title="Clique para ver a sequência de ${_escP(d.op)}">`+
         `<div class="pi-nm" style="width:8.5rem;flex:none;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escP(d.op)} <span style="font-size:.66rem;color:var(--mu)">${d.lojas}</span></div>`+
         `<div style="flex:1;position:relative;height:1.6rem;background:color-mix(in srgb,var(--bd) 10%,transparent);border-radius:3px">${h}</div>`+
-        `<div class="pi-sd" style="width:7.6rem;flex:none;text-align:right;font-size:.74rem;line-height:1.15"><b>${new Set(d.L.map(t=>t.ped||t.pw)).size}</b> ped · <b style="color:${d.util>=.7?'#3ecf8e':d.util>=.5?'#f5c518':'#ef5350'}">${d.util!=null?Math.round(d.util*100)+'%':'—'}</b><br><span class="pi-w" style="color:var(--mu)">parado</span> <b style="color:#d9604c">${fm(d.ocioso)}</b></div></div>`;
+        `<div class="pi-sd" style="width:13.5rem;flex:none;text-align:right;font-size:.76rem;white-space:nowrap"><b>${new Set(d.L.map(t=>t.ped||t.pw)).size}</b> ped · <b style="color:${d.util>=.7?'#3ecf8e':d.util>=.5?'#f5c518':'#ef5350'}">${d.util!=null?Math.round(d.util*100)+'%':'—'}</b><span class="pi-w" style="color:var(--mu)"> · </span><br class="pi-br"><span class="pi-w" style="color:var(--mu)">parado</span> <b style="color:#d9604c">${fm(d.ocioso)}</b></div></div>`;
     }).join(''):'<p class="mu2" style="padding:.6rem">Sem tarefas neste dia.</p>')+`</div>`;
   // ── Sequência do operador no dia
   let seqH='';
