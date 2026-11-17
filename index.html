@@ -172,6 +172,7 @@ main{padding:1rem 0 2.5rem}
 .k small{color:var(--mu);font-size:.68rem;display:block;margin-top:.08rem}
 /* números dos cards sempre em uma linha (fonte reduz só quando não cabe — ver fitKpis) */
 .k b{white-space:nowrap;word-break:normal;overflow-wrap:normal}
+table.pft{width:max-content;min-width:100%;border-collapse:collapse;font-size:.8rem}table.pft th{position:sticky;top:0;background:var(--s2);z-index:1;padding:.45rem .55rem;text-align:left;font-size:.74rem;color:var(--mu);border-bottom:1px solid var(--ln)}table.pft td{padding:.38rem .55rem;border-bottom:1px solid color-mix(in srgb,var(--ln) 60%,transparent)}.pft-tw{max-height:620px;overflow:auto}#pv-fb:empty{display:none}
 tr.ped-row{cursor:pointer}tr.ped-row:hover td{background:color-mix(in srgb,var(--y) 12%,transparent)}
 .ped-ov{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto}
 .ped-ov[hidden]{display:none}
@@ -631,6 +632,38 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
         </div>
         <div id="imp-ewms-status" class="imp-status" style="display:none"></div>
       </div>
+      <!-- Produtividade WMS (pasta de CSVs) -->
+      <div id="imp-prodwms-upload-area">
+        <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span style="font-size:.8rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Produtividade WMS (separação e conferência)</span>
+          <span style="font-size:.7rem;color:var(--mu);background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:.1rem .4rem">pasta com os CSV expedicao_separacao_* e expedicao_conferencia_* · substitui a carga anterior</span>
+        </div>
+        <div class="imp-cards">
+          <label class="imp-card" id="lbl-prodwms-pasta">
+            <input type="file" id="imp-prodwms-pasta" webkitdirectory directory multiple onchange="importarProdutividadeWms(this)">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">📁</span>
+              <div>
+                <strong>Importar a pasta Produtividade WMS</strong>
+                <small id="nm-prodwms">Escolha a pasta inteira</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar pasta</span>
+          </label>
+          <label class="imp-card" id="lbl-prodwms-arqs">
+            <input type="file" id="imp-prodwms-arqs" accept=".csv" multiple onchange="importarProdutividadeWms(this)">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">📄</span>
+              <div>
+                <strong>Ou selecione os arquivos CSV</strong>
+                <small>Ctrl+A dentro da pasta</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar arquivos</span>
+          </label>
+        </div>
+        <div id="imp-prodwms-status" class="imp-status" style="display:none"></div>
+      </div>
       <!-- Relatório Erica import card -->
       <div id="imp-erica-upload-area">
         <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
@@ -684,6 +717,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
   </div>
   <main class="wrap" id="p-app" hidden>
     <div id="hist-toggle-bar" style="display:none;align-items:center;gap:.5rem;margin-bottom:.5rem"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span><button class="hist-tog hist-tog-on" data-hm="mes">Mensal</button><button class="hist-tog" data-hm="dia">Diário</button></div>
+    <section id="pv-fb" class="tmfb" aria-label="Filtros"></section>
     <section class="kp" id="p-kp" aria-live="polite"></section>
     <section class="cg" id="cg"></section>
     <section class="tbl" id="p-tb"></section>
@@ -2820,6 +2854,166 @@ async function parseXLSXEstoque(file){
   });
 }
 
+// ── Produtividade WMS: lê os CSV da pasta (separação/conferência por operador), consolida, liga aos pedidos LL e grava em wms_tempos ──
+async function _lerTextoCsv(f){
+  const buf=await f.arrayBuffer();
+  let t=new TextDecoder('utf-8').decode(buf);
+  if(t.includes('�')) t=new TextDecoder('windows-1252').decode(buf);
+  return t.replace(/^﻿/,'');
+}
+function _pwDt(v){ v=String(v||'').trim(); const m=v.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/); if(!m) return null;
+  return `${m[3]}-${m[2]}-${m[1]}T${m[4].padStart(2,'0')}:${m[5]}:${m[6]||'00'}`; }
+function _pwNum(v){ v=String(v??'').trim(); if(!v) return null; if(v.endsWith('%')) return null; const n=Number(v.includes(',')?v.replace(/\./g,'').replace(',','.'):v); return isNaN(n)?null:n; }
+function _pwParse(texto, nome){
+  const L=texto.split(/\r?\n/), g={};
+  L.forEach(l=>{ const i=l.indexOf(':;'); if(i>0) g[l.slice(0,i).trim()]=l.slice(i+2).split(';')[0].trim(); });
+  const tipoTxt=(g['Tipo de Operação']||g['Tipo de Operacao']||'').toLowerCase();
+  const tipo=tipoTxt.startsWith('confer')||/conferencia/i.test(nome)?'Conferência':'Separação';
+  const op=(g['Operador']||'').trim().toUpperCase(); if(!op) throw new Error(nome+': não achei a linha "Operador:"');
+  const ii=L.findIndex(l=>l.includes('ITENS DETALHADOS')); if(ii<0) throw new Error(nome+': não achei a seção "ITENS DETALHADOS"');
+  const hd=L[ii+1].split(';').map(h=>h.trim()); const out=[];
+  const exp=g['Data da Exportação']||g['Data da Exportacao']||''; const expIso=_pwDt(exp.length===16?exp+':00':exp);
+  for(let j=ii+2;j<L.length;j++){
+    const l=L[j]; if(!l.trim()) { if(out.length) break; else continue; }
+    if(l.startsWith('---')) break;
+    const c=l.split(';'); if(/^TOTAL/i.test(c[0])) continue;
+    const d={}; hd.forEach((h,k)=>d[h]=(c[k]??'').trim());
+    const ped=parseInt(d['Pedido'],10); if(!ped) continue;
+    out.push({tipo,operador:op,pedido_wms:ped,emissao:_pwDt(d['Emissão']||d['Emissao']),destinatario:d['Destinatário']||d['Destinatario']||null,
+      operacao:d['Operação']||d['Operacao']||null,checkout:_pwNum(d['Checkout']),posicao:_pwNum(d['Posição']||d['Posicao']),skus:_pwNum(d['SKUs']),
+      quantidade:_pwNum(tipo==='Separação'?(d['Separado']??d['Conferido']):(d['Conferido']??d['Separado'])),peso:_pwNum(d['Peso (kg)']),cortes:_pwNum(d['Cortes']),
+      inicio:_pwDt(d['Início']||d['Inicio']),fim:_pwDt(d['Fim']),tempo_min:_pwNum(d['Tempo (min)']),pedidos_h:_pwNum(d['Pedidos/h']),skus_h:_pwNum(d['SKUs/h']),
+      itens_h:_pwNum(d['Itens/h']),check_h:_pwNum(d['Check./h']),arquivo:nome,exportado_em:expIso});
+  }
+  return out;
+}
+const _pwNz=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function _pwVincular(W, pedidos){
+  // pedido do WMS → pedido da LL: mesmo cliente, emissão do ERP até 30 min depois / 3 dias antes do WMS; 1 para 1, o mais próximo primeiro
+  const erp=new Map(); (pedidos||[]).forEach(p=>{ if(p.loja!=='LL'||!p.dia) return; const t=new Date(p.dia+'T'+String(p.hr_emissao||'00:00').slice(0,5)+':00'); const k=_pwNz(p.cli); (erp.get(k)||erp.set(k,[]).get(k)).push({id:String(p.id),t}); });
+  const wp=new Map(); W.forEach(w=>{ const o=wp.get(w.pedido_wms)||{cli:_pwNz(w.destinatario),ref:null}; [w.emissao,w.inicio].forEach(x=>{ if(x){const d=new Date(x); if(!o.ref||d<o.ref) o.ref=d;} }); if(!o.cli&&w.destinatario) o.cli=_pwNz(w.destinatario); wp.set(w.pedido_wms,o); });
+  const cand=[]; wp.forEach((o,pw)=>{ if(!o.ref) return; (erp.get(o.cli)||[]).forEach(e=>{ const dif=(o.ref-e.t)/60000; if(dif>=-30&&dif<=3*24*60) cand.push([Math.abs(dif),pw,e.id,Math.round(dif)]); }); });
+  cand.sort((a,b)=>a[0]-b[0]); const uw=new Set(), ue=new Set(), m=new Map();
+  cand.forEach(([,pw,pe,dif])=>{ if(uw.has(pw)||ue.has(pe)) return; uw.add(pw); ue.add(pe); m.set(pw,[pe,dif]); });
+  return m;
+}
+async function importarProdutividadeWms(input){
+  const st=document.getElementById('imp-prodwms-status'), nm=document.getElementById('nm-prodwms');
+  const lbl=input.closest('.imp-card');
+  const msg=(t,c)=>{ if(st){st.style.display='';st.className='imp-status'+(c?' '+c:'');st.textContent=t;} };
+  const todos=[...(input.files||[])];
+  const fs=todos.filter(f=>/expedicao_(separacao|conferencia)_.*\.csv$/i.test(f.name));
+  if(!fs.length){ msg('❌ Nenhum arquivo expedicao_separacao_*.csv ou expedicao_conferencia_*.csv encontrado'+(todos.length?` (${todos.length} arquivo(s) ignorados)`:'')+'.','err'); input.value=''; return; }
+  if(lbl) lbl.className='imp-card loading'; if(nm) nm.textContent=`${fs.length} arquivo(s) CSV`;
+  try{
+    msg(`📖 Lendo ${fs.length} arquivos...`);
+    const vistos=new Set(), ign=[]; let W=[];
+    for(const f of fs){ const t=await _lerTextoCsv(f); if(vistos.has(t)){ign.push(f.name);continue;} vistos.add(t); W=W.concat(_pwParse(t,f.name)); }
+    // mesma linha em dois arquivos (ex.: exportado 2x) entra uma vez só
+    const uk=new Set(); W=W.filter(w=>{const k=[w.tipo,w.operador,w.pedido_wms,w.inicio].join('|'); if(uk.has(k)) return false; uk.add(k); return true;});
+    if(!W.length) throw new Error('Os arquivos não têm linhas de pedidos.');
+    msg(`🔗 Ligando ${new Set(W.map(w=>w.pedido_wms)).size} pedidos do WMS aos pedidos da LL...`);
+    let ped=(typeof _dP!=='undefined'&&_dP&&_dP.rows&&_dP.rows.length)?_dP.rows:await carregarPedidosSupa();
+    const m=_pwVincular(W,ped);
+    W.forEach(w=>{ const v=m.get(w.pedido_wms); w.pedido_id=v?v[0]:null; w.vinc_dif_min=v?v[1]:null; });
+    msg('🧹 Substituindo a produtividade WMS anterior...');
+    const {error:de}=await _sb.from('wms_tempos').delete().gt('id',0);
+    if(de) throw new Error(de.code==='42501'||/permission|policy/i.test(de.message)?'Apenas administradores podem importar a produtividade WMS.':'Supabase: '+de.message);
+    const B=500;
+    for(let i=0;i<W.length;i+=B){ msg(`📤 Enviando ${Math.min(i+B,W.length)} de ${W.length} linhas...`);
+      const {error}=await _sb.from('wms_tempos').insert(W.slice(i,i+B));
+      if(error) throw new Error(error.code==='42501'?'Apenas administradores podem importar a produtividade WMS.':'Supabase: '+error.message); }
+    // recarrega WMS + pedidos (o fim da separação da LL vem do WMS) e os painéis
+    window._WMS=null; _wmsLoad=null;
+    msg('🔄 Atualizando os painéis...');
+    const pedidosRows=await carregarPedidosSupa(); _dP={rows:pedidosRows}; _bootedP=false;
+    if(_curSection==='p'){ const pa=document.getElementById('p-app'); if(pa) pa.innerHTML=''; if(document.getElementById('p-tabs')) document.getElementById('p-tabs').innerHTML=''; await carregarItensSupa(); _bootedP=true; bootP(_dP); }
+    const nSep=W.filter(w=>w.tipo==='Separação').length, nConf=W.length-nSep, nPed=new Set(W.map(w=>w.pedido_wms)).size, nV=new Set(W.filter(w=>w.pedido_id).map(w=>w.pedido_wms)).size;
+    const ops=[...new Set(W.map(w=>w.operador))].sort();
+    if(lbl) lbl.className='imp-card done';
+    msg(`✅ Produtividade WMS atualizada: ${fs.length-ign.length} arquivos (${ops.join(', ')}) · ${N0pw(nSep)} separações · ${N0pw(nConf)} conferências · ${N0pw(nPed)} pedidos do WMS, ${N0pw(nV)} ligados a pedidos da LL (${Math.round(nV/nPed*100)}%)${ign.length?` · ${ign.length} arquivo(s) repetido(s) ignorado(s)`:''}.`,'ok');
+  }catch(e){ if(lbl) lbl.className='imp-card err'; msg('❌ '+e.message,'err'); }
+  input.value='';
+}
+const N0pw=v=>Number(v||0).toLocaleString('pt-BR');
+
+// ── Tabela completa de pedidos (Visão Geral, demais abas e Tempo Médio): todas as informações + tempos + WMS ──
+const _PFT={};
+const PFT_COLS=[
+  ['id','Pedido','n'],['loja','Loja'],['_em','Emissão','t'],['cli','Cliente'],['vend','Vendedor'],['tp2','Tipo entrega'],['tp','Transportadora'],['sit','Situação'],['urg','Urg.'],
+  ['conf','Separador (ERP)'],['_si','Início sep.','t'],['_sf','Fim sep.','t'],['_ws','Separador WMS'],['_wc','Conferente WMS'],['_ci','Início conf.','t'],['_cf','Fim conf.','t'],
+  ['_nf','NF-e','t'],['_ex','Expedição','t'],['_co','Coleta','t'],
+  ['_t1','T1','m'],['_t2','T2','m'],['_esp','Espera sep.→conf.','m'],['_tc','Conferência','m'],['_t3','T3','m'],['_t4','T4','m'],['_lead','Lead','m']
+];
+function _pftWmsMap(){
+  const W=window._WMS; if(!W) return null; if(W===_pftWmsMap._src) return _pftWmsMap._m;
+  const m=new Map();
+  W.forEach(w=>{ if(!w.pedido_id) return; const o=m.get(w.pedido_id)||{s:new Set(),c:new Set(),ci:null,cf:null,tc:0,sf:null};
+    if(w.tipo==='Separação'){o.s.add(w.operador); if(w.fim&&(!o.sf||w.fim>o.sf)) o.sf=w.fim;}
+    else {o.c.add(w.operador); if(w.inicio&&(!o.ci||w.inicio<o.ci)) o.ci=w.inicio; if(w.fim&&(!o.cf||w.fim>o.cf)) o.cf=w.fim; o.tc+=(+w.tempo_min||0);}
+    m.set(w.pedido_id,o); });
+  _pftWmsMap._src=W; _pftWmsMap._m=m; return m;
+}
+function _pftExt(r,wm){
+  const D=(d,h)=>{ if(!d||!h) return null; const x=new Date(String(d).slice(0,10)+'T'+String(h).slice(0,5)+':00'); return isNaN(x)?null:x; };
+  const I=s=>{ if(!s) return null; const x=new Date(s); return isNaN(x)?null:x; };
+  const M=(a,b)=>a&&b&&b>=a?Math.round((b-a)/60000):null;
+  const hm=s=>{ const m=String(s||'').match(/^(\d+):(\d{2})/); return m?(+m[1])*60+(+m[2]):null; };
+  const em=D(r.dia,r.hr_emissao), si=D(r.dt_sep_ini||r.dia,r.hr_sep_ini), sf=D(r.dt_sep_fim||r.dt_sep_ini||r.dia,r.hr_sep_fim);
+  const nf=D(r.dt_nf,r.hr_nf), ex=D(r.dt_exp||r.exp,r.hr_exp), co=D(r.dt_coleta,r.hr_coleta);
+  const w=wm&&r.loja==='LL'?wm.get(String(r.id)):null; const ci=w?I(w.ci):null, cf=w?I(w.cf):null, wsf=w?I(w.sf):null;
+  return {...r,_em:em,_si:si,_sf:sf,_nf:nf,_ex:ex,_co:co,_ws:w?[...w.s].join(', '):'',_wc:w?[...w.c].join(', '):'',_ci:ci,_cf:cf,
+    _t1:M(em,si),_t2:hm(r.tempo_sep)??M(si,sf),_esp:M(wsf||sf,ci),_tc:w&&w.c.size?Math.round(w.tc):null,_t3:M(sf||si,nf),_t4:M(nf,ex),_lead:M(em,sf)};
+}
+function pedTabelaFull(rs, el, id, titulo){
+  if(!el) return;
+  const st=_PFT[id]=_PFT[id]||{sort:'_em',dir:-1,page:0,size:50};
+  if(st.rs&&st.rs.length!==rs.length) st.page=0;
+  st.rs=rs; st.el=el; st.titulo=titulo||st.titulo||'📋 Pedidos — todas as informações';
+  _pftRender(id);
+}
+function _pftRender(id){
+  const st=_PFT[id]; if(!st||!st.el) return;
+  const wm=_pftWmsMap(); const X=st.rs.map(r=>_pftExt(r,wm));
+  const col=PFT_COLS.find(c=>c[0]===st.sort)||PFT_COLS[2];
+  const kv=v=>v==null||v===''?null:(v instanceof Date?v.getTime():v);
+  X.sort((a,b)=>{const x=kv(a[st.sort]),y=kv(b[st.sort]); if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1;
+    return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),'pt-BR',{numeric:true}))*st.dir;});
+  const pages=Math.max(1,Math.ceil(X.length/st.size)); st.page=Math.min(st.page,pages-1); const from=st.page*st.size;
+  const e=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fT=d=>d?String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'):'—';
+  const fM=m=>m==null?'—':m<60?m+'min':Math.floor(m/60)+'h'+(m%60?' '+(m%60)+'min':'');
+  const cM=m=>m==null?'var(--mu)':m<=30?'var(--ok)':m<=60?'var(--y)':'var(--bad)';
+  const sit=s=>{const t=String(s||'').replace(/^\d+-/,''); const c=/Expedido/.test(s)?'ok':/Parado|Cancel/.test(s)?'bad':/coleta|Pagamento/i.test(s)?'wn':'bl2c'; return s?`<span class="bd ${c}">${e(t)}</span>`:'—';};
+  const cell=(r,c)=>{const v=r[c[0]];
+    if(c[0]==='id') return `<td class="r"><b>${e(v)}</b></td>`;
+    if(c[0]==='loja') return `<td><span class="bd ${v==='LT'?'ok':'bl2c'}">${e(v)}</span></td>`;
+    if(c[0]==='sit') return `<td>${sit(v)}</td>`;
+    if(c[0]==='urg') return `<td style="text-align:center">${v?'<span class="bd wn">U</span>':''}</td>`;
+    if(c[2]==='t') return `<td style="white-space:nowrap">${fT(v)}</td>`;
+    if(c[2]==='m') return `<td style="text-align:right;white-space:nowrap;font-weight:600;color:${cM(v)}">${fM(v)}</td>`;
+    return `<td style="white-space:nowrap;max-width:16rem;overflow:hidden;text-overflow:ellipsis" title="${e(v)}">${e(v||'—')}</td>`;};
+  const head=PFT_COLS.map(c=>`<th data-pft="${id}" data-pfts="${c[0]}" style="cursor:pointer;white-space:nowrap${c[2]==='m'?';text-align:right':''}">${c[1]}${st.sort===c[0]?(st.dir>0?' ▲':' ▼'):''}</th>`).join('');
+  const body=X.slice(from,from+st.size).map(r=>`<tr data-pid="${e(r.id)}" data-pl="${e(r.loja)}" class="ped-row" title="Clique para ver os itens e as etapas do pedido">${PFT_COLS.map(c=>cell(r,c)).join('')}</tr>`).join('');
+  st.X=X;
+  st.el.innerHTML=`<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.2rem 0 .5rem"><h3 style="margin:0;font-size:1rem">${st.titulo}</h3><span style="color:var(--mu);font-size:.8rem">${X.length.toLocaleString('pt-BR')} pedidos · clique no título da coluna para ordenar · role para o lado para ver tudo</span><span style="flex:1"></span><button type="button" class="bt" data-pftcsv="${id}" style="font-size:.78rem;padding:.25rem .7rem">Exportar CSV</button></div>`+
+    `<div class="tw pft-tw"><table class="pft"><thead><tr>${head}</tr></thead><tbody>${body||`<tr><td colspan="${PFT_COLS.length}" style="text-align:center;color:var(--mu);padding:1.5rem">Nenhum pedido com esses filtros</td></tr>`}</tbody></table></div>`+
+    `<div class="pg"><span>${X.length?`${(from+1).toLocaleString('pt-BR')}–${Math.min(from+st.size,X.length).toLocaleString('pt-BR')} de ${X.length.toLocaleString('pt-BR')} pedidos`:'0 pedidos'}</span><div><button class="bt" data-pft="${id}" data-pftpg="-1" ${st.page<1?'disabled':''}>Anterior</button><button class="bt" data-pft="${id}" data-pftpg="1" ${st.page>=pages-1?'disabled':''}>Próxima</button></div></div>`;
+}
+document.addEventListener('click',ev=>{
+  const c=ev.target.closest('[data-pftcsv]');
+  if(c){ const st=_PFT[c.dataset.pftcsv]; if(!st||!st.X) return;
+    const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const fT=d=>d?d.toLocaleString('pt-BR').replace(',',''):''; 
+    const lin=[PFT_COLS.map(x=>q(x[1])).join(';'),...st.X.map(r=>PFT_COLS.map(x=>{const v=r[x[0]];return q(x[2]==='t'?fT(v):x[0]==='urg'?(v?'S':''):v)}).join(';'))];
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+lin.join('\n')],{type:'text/csv;charset=utf-8'})); a.download='pedidos-completo.csv'; a.click(); URL.revokeObjectURL(a.href); return; }
+  const h=ev.target.closest('[data-pft]'); if(!h) return; const st=_PFT[h.dataset.pft]; if(!st) return;
+  if(h.dataset.pfts){ const k=h.dataset.pfts; if(st.sort===k) st.dir*=-1; else {st.sort=k; st.dir=(PFT_COLS.find(c=>c[0]===k)||[])[2]==='m'?-1:1;} st.page=0; }
+  else if(h.dataset.pftpg){ st.page+=Number(h.dataset.pftpg); }
+  _pftRender(h.dataset.pft);
+});
+window.pedTabelaFull=pedTabelaFull;
+
 // ── Estoque WMS (posição atual por endereço) — importação flexível de cabeçalho ──
 const _EWMS_COLS={
   endereco:['endereco','posicao','localizacao','enderecamento','local','end','posicaoestoque','enderecoestoque','codendereco'],
@@ -3158,7 +3352,7 @@ if(Array.isArray(D.rows)){
 if(!D.meses){
   D.meses=[...new Set(rows.map(r=>r.mes).filter(Boolean))].sort();
 }
-const F={q:'',loja:'',mes1:'',mes2:'',dt1:'',dt2:'',vend:'',cli:'',sit:'',tp2:'',urg:'',canc:'',conf:'',tp:'',icod:'',idesc:''};
+const F={q:'',loja:'',mes1:'',mes2:'',dt1:'',dt2:'',vend:'',cli:'',sit:'',tp2:'',urg:'',canc:'',conf:'',tp:'',icod:'',idesc:'',pid:'',opw:'',dow:''};
 window._PF=F;
 let histMode='mes'; // 'mes' | 'dia'
 let tSort=null,tPage=0;
@@ -3251,7 +3445,10 @@ function filtered(){
   if(F.vend)rs=rs.filter(r=>r.vend===F.vend);
   if(F.conf)rs=rs.filter(r=>(r.conf||'')===F.conf);
   if(F.tp)rs=rs.filter(r=>r.tp===F.tp);
-  if(F.cli)rs=rs.filter(r=>r.cli===F.cli);
+  if(F.cli){const c=F.cli.toLowerCase().trim();rs=rs.filter(r=>String(r.cli||'').toLowerCase().includes(c))}
+  if(F.pid){const p=String(F.pid).trim();rs=rs.filter(r=>String(r.id).includes(p))}
+  if(F.dow)rs=rs.filter(r=>window._dsem(r.dia)===F.dow);
+  if(F.opw&&window._WMS){const ids=new Set(window._WMS.filter(w=>w.operador===F.opw&&w.pedido_id).map(w=>String(w.pedido_id)));rs=rs.filter(r=>r.loja==='LL'&&ids.has(String(r.id)))}
   if(_itemTerm()&&_itemBusca&&_itemBusca.term===_itemTerm()&&!_itemBusca.loading)rs=rs.filter(r=>_itemBusca.keys.has(String(r.id)+'|'+r.loja));
   if(F.sit)rs=rs.filter(r=>r.sit===F.sit);
   if(F.tp2)rs=rs.filter(r=>r.tp2===F.tp2);
@@ -3367,8 +3564,9 @@ function renderItemPanel(rs){
 
 // ── Barra de filtros visível do Tempo Médio (usa os mesmos filtros do menu) ──
 const _TM_ETAPAS=[['t1','T1 · Emissão → Início sep.'],['t2','T2 · Início → Fim sep.'],['t3','T3 · Fim sep. → NF-e'],['t4','T4 · NF-e → Expedição'],['lead','Lead Total']];
+const _fbEl=()=>document.getElementById(cur==='tempos'?'tm-fb':'pv-fb');
 function buildTmFilters(){
-  const el=document.getElementById('tm-fb'); if(!el) return;
+  const el=_fbEl(); if(!el) return; const _tm=cur==='tempos';
   if(el.contains(document.activeElement)&&document.activeElement.tagName==='INPUT'){ tmBtn(); return; }
   const o=(v,l,s)=>`<option value="${esc(v)}"${String(s)===String(v)?' selected':''}>${esc(l)}</option>`;
   const sel=(k,lbl,vals,todos='Todos')=>`<label class="fl">${lbl}<select class="tmf" data-k="${k}">${o('',todos,F[k])}${vals.map(v=>Array.isArray(v)?o(v[0],v[1],F[k]):o(v,v,F[k])).join('')}</select></label>`;
@@ -3377,6 +3575,8 @@ function buildTmFilters(){
   const fxs=[];for(let b=0;b<=_FX_MAX;b+=5)fxs.push([b,_fxLbl(b)]);
   el.innerHTML=
     `<label class="fl grow">Buscar<input class="tmf" data-k="q" type="search" placeholder="Cliente, pedido ou vendedor" value="${esc(F.q)}"></label>`+
+    `<label class="fl grow">Cliente<input class="tmf" data-k="cli" type="search" list="dl-cli" placeholder="Nome do cliente" value="${esc(F.cli)}"><datalist id="dl-cli">${uniq('cli').slice(0,3000).map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>`+
+    `<label class="fl">Nº do pedido<input class="tmf" data-k="pid" type="search" inputmode="numeric" placeholder="Ex.: 30639" value="${esc(F.pid)}"></label>`+
     `<label class="fl">Cód. do item<input class="tmf" data-k="icod" type="search" placeholder="Ex.: 6I6602" value="${esc(F.icod)}"></label>`+
     `<label class="fl grow">Descrição do item<input class="tmf" data-k="idesc" type="search" placeholder="Ex.: retentor" value="${esc(F.idesc)}"></label>`+
     sel('loja','Loja',[['LT','LT'],['LL','LL']],'Ambas')+
@@ -3385,12 +3585,15 @@ function buildTmFilters(){
     sel('mes1','Mês de',meses,'—')+sel('mes2','Mês até',meses,'—')+
     sel('vend','Vendedor',uniq('vend'))+
     sel('conf','Separador',uniq('conf'))+
+    sel('opw','Operador WMS (LL)',window._WMS?[...new Set(window._WMS.map(w=>w.operador))].sort():[])+
+    sel('dow','Dia da semana',[['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sáb','Sábado'],['dom','Domingo']])+
     sel('tp2','Tipo de entrega',uniq('tp2'))+
     sel('tp','Transportadora',uniq('tp'),'Todas')+
     sel('sit','Situação',uniq('sit'),'Todas')+
     `<label class="fl">Urgente<select class="tmf" data-k="urg">${o('','Todos',F.urg)}${o('S','Só urgentes',F.urg)}</select></label>`+
-    `<label class="fl">Etapa (faixa)<select class="tmfx" data-k="k">${o('','—',TMF.k||'')}${_TM_ETAPAS.map(([k,l])=>o(k,l,TMF.k||'')).join('')}</select></label>`+
-    `<label class="fl">Faixa de tempo<select class="tmfx" data-k="b">${o('','—',TMF.b??'')}${fxs.map(([b,l])=>o(b,l,TMF.b??'')).join('')}</select></label>`+
+    `<label class="fl">Cancelados<select class="tmf" data-k="canc">${o('','Todos',F.canc)}${o('S','Só cancelados',F.canc)}</select></label>`+
+    (_tm?`<label class="fl">Etapa (faixa)<select class="tmfx" data-k="k">${o('','—',TMF.k||'')}${_TM_ETAPAS.map(([k,l])=>o(k,l,TMF.k||'')).join('')}</select></label>`+
+    `<label class="fl">Faixa de tempo<select class="tmfx" data-k="b">${o('','—',TMF.b??'')}${fxs.map(([b,l])=>o(b,l,TMF.b??'')).join('')}</select></label>`:'')+
     `<div class="fa"><button id="tm-clr" class="bt" type="button"></button></div>`;
   tmBtn();
 }
@@ -3405,13 +3608,13 @@ async function tmItem(){const term=_itemTerm();if(!term){_itemBusca=null;return 
   const p=carregarItemBusca(term);tmApply();await p;if(_itemTerm()===term)tmApply()}
 document.addEventListener('change',e=>{
   const el=e.target.closest('.tmfx'); if(!el) return;
-  const fb=document.getElementById('tm-fb');
+  const fb=_fbEl();
   const k=fb.querySelector('.tmfx[data-k=k]').value, b=fb.querySelector('.tmfx[data-k=b]').value;
   if(k&&b===''){ window._TMFpend=k; if(window._TMF){window._TMF=null; tmApply();} return; } // só a etapa: espera a faixa
   window._TMFpend=''; window._TMF=(k&&b!=='')?{k,b:+b}:null; tmApply();
 });
 document.addEventListener('click',e=>{
-  if(e.target.closest('#tm-clr')){Object.keys(F).forEach(k=>F[k]='');_itemBusca=null;window._TMF=null;window._TMFpend='';const fb=document.getElementById('tm-fb');if(fb)fb.innerHTML='';tmApply();return}
+  if(e.target.closest('#tm-clr')){Object.keys(F).forEach(k=>F[k]='');_itemBusca=null;window._TMF=null;window._TMFpend='';const fb=_fbEl();if(fb)fb.innerHTML='';tmApply();return}
   const el=e.target.closest('[data-tmk]'); if(!el||cur!=='tempos') return;
   const k=el.dataset.tmk, v=el.dataset.tmv;
   if(k==='vend'||k==='conf'){F[k]=F[k]===v?'':v}
@@ -4190,6 +4393,7 @@ function renderCliHist(rs,el){
 }
 
 function renderTable(rs){
+  { pedTabelaFull(rs,document.getElementById('p-tb'),'pv'); return; }
   if(tSort){const[k,d]=tSort;rs=rs.slice().sort((a,b)=>_cmpDir(a[k],b[k],d))}
   const pages=Math.max(1,Math.ceil(rs.length/P));tPage=Math.min(tPage,pages-1);const from=tPage*P;
   const SIT={
@@ -4280,6 +4484,7 @@ function render(){
     const _per=(F.mes1||F.mes2||F.dt1||F.dt2)?'(período filtrado'+(F.mes1&&F.mes1===F.mes2?': '+F.mes1.slice(5)+'/'+F.mes1.slice(0,4):'')+')':null;
     const p1=document.getElementById('tm-per1'),p2=document.getElementById('tm-per2');
     if(p1)p1.textContent=_per?_per.replace(')',' · até 60 dias)'):'(últimos 60 dias)'; if(p2)p2.textContent=_per?_per.replace(')',' · até 200 com separação)'):'(últimos 200 com separação)'; }
+  { const pv=document.getElementById('pv-fb'); if(pv){ if(isTempos||isItens||isEstoque) pv.innerHTML=''; else buildTmFilters(); } }
   if(!isItens&&!isTempos) renderTable(rs);
   buildSidebarFilters();
 }
@@ -4368,7 +4573,7 @@ async function go(tab){
       `<article class="pn w2"><h3>👤 Lead Total médio por vendedor</h3><div id="c-tm-vend-lead"></div></article>`+
       `<article class="pn w2"><h3>🔧 T1 e T2 médios por vendedor</h3><div id="c-tm-vend-t1t2"></div></article>`+
       `<article class="pn w2"><h3>📅 T1 e T2 médios por dia <small id="tm-per1" style="font-weight:400;color:var(--mu)">(últimos 60 dias)</small></h3><div id="c-tm-dia-t1t2"></div></article>`+
-      `<article class="pn w2"><h3>📋 T2 por pedido <small id="tm-per2" style="font-weight:400;color:var(--mu)">(últimos 200 com separação)</small></h3><div id="c-tm-ped-t2"></div></article>`;
+      `<article class="pn w2"><div id="c-tm-ped-t2"></div></article>`;
   } else if(tab==='estoque'){
     $('#p-kp').hidden=true; $('#p-tb').hidden=true;
     cg.innerHTML=
@@ -4819,7 +5024,8 @@ function renderTemposTab(rs,rsEvol){
 
     // ── T2 por pedido (últimos 200 com separação) ─────
     const pedT2=$t('c-tm-ped-t2');
-    if(pedT2&&vT2.length>0){
+    if(pedT2){ pedTabelaFull(withDur,pedT2,'tm','📋 Pedidos — todas as informações e tempos'); }
+    else if(pedT2&&vT2.length>0){
       const rows=vT2.slice().sort((a,b2)=>(b2.dia||'').localeCompare(a.dia||'')).slice(0,200);
       const html=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.82rem">`+
         `<thead><tr>`+
