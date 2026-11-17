@@ -5423,8 +5423,8 @@ function renderProdInd(rsF){
           CS:seq.filter(s=>s.de==='C'&&s.t.tipo==='S'&&!s.pz).map(s=>s.gap),CC:seq.filter(s=>s.de==='C'&&s.t.tipo==='C'&&!s.pz).map(s=>s.gap)},gOk});
   });
   // indicadores por operador (período)
-  const OP={}; OD.forEach(d=>{(OP[d.op]=OP[d.op]||[]).push(d);});
-  const ind=Object.entries(OP).map(([op,D])=>{
+  const indOf=ODx=>{ const OP={}; ODx.forEach(d=>{(OP[d.op]=OP[d.op]||[]).push(d);});
+  return Object.entries(OP).map(([op,D])=>{
     const L=D.flatMap(d=>d.L), Ls=L.filter(t=>t.tipo==='S'), Lc=L.filter(t=>t.tipo==='C');
     const pk=t=>t.loja+'|'+(t.ped||('w'+t.pw));
     const pedS={}; Ls.forEach(t=>{const k=pk(t);const o=pedS[k]=pedS[k]||{dur:0,qt:null,skus:null};o.dur+=t.dur;if(t.qt!=null){o.qt=(o.qt||0)+t.qt;o.skus=(o.skus||0)+(t.skus||0);}});
@@ -5442,7 +5442,16 @@ function renderProdInd(rsF){
       prodD:prod/nd,sepD:sum(D.map(d=>d.sepU))/nd,confD:sum(D.map(d=>d.confU))/nd,ate1D:avg(D.map(d=>d.ate1)),entreD:sum(D.map(d=>d.ociosoEntre))/nd,
       ociosoD:sum(D.map(d=>d.ocioso))/nd,pausaD:sum(D.map(d=>d.pausa))/nd,jornD:sum(D.map(d=>d.jorn))/nd,
       util:(()=>{const den=sum(D.map(d=>d.jorn-d.pausa));return den>0?prod/den:null})()};
-  }).sort((a,b)=>b.peds-a.peds);
+  }).sort((a,b)=>b.peds-a.peds); };
+  const ind=indOf(OD);
+  // dia selecionado (vale para a composição da jornada e para a linha do tempo)
+  const dias=[...new Set(OD.map(d=>d.dia))].sort().reverse();
+  if(!dias.includes(S.dia)) S.dia=dias[0];
+  const ops=[...new Set(OD.map(d=>d.op))].sort();
+  if(S.op&&!ops.includes(S.op)) S.op='';
+  const ODdia=OD.filter(d=>d.dia===S.dia&&(!S.op||d.op===S.op));
+  const indD=indOf(ODdia).sort((a,b)=>(a.hr1??0)-(b.hr1??0)); // mesma ordem da linha do tempo (quem começou primeiro)
+  const di=dias.indexOf(S.dia), fd=d=>(typeof _dsem==='function'?_dsem(d)+' ':'')+d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
   // ── KPIs gerais
   const ODall=OD, Lall=T.filter(t=>t.tipo==='S');
   const totPed=new Set(T.map(t=>t.loja+'|'+(t.ped||('w'+t.pw)))).size;
@@ -5465,30 +5474,28 @@ function renderProdInd(rsF){
   const leg=`<div style="display:flex;flex-wrap:wrap;gap:.8rem;font-size:.75rem;color:var(--mu);margin:.2rem 0 .5rem">`+
     [[BG.a1,'Parado 08:00 → 1º pedido'],[BG.S,'Separando'],[BG.C,'Conferindo'],[BG.oc,'Parado entre tarefas'],[BG.pz,'Almoço / pausas > '+PZ+'min']].map(([c,l])=>`<span><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;background:${c};vertical-align:-1px;margin-right:.3rem"></i>${l}</span>`).join('')+`</div>`;
   const seg=(v,c,t,tot)=>v>0.5&&tot>0?`<div title="${t}: ${fm(v)} (${Math.round(v/tot*100)}%)" style="width:${v/tot*100}%;background:${c};height:100%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:600;color:${c===C.S?'#1a1a1a':'#fff'};overflow:hidden;white-space:nowrap;border-right:1px solid var(--bg,#111)"><span class="pi-st">${v/tot>0.09?fm(v):''}</span></div>`:'';
-  const comp=`<h4 style="margin:.4rem 0 .1rem;font-size:.88rem">⏱️ Composição da jornada média por operador <small style="font-weight:400;color:var(--mu)">(100% = das 08:00 até o fim da última tarefa)</small></h4>`+leg+
-    `<div style="display:flex;flex-direction:column;gap:.35rem">`+ind.map(i=>`<div style="display:flex;align-items:center;gap:.5rem">`+
+  const filtroDia=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.2rem 0 .7rem;padding:.55rem .7rem;border:1px solid var(--ln,#333);border-radius:8px;background:color-mix(in srgb,var(--bd) 12%,transparent)">`+
+      `<b style="font-size:.85rem;flex:1 1 auto">📅 Dia da jornada e da linha do tempo</b>`+
+      `<button type="button" class="bt" data-pi-nav="1" ${di>=dias.length-1?'disabled':''} title="Dia anterior">◀</button>`+
+      `<select class="tmf" data-pi="dia" style="min-width:9.5rem">${dias.map(d=>`<option value="${d}" ${d===S.dia?'selected':''}>${fd(d)}</option>`).join('')}</select>`+
+      `<button type="button" class="bt" data-pi-nav="-1" ${di<=0?'disabled':''} title="Próximo dia">▶</button>`+
+      `<select class="tmf" data-pi="op"><option value="">Todos os operadores</option>${ops.map(o=>`<option ${o===S.op?'selected':''}>${_escP(o)}</option>`).join('')}</select>`+
+    `</div>`;
+  const comp=filtroDia+`<h4 style="margin:.4rem 0 .1rem;font-size:.88rem">⏱️ Composição da jornada em ${fd(S.dia)} <small style="font-weight:400;color:var(--mu)">(100% = das 08:00 até o fim da última tarefa)</small></h4>`+leg+
+    `<div style="display:flex;flex-direction:column;gap:.35rem">`+(indD.length?'':'<p class="mu2" style="padding:.6rem">Sem tarefas neste dia.</p>')+indD.map(i=>`<div style="display:flex;align-items:center;gap:.5rem">`+
       `<div class="pi-nm" style="width:8.5rem;flex:none;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escP(i.op)}">${_escP(i.op)} <span style="font-size:.66rem;color:var(--mu)">${i.lojas}</span></div>`+
       `<div style="flex:1;display:flex;height:1.25rem;border-radius:3px;overflow:hidden">`+
         (t=>seg(i.ate1D,BG.a1,'Parado 08:00 → 1º pedido',t)+seg(i.sepD,BG.S,'Separando',t)+seg(i.confD,BG.C,'Conferindo',t)+seg(i.entreD,BG.oc,'Parado entre tarefas',t)+seg(i.pausaD,BG.pz,'Pausas',t))(i.ate1D+i.sepD+i.confD+i.entreD+i.pausaD)+`</div>`+
       `<div class="pi-sd" style="width:13.5rem;flex:none;text-align:right;font-size:.76rem;white-space:nowrap"><span class="pi-w" style="color:var(--mu)">parado</span> <b style="color:#d9604c">${fm(i.ociosoD)}</b><span class="pi-w" style="color:var(--mu)"> · </span><br class="pi-br"><b style="color:${i.util>=.7?'#3ecf8e':i.util>=.5?'#f5c518':'#ef5350'}">${i.util!=null?Math.round(i.util*100)+'%':'—'}</b> <span style="color:var(--mu)">útil</span></div></div>`).join('')+`</div>`;
   // ── Linha do tempo do dia
-  const dias=[...new Set(OD.map(d=>d.dia))].sort().reverse();
-  if(!dias.includes(S.dia)) S.dia=dias[0];
-  const ops=[...new Set(OD.map(d=>d.op))].sort();
-  if(S.op&&!ops.includes(S.op)) S.op='';
   const DD=OD.filter(d=>d.dia===S.dia&&(!S.op||d.op===S.op)).sort((a,b)=>a.p0-b.p0);
   const a0=Math.floor(Math.min(J0,...DD.map(d=>d.p0))/60)*60, a1=Math.max(a0+120,Math.ceil(Math.max(17*60,...DD.map(d=>d.fimD))/60)*60), span=a1-a0;
   const X=m=>Math.max(0,Math.min(100,(m-a0)/span*100));
-  const di=dias.indexOf(S.dia), fd=d=>(typeof _dsem==='function'?_dsem(d)+' ':'')+d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
   const hm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
   const blk=(x0,x1,c,t,lb)=>x1-x0>0?`<div title="${_escP(t)}" style="position:absolute;top:12%;bottom:12%;left:${X(x0)}%;width:max(2px,${X(x1)-X(x0)}%);background:${c};border-radius:2px;box-shadow:inset -1px 0 0 rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:.64rem;font-weight:600;color:${c===C.S?'#1a1a1a':'#fff'};white-space:nowrap">${lb&&X(x1)-X(x0)>3.2?'<span class="pi-st">'+lb+'</span>':''}</div>`:'';
   const ticks=[];for(let m=a0;m<=a1;m+=60)ticks.push(m);
   const gantt=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:1rem 0 .5rem">`+
-      `<h4 style="margin:0;font-size:.88rem;flex:1 1 auto">📍 Linha do tempo do dia</h4>`+
-      `<button type="button" class="bt" data-pi-nav="1" ${di>=dias.length-1?'disabled':''}>◀</button>`+
-      `<select class="tmf" data-pi="dia" style="min-width:9.5rem">${dias.map(d=>`<option value="${d}" ${d===S.dia?'selected':''}>${fd(d)}</option>`).join('')}</select>`+
-      `<button type="button" class="bt" data-pi-nav="-1" ${di<=0?'disabled':''}>▶</button>`+
-      `<select class="tmf" data-pi="op"><option value="">Todos os operadores</option>${ops.map(o=>`<option ${o===S.op?'selected':''}>${_escP(o)}</option>`).join('')}</select>`+
+      `<h4 style="margin:0;font-size:.88rem;flex:1 1 auto">📍 Linha do tempo em ${fd(S.dia)}</h4>`+
     `</div>`+
     `<div style="display:flex;gap:.5rem;font-size:.7rem;color:var(--mu)"><div class="pi-nm" style="width:8.5rem;flex:none"></div><div style="flex:1;position:relative;height:1rem">${ticks.map(m=>`<span class="${(m/60)%2?'pi-odd':''}" style="position:absolute;left:${X(m)}%;transform:translateX(-50%)">${hh(m).slice(0,2)}h</span>`).join('')}</div><div class="pi-sd" style="width:13.5rem;flex:none"></div></div>`+
     `<div style="display:flex;flex-direction:column;gap:.3rem">`+(DD.length?DD.map(d=>{
