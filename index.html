@@ -3910,7 +3910,8 @@ function renderHistDia(rs,el){
     // separador de mês (linha vertical fina quando muda o mês)
     const sepMes=(i>0&&x.m.slice(0,7)!==tots[i-1].m.slice(0,7))?
       `<line x1="${bL1}" y1="${PT}" x2="${bL1}" y2="${PT+cH}" stroke="var(--bd)" stroke-width="1" opacity=".5"/>`:'';
-    const hRect=`<rect class="dia-bar" x="${bL1}" y="${PT}" width="${bw1}" height="${cH}" fill="transparent" data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:pointer"/>`;
+    const _sel=F.dt1&&F.dt1===F.dt2&&F.dt1===x.m;
+    const hRect=`<rect class="dia-bar" x="${bL1}" y="${PT}" width="${bw1}" height="${cH}" fill="${_sel?'var(--y)':'transparent'}" fill-opacity="${_sel?'.12':'0'}" ${_sel?'stroke="var(--y)" stroke-width="1.5"':''} data-i="${i}" data-m="${x.m}" data-tot="${x.tot}" data-lt="${x.LT}" data-ll="${x.LL}" style="cursor:pointer"/>`;
     return sepMes+rLL+rLT+lblLL+lblLT+lblTot+lblX+hRect;
   }).join('');
 
@@ -3987,7 +3988,7 @@ function renderHistDia(rs,el){
   const legenda=`<div class="hlgd" style="margin-top:.3rem">
     <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:12px;height:10px;background:#f5c518;border-radius:2px"></span> LT – Loja Trator</span>
     <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem"><span style="display:inline-block;width:12px;height:10px;background:#5bafd6;border-radius:2px"></span> LL – Loja Leão</span>
-    <span class="mu2" style="font-size:.7rem">passe o mouse para detalhes · linha vertical = virada de mês</span>
+    <span class="mu2" style="font-size:.7rem">passe o mouse para detalhes · clique num dia para filtrar todo o painel (clique de novo para limpar) · linha vertical = virada de mês</span>
   </div>`;
 
   el.innerHTML=toggleHtml+resumo+
@@ -3998,6 +3999,11 @@ function renderHistDia(rs,el){
 
   // Tooltip on hover
   el.querySelectorAll('.dia-bar').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const d=b.dataset.m; if(!d) return;
+      if(F.dt1===d&&F.dt2===d){F.dt1='';F.dt2='';} else {F.dt1=d;F.dt2=d;}
+      tPage=0;buildSidebarFilters();render();
+    });
     b.addEventListener('mouseenter',()=>{
       const tip=el.querySelector('#area-tip');
       const idx=+b.dataset.i;
@@ -4536,8 +4542,9 @@ function render(){
   $('#p-tb').hidden=isItens||isTempos||isEstoque;
   if(!isItens&&!isTempos&&!isEstoque){$('#p-kp').innerHTML=kpHtml(kpis(rs));}
   const cg=$('#cg');
+  const _rsH=(F.dt1&&F.dt1===F.dt2)?(()=>{const sv=[F.dt1,F.dt2];F.dt1=F.dt2='';const x=filtered();[F.dt1,F.dt2]=sv;return x})():rs;
   if(cur==='ov'){
-    renderHist(rs,$('#c-hist'));
+    renderHist(_rsH,$('#c-hist'));
     renderDonut(rs,'loja',$('#c-loja'),{col:{LT:'var(--y)',LL:'var(--bl)'},u:'pedidos'});
     renderDonut(rs,'tp2',$('#c-tp2'),{col:{RETIRA:'var(--y)',BALCÃO:'var(--bl)',ENTREGA:'var(--ok)',TRANSPORTADORA:'var(--bad)','NÃO SEPARAR':'var(--mu)'}});
     renderDonut(rs,'sit',$('#c-sit'),{col:{'10-Expedido':'var(--ok)','2-Parado':'var(--bad)','9-Aguardando coleta/despacho':'var(--y)'}});
@@ -4556,7 +4563,7 @@ function render(){
     renderBars(rs,'tp2',$('#c-ttp2'),{pr:true,label:'tipos'});
     renderBars(rs,'tp',$('#c-tp'),{pr:true,top:20,label:'transportadoras'});
   }else if(cur==='hist'){
-    renderHist(rs,$('#c-hist2'));
+    renderHist(_rsH,$('#c-hist2'));
     renderBars(rs,'mes',$('#c-mes'),{top:15,label:'meses'});
   }
   // ── Itens tab ───────────────────────────────────────────
