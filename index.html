@@ -176,6 +176,7 @@ main{padding:1rem 0 2.5rem}
 @media(max-width:760px){.tmfb .fb-tog{display:flex;width:100%;justify-content:space-between;align-items:center;gap:.5rem;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:.6rem .8rem;font:inherit;font-weight:700;font-size:.95rem;cursor:pointer;grid-column:1/-1}.tmfb .fb-tog span{font-weight:500;font-size:.8rem;color:var(--mu)}.tmfb:not(.open) .fb-body{display:none}.tmfb.open .fb-body{margin-top:.6rem}}
 .fb-body{display:contents}
 table.hd-tb{border-collapse:separate;border-spacing:2px;font-size:.78rem;width:100%}table.hd-tb th{font-weight:600;color:var(--mu);padding:.15rem .35rem;font-size:.74rem}table.hd-tb td{text-align:center;min-width:2.1rem;height:1.7rem;border-radius:4px;font-variant-numeric:tabular-nums}table.hd-tb .hd-t,table.hd-tb .hd-tot td{color:var(--mu);font-weight:600}.bt.on{background:var(--y);color:#111;border-color:var(--y)}
+.rota-cfg{background:none;border:0;color:var(--y);font-size:.72rem;cursor:pointer;padding:0 0 0 .3rem;text-transform:none;letter-spacing:0}
 table.pft{width:max-content;min-width:100%;border-collapse:collapse;font-size:.8rem}table.pft th{position:sticky;top:0;background:var(--s2);z-index:1;padding:.45rem .55rem;text-align:left;font-size:.74rem;color:var(--mu);border-bottom:1px solid var(--ln)}table.pft td{padding:.38rem .55rem;border-bottom:1px solid color-mix(in srgb,var(--ln) 60%,transparent)}.pft-tw{max-height:620px;overflow:auto}#pv-fb:empty{display:none}
 tr.ped-row{cursor:pointer}tr.ped-row:hover td{background:color-mix(in srgb,var(--y) 12%,transparent)}
 .ped-ov{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto}
@@ -910,6 +911,11 @@ async function prepararEstoqueE(D){
 
 // ── Carrega pedidos do Supabase (paginado, todas as páginas) ──────────────────
 // WMS (LL): carregado aqui, antes dos pedidos, para completar o fim da separação já na restauração da sessão
+// Horário das rotas (manhã/tarde) — compartilhado no banco (app_config.rotas); usado no filtro "Rota"
+window._ROTAS={manha:['07:00','11:59'],tarde:['12:00','18:00']};
+async function carregarRotas(){ try{ const {data}=await _sb.from('app_config').select('valor').eq('chave','rotas').maybeSingle(); if(data&&data.valor&&data.valor.manha) window._ROTAS=data.valor; }catch(e){ console.warn('[rotas]',e); } }
+async function salvarRotas(v){ const {error}=await _sb.from('app_config').upsert({chave:'rotas',valor:v,atualizado_em:new Date().toISOString()}); if(error) throw new Error(error.code==='42501'||/policy|permission/i.test(error.message)?'Apenas administradores podem alterar o horário das rotas.':error.message); window._ROTAS=v; }
+function rotaDe(h){ h=String(h||'').slice(0,5); if(!/^\d\d:\d\d$/.test(h)) return ''; const R=window._ROTAS; if(h>=R.manha[0]&&h<=R.manha[1]) return 'manha'; if(h>=R.tarde[0]&&h<=R.tarde[1]) return 'tarde'; return 'fora'; }
 let _wmsLoad=null;
 function carregarWms(){
   if(_wmsLoad) return _wmsLoad;
@@ -966,6 +972,7 @@ async function carregarPedidosSupa(){
   // (início/fim da separação e da conferência); os demais seguem o ERP. Ordem: emissão → separação → conferência → NF-e → expedição.
   try{
     {
+      await carregarRotas();
       const W=await carregarWms(), m={};
       W.forEach(w=>{ if(!w.pedido_id||!w.inicio) return; const o=m[w.pedido_id]||(m[w.pedido_id]={si:null,sf:null,ci:null,cf:null});
         const fim=w.fim||w.inicio;
@@ -2952,7 +2959,7 @@ const N0pw=v=>Number(v||0).toLocaleString('pt-BR');
 // ── Tabela completa de pedidos (Visão Geral, demais abas e Tempo Médio): todas as informações + tempos + WMS ──
 const _PFT={};
 const PFT_COLS=[
-  ['id','Pedido','n'],['loja','Loja'],['_em','Emissão','t'],['cli','Cliente'],['vend','Vendedor'],['tp2','Tipo entrega'],['tp','Transportadora'],['sit','Situação'],['urg','Urg.'],
+  ['id','Pedido','n'],['loja','Loja'],['_em','Emissão','t'],['_rota','Rota'],['cli','Cliente'],['vend','Vendedor'],['tp2','Tipo entrega'],['tp','Transportadora'],['sit','Situação'],['urg','Urg.'],
   ['conf','Separador (ERP)'],['_si','Início sep.','t'],['_sf','Fim sep.','t'],['_ws','Separador WMS'],['_wc','Conferente WMS'],['_ci','Início conf.','t'],['_cf','Fim conf.','t'],
   ['_nf','NF-e','t'],['_ex','Expedição','t'],['_co','Coleta','t'],
   ['_t1','T1','m'],['_t2','T2','m'],['_esp','Espera sep.→conf.','m'],['_tc','Conferência','m'],['_t3','T3','m'],['_t4','T4','m'],['_lead','Lead','m']
@@ -2974,7 +2981,8 @@ function _pftExt(r,wm){
   const em=D(r.dia,r.hr_emissao), si=D(r.dt_sep_ini||r.dia,r.hr_sep_ini), sf=D(r.dt_sep_fim||r.dt_sep_ini||r.dia,r.hr_sep_fim);
   const nf=D(r.dt_nf,r.hr_nf), ex=D(r.dt_exp||r.exp,r.hr_exp), co=D(r.dt_coleta,r.hr_coleta);
   const w=wm&&r.loja==='LL'?wm.get(String(r.id)):null; const ci=w?I(w.ci):null, cf=w?I(w.cf):null, wsf=w?I(w.sf):null;
-  return {...r,_em:em,_si:si,_sf:sf,_nf:nf,_ex:ex,_co:co,_ws:w?[...w.s].join(', '):'',_wc:w?[...w.c].join(', '):'',_ci:ci,_cf:cf,
+  const _rt=rotaDe(r.hr_emissao);
+  return {...r,_rota:_rt==='manha'?'Manhã':_rt==='tarde'?'Tarde':_rt==='fora'?'Fora':'',_em:em,_si:si,_sf:sf,_nf:nf,_ex:ex,_co:co,_ws:w?[...w.s].join(', '):'',_wc:w?[...w.c].join(', '):'',_ci:ci,_cf:cf,
     _t1:M(em,si),_t2:hm(r.tempo_sep)??M(si,sf),_esp:M(wsf||sf,ci),_tc:w&&w.c.size?Math.round(w.tc):null,_t3:M(sf||si,nf),_t4:M(nf,ex),_lead:M(em,sf)};
 }
 function pedTabelaFull(rs, el, id, titulo){
@@ -3364,7 +3372,7 @@ if(Array.isArray(D.rows)){
 if(!D.meses){
   D.meses=[...new Set(rows.map(r=>r.mes).filter(Boolean))].sort();
 }
-const F={q:'',loja:'',mes1:'',mes2:'',dt1:'',dt2:'',vend:'',cli:'',sit:'',tp2:'',urg:'',canc:'',conf:'',tp:'',icod:'',idesc:'',pid:'',opw:'',dow:'',hr:''};
+const F={q:'',loja:'',mes1:'',mes2:'',dt1:'',dt2:'',vend:'',cli:'',sit:'',tp2:'',urg:'',canc:'',conf:'',tp:'',icod:'',idesc:'',pid:'',opw:'',dow:'',hr:'',rota:''};
 window._PF=F;
 let histMode='mes'; // 'mes' | 'dia'
 let tSort=null,tPage=0;
@@ -3461,6 +3469,7 @@ function filtered(){
   if(F.pid){const p=String(F.pid).trim();rs=rs.filter(r=>String(r.id).includes(p))}
   if(F.dow)rs=rs.filter(r=>window._dsem(r.dia)===F.dow);
   if(F.hr)rs=rs.filter(r=>String(r.hr_emissao||'').slice(0,2)===F.hr);
+  if(F.rota)rs=rs.filter(r=>rotaDe(r.hr_emissao)===F.rota);
   if(F.opw&&window._WMS){const ids=new Set(window._WMS.filter(w=>w.operador===F.opw&&w.pedido_id).map(w=>String(w.pedido_id)));rs=rs.filter(r=>r.loja==='LL'&&ids.has(String(r.id)))}
   if(_itemTerm()&&_itemBusca&&_itemBusca.term===_itemTerm()&&!_itemBusca.loading)rs=rs.filter(r=>_itemBusca.keys.has(String(r.id)+'|'+r.loja));
   if(F.sit)rs=rs.filter(r=>r.sit===F.sit);
@@ -3578,6 +3587,31 @@ function renderItemPanel(rs){
 // ── Barra de filtros visível do Tempo Médio (usa os mesmos filtros do menu) ──
 const _TM_ETAPAS=[['t1','T1 · Emissão → Início sep.'],['t2','T2 · Início → Fim sep.'],['t3','T3 · Fim sep. → NF-e'],['t4','T4 · NF-e → Expedição'],['lead','Lead Total']];
 const _fbEl=()=>document.getElementById(cur==='tempos'?'tm-fb':'pv-fb');
+document.addEventListener('click',async e=>{
+  if(e.target.closest('[data-rotacfg]')){ e.preventDefault();
+    let ov=document.getElementById('rota-ov'); if(!ov){ ov=document.createElement('div'); ov.id='rota-ov'; ov.className='ped-ov'; document.body.appendChild(ov);
+      ov.addEventListener('click',ev=>{ if(ev.target===ov||ev.target.closest('[data-rclose]')) ov.hidden=true; }); }
+    const R=window._ROTAS, t=(id,v)=>`<input type="time" id="${id}" value="${v}" style="width:100%">`;
+    ov.hidden=false;
+    ov.innerHTML=`<div class="ped-box" style="max-width:420px"><div class="ped-hd"><div><h2>🚚 Horário das rotas</h2><p>Pela hora da emissão do pedido. Vale para todos os usuários.</p></div><button class="bt" type="button" data-rclose>✕</button></div>
+      <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:.6rem;align-items:center;padding:.4rem 0">
+        <span></span><b style="font-size:.8rem;color:var(--mu)">Início</b><b style="font-size:.8rem;color:var(--mu)">Fim</b>
+        <b>☀️ Manhã</b>${t('rt-m1',R.manha[0])}${t('rt-m2',R.manha[1])}
+        <b>🌇 Tarde</b>${t('rt-t1',R.tarde[0])}${t('rt-t2',R.tarde[1])}
+      </div><p id="rt-msg" style="font-size:.8rem;color:var(--mu);min-height:1.2em"></p>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end"><button class="bt" type="button" data-rclose>Cancelar</button><button class="bt on" type="button" id="rt-salvar">Salvar</button></div></div>`;
+    return; }
+  if(e.target.closest('#rt-salvar')){
+    const g=id=>document.getElementById(id).value, msg=document.getElementById('rt-msg');
+    const v={manha:[g('rt-m1'),g('rt-m2')],tarde:[g('rt-t1'),g('rt-t2')]};
+    if(Object.values(v).flat().some(x=>!/^\d\d:\d\d$/.test(x))){msg.textContent='Preencha os quatro horários.';return}
+    if(v.manha[0]>v.manha[1]||v.tarde[0]>v.tarde[1]){msg.textContent='O início precisa ser antes do fim.';return}
+    if(v.tarde[0]<=v.manha[1]){msg.textContent='A tarde precisa começar depois do fim da manhã.';return}
+    msg.textContent='Salvando…';
+    try{ await salvarRotas(v); document.getElementById('rota-ov').hidden=true; const fb=_fbEl(); if(fb) fb.innerHTML=''; window._rerenderP&&window._rerenderP(); }
+    catch(err){ msg.style.color='var(--bad)'; msg.textContent='❌ '+err.message; }
+  }
+});
 document.addEventListener('click',e=>{if(!e.target.closest('[data-fbtog]'))return;window._fbOpen=!window._fbOpen;const el=_fbEl();if(el){el.innerHTML='';buildTmFilters();}});
 function buildTmFilters(){
   const el=_fbEl(); if(!el) return; const _tm=cur==='tempos';
@@ -3604,6 +3638,7 @@ function buildTmFilters(){
     sel('conf','Separador',uniq('conf'))+
     sel('opw','Operador WMS (LL)',window._WMS?[...new Set(window._WMS.map(w=>w.operador))].sort():[])+
     sel('dow','Dia da semana',[['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sáb','Sábado'],['dom','Domingo']])+
+    `<label class="fl">Rota <button type="button" class="rota-cfg" data-rotacfg title="Definir o horário das rotas">⚙️ horário</button><select class="tmf" data-k="rota">${o('','Todas',F.rota)}${o('manha',`Manhã (${window._ROTAS.manha[0]}–${window._ROTAS.manha[1]})`,F.rota)}${o('tarde',`Tarde (${window._ROTAS.tarde[0]}–${window._ROTAS.tarde[1]})`,F.rota)}${o('fora','Fora do horário das rotas',F.rota)}</select></label>`+
     sel('hr','Hora (emissão)',[...new Set(rows.map(r=>String(r.hr_emissao||'').slice(0,2)).filter(h=>/^\d\d$/.test(h)))].sort().map(h=>[h,h+'h – '+h+':59']))+
     sel('tp2','Tipo de entrega',uniq('tp2'))+
     sel('tp','Transportadora',uniq('tp'),'Todas')+
@@ -3766,8 +3801,11 @@ function renderHoraDia(rs,el){
   el.innerHTML=`<div style="display:flex;gap:.4rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap"><span style="font-size:.8rem;color:var(--mu)">Linhas:</span>`+
     `<button type="button" class="bt${_hdMode==='dow'?' on':''}" data-hdm="dow" style="font-size:.78rem;padding:.2rem .6rem">Dia da semana</button>`+
     `<button type="button" class="bt${_hdMode==='data'?' on':''}" data-hdm="data" style="font-size:.78rem;padding:.2rem .6rem">Data (últimos 31 dias do filtro)</button>`+
+    (()=>{const c={manha:0,tarde:0,fora:0};R.forEach(r=>{const k=rotaDe(r.hr_emissao);if(k)c[k]++});const RT=window._ROTAS;
+      const b=(k,l)=>`<button type="button" class="bt${F.rota===k?' on':''}" data-hdrota="${k}" style="font-size:.78rem;padding:.2rem .6rem">${l}: <b>${c[k].toLocaleString('pt-BR')}</b></button>`;
+      return `<span style="font-size:.8rem;color:var(--mu);margin-left:.6rem">Rota:</span>`+b('manha',`☀️ Manhã ${RT.manha[0]}–${RT.manha[1]}`)+b('tarde',`🌇 Tarde ${RT.tarde[0]}–${RT.tarde[1]}`)+(c.fora?b('fora','Fora'):'')})()+
     `<span style="flex:1"></span><span style="font-size:.8rem;color:var(--mu)">${tot.toLocaleString('pt-BR')} pedidos · pico às <b style="color:var(--tx)">${horas[tH.indexOf(mxH)]}h</b> (${mxH.toLocaleString('pt-BR')})</span></div>`+
-    `<div class="tw" style="overflow:auto"><table class="hd-tb"><thead><tr><th></th>${horas.map((h,i)=>`<th data-hdh="${h}" title="Filtrar ${h}h" style="cursor:pointer;${F.hr===h?'color:var(--y)':''}">${h}h</th>`).join('')}<th>Total</th></tr></thead><tbody>`+
+    `<div class="tw" style="overflow:auto"><table class="hd-tb"><thead><tr><th></th>${horas.map((h,i)=>{const rk=rotaDe(h+':00');return `<th data-hdh="${h}" title="Filtrar ${h}h${rk==='manha'?' · rota manhã':rk==='tarde'?' · rota tarde':''}" style="cursor:pointer;border-bottom:3px solid ${rk==='manha'?'#f5c542':rk==='tarde'?'#e8833a':'transparent'};${F.hr===h?'color:var(--y)':''}">${h}h</th>`}).join('')}<th>Total</th></tr></thead><tbody>`+
     M.map(m=>`<tr><th data-hdd="${esc(m.k)}" title="Filtrar ${esc(m.l)}" style="cursor:pointer;text-align:left;white-space:nowrap;${selD===m.k?'color:var(--y)':''}">${esc(m.l)}</th>${m.c.map((v,i)=>`<td data-hdd="${esc(m.k)}" data-hdh="${horas[i]}" title="${esc(m.l)} · ${horas[i]}h: ${v} pedido(s)" style="${cel(v,selD===m.k&&F.hr===horas[i])}cursor:${v?'pointer':'default'}">${v||''}</td>`).join('')}<td class="hd-t">${m.t.toLocaleString('pt-BR')}</td></tr>`).join('')+
     `<tr class="hd-tot"><th style="text-align:left">Total</th>${tH.map(v=>`<td>${v.toLocaleString('pt-BR')}</td>`).join('')}<td>${tot.toLocaleString('pt-BR')}</td></tr>`+
     (_hdMode==='dow'?'':`<tr class="hd-tot"><th style="text-align:left">Média/dia</th>${tH.map(v=>`<td>${(v/nd).toLocaleString('pt-BR',{maximumFractionDigits:1})}</td>`).join('')}<td>${(tot/nd).toLocaleString('pt-BR',{maximumFractionDigits:1})}</td></tr>`)+
@@ -3776,6 +3814,7 @@ function renderHoraDia(rs,el){
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-hdm]'); if(b){_hdMode=b.dataset.hdm; window._rerenderP&&window._rerenderP(); return;}
+  const rb=e.target.closest('[data-hdrota]'); if(rb){F.rota=F.rota===rb.dataset.hdrota?'':rb.dataset.hdrota; window._rerenderP&&window._rerenderP(); return;}
   const c=e.target.closest('[data-hdh],[data-hdd]'); if(!c||!c.closest('#c-hora')) return;
   const h=c.dataset.hdh, d=c.dataset.hdd;
   if(h!==undefined) F.hr=(F.hr===h&&d===undefined)?'':h;
