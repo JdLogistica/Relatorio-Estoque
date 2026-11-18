@@ -4712,7 +4712,16 @@ function render(){
   buildSidebarFilters();
 }
 
-window._rerenderP=()=>go(cur);
+// Mantém a tela parada no ponto clicado quando o painel é redesenhado (troca de dia, filtros, clique em gráfico)
+const _scrollerDe=el=>{ for(let n=el&&el.parentElement;n&&n!==document.body;n=n.parentElement){ const st=getComputedStyle(n); if(/(auto|scroll)/.test(st.overflowY)&&n.scrollHeight>n.clientHeight+2) return n; } return document.scrollingElement||document.documentElement; };
+const _selDe=k=>k.tagName.toLowerCase()+(k.classList&&k.classList[0]?'.'+CSS.escape(k.classList[0]):'');
+const _ancoraDe=t=>{ if(!t||!t.closest) return null; const k=t.closest('.dnav')||t.closest('button,select,input,.dia-bar,tr,td,th')||t; const el=k.closest('[id]'); if(!el) return null;
+  const sel=_selDe(k), idx=[...el.querySelectorAll(sel)].indexOf(k); return {id:el.id,sel,idx,top:k.getBoundingClientRect().top,t:Date.now()}; };
+const _elAncora=a=>{ const el=document.getElementById(a.id); if(!el) return null; if(a.idx>=0){ const L=el.querySelectorAll(a.sel); if(L[a.idx]) return L[a.idx]; } return el; };
+['pointerdown','focusin'].forEach(ev=>document.addEventListener(ev,e=>{ const a=_ancoraDe(e.target); if(a) window._ancora=a; },true));
+const _restauraAncora=a=>{ if(!a||Date.now()-a.t>4000) return; const fix=()=>{ const el=_elAncora(a); if(!el) return; const d=el.getBoundingClientRect().top-a.top; if(Math.abs(d)>1) _scrollerDe(el).scrollTop+=d; };
+  fix(); requestAnimationFrame(fix); setTimeout(fix,120); setTimeout(fix,450); };
+window._rerenderP=()=>{ const a=window._ancora; go(cur); _restauraAncora(a); };
 async function go(tab){
   closeSB();
   cur=tab;try{history.replaceState(null,'','#'+tab);localStorage.setItem('lt-tab-p',tab)}catch(e){}
