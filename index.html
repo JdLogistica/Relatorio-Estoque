@@ -896,7 +896,7 @@ async function prepararEstoqueE(D){
   const kp=document.getElementById('e-kp');
   if(kp) kp.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando estoque (ESTOQUELT + ESTOQUELL)…</span>';
   try{
-    if(!_estoque) _estoque = await carregarEstoqueSupa();
+    if(!_estoque){ try{ _estoque = await carregarEstoqueSupa(); }catch(e1){ console.warn('[estoque] nova tentativa',e1); _estoque = await carregarEstoqueSupa(); } }
     if(!_estoque.length) return;
     if(!D.sp_erica){ D.sp_erica=D.sp; D.sl_erica=D.sl; }
     const rows=_estoque.map(r=>({
@@ -910,8 +910,16 @@ async function prepararEstoqueE(D){
     D.sl = rows.filter(r=>r.s>0 && !r.l).map(r=>({c:r.c, r:r.r, lj:r.lj, d:r.d, m:r.m, s:r.s, w:r.w, cu:r.cu}));
     D._estoqueOk = true;
   }catch(e){
-    console.error('[prepararEstoqueE]', e);
+    console.error('[prepararEstoqueE]', e); _estoque=null;
+    setTimeout(()=>{ const k=document.getElementById('e-kp'); if(k) k.insertAdjacentHTML('afterbegin','<div style="grid-column:1/-1;padding:.6rem .8rem;border:1px solid var(--bad);border-radius:8px;color:var(--bad);font-size:.85rem">⚠️ Não foi possível carregar o estoque completo (LT + LL) do banco. <button class="bt" onclick="reiniciarEstoqueE()">Tentar de novo</button></div>'); },300);
   }
+}
+// Recarrega o estoque do banco (LT + LL) e redesenha a seção Estoque — usado após importar planilhas
+function reiniciarEstoqueE(){
+  _estoque=null; if(_dE) _dE._estoqueOk=false; _bootedE=false;
+  const eapp=document.getElementById('e-app');
+  if(eapp) eapp.innerHTML='<section class="fb gfb" id="e-gf" aria-label="Filtros gerais"></section><section class="fb" id="e-fb" aria-label="Filtros"></section><section class="kp" id="e-kp" aria-live="polite"></section><section class="ch" id="ch"></section><section class="tbl" id="e-tb"></section>';
+  if(_curSection==='e'&&_dE){ _bootedE=true; prepararEstoqueE(_dE).then(()=>bootE(_dE)); }
 }
 
 // ── Carrega pedidos do Supabase (paginado, todas as páginas) ──────────────────
@@ -1596,13 +1604,8 @@ async function importarErica(input){
       throw new Error('Nenhum dado encontrado. Verifique se as abas Inventário e Itens sem preço existem no arquivo.');
     }
     // Atualiza os dados globais em memória e reinicia bootE
-    window._dE = newData;
-    _bootedE = false;
-    const eapp = document.getElementById('e-app');
-    if(eapp){
-      eapp.innerHTML='<section class="fb gfb" id="e-gf" aria-label="Filtros gerais"></section><section class="fb" id="e-fb" aria-label="Filtros"></section><section class="kp" id="e-kp" aria-live="polite"></section><section class="ch" id="ch"></section><section class="tbl" id="e-tb"></section>';
-    }
-    if(_curSection==='e'){ _bootedE=true; bootE(window._dE); }
+    _dE = newData; window._dE = newData;
+    reiniciarEstoqueE();
 
     if(lbl) lbl.className='imp-card done';
     const summary = `inv:${inv.length} | sp:${sp.length} | dv:${dv.length} | sl:${sl.length}`;
@@ -3182,6 +3185,7 @@ async function importarEstoque(input, loja){
       if(error) throw new Error('Supabase: '+error.message);
     }
     _estoque=null; // invalida cache
+    reiniciarEstoqueE();
     if(lbl) lbl.className='imp-card done';
     if(st){ st.className='imp-status ok'; st.textContent=`✅ ${norm.length} itens de estoque (${loja}) importados!`; }
     // Se a aba estoque está aberta, recarrega
@@ -3197,7 +3201,7 @@ async function carregarEstoqueSupa(lojaFilter){
   const PAGE=1000;
   let all=[], from=0, done=false;
   while(!done){
-    let q=_sb.from('estoque').select('cod,loja,descricao,marca,cod_marca,locacao,qtde,saldo,conversao,peso,custo').order('descricao').range(from,from+PAGE-1);
+    let q=_sb.from('estoque').select('cod,loja,descricao,marca,cod_marca,locacao,qtde,saldo,conversao,peso,custo').order('loja').order('cod').range(from,from+PAGE-1);
     if(lojaFilter) q=q.eq('loja',lojaFilter);
     const {data,error}=await q;
     if(error) throw error;
