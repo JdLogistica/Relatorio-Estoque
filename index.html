@@ -448,6 +448,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 }
 #c-prod-ind .pi-nm{min-width:0}#c-prod-ind .pi-br{display:none}
 @media (max-width:720px){#c-prod-ind .pi-nm{width:5.6rem!important;font-size:.72rem!important}#c-prod-ind .pi-sd{width:4rem!important;font-size:.66rem!important;white-space:normal!important}#c-prod-ind .pi-st,#c-prod-ind .pi-odd,#c-prod-ind .pi-w{display:none}#c-prod-ind .pi-br{display:inline}}
+@media (max-width:720px){#c-race .race-wrap{flex-direction:column-reverse;gap:.4rem}#c-race .race{flex:none!important;width:100%}#c-race .race-side{width:100%!important;text-align:left!important;display:grid;grid-template-columns:auto 1fr;gap:.1rem .8rem;align-items:start;font-size:.72rem}#c-race .race-dia{font-size:1.1rem!important;grid-row:span 2}#c-race .race-sub,#c-race .race-lider{margin:0!important;font-size:.7rem!important}#c-race .race-nm{width:5.6rem!important;font-size:.72rem!important}#c-race .race-pos{width:1.4rem!important;font-size:.78rem!important}}
 </style>
 </head>
 <body>
@@ -946,6 +947,91 @@ window._rkCell=(vals,i)=>{ const v=vals[i]; if(v==null||isNaN(v)||!v) return '<s
   if(pos===0) return `<b style="color:var(--y)">1º</b>`;
   const pv=ord[pos-1][0], d=v-pv, pc=pv?d/pv*100:0;
   return `<span title="${pos+1}º lugar · ${Math.abs(d).toLocaleString('pt-BR')} pedido(s) a menos que o ${pos}º (${Math.abs(pc).toLocaleString('pt-BR',{maximumFractionDigits:1})}% menos)" style="white-space:nowrap"><b>${pos+1}º</b> <span style="color:${d<0?'#d9534f':'var(--mu)'}">${d?(pc).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%':'empate'}</span> <small style="color:var(--mu)">(${d>0?'+':''}${d.toLocaleString('pt-BR')})</small></span>`; };
+// ── Ranking evolutivo de separadores (bar chart race): pedidos por separador, dia a dia ──
+window._RACE=window._RACE||{modo:'acum',top:10,vel:1,i:null,play:false,tm:null};
+function renderRace(rs){
+  const el=document.getElementById('c-race'); if(!el) return;
+  const S=window._RACE; if(rs) S.rs=rs; else rs=S.rs||[];
+  if(S.tm){clearTimeout(S.tm);S.tm=null;}
+  const nz=v=>String(v||'').trim().toUpperCase();
+  const base=rs.filter(r=>r.dia&&nz(r.conf)&&!/^\(?SEM/.test(nz(r.conf))&&!r.canc);
+  if(!base.length){ el.innerHTML='<p class="mu2" style="padding:1rem">Sem pedidos com separador nos filtros atuais.</p>'; return; }
+  const dias=[...new Set(base.map(r=>r.dia))].sort();
+  const lojaDe={}, porDia={};
+  base.forEach(r=>{const n=nz(r.conf); (porDia[r.dia]=porDia[r.dia]||{}); porDia[r.dia][n]=(porDia[r.dia][n]||0)+1; (lojaDe[n]=lojaDe[n]||{})[r.loja]=1;});
+  const nomes=Object.keys(lojaDe).sort();
+  // quadros: acumulado até o dia ou só o dia
+  const acc={}; nomes.forEach(n=>acc[n]=0);
+  const Q=dias.map(d=>{ const dd=porDia[d]||{}; nomes.forEach(n=>acc[n]+=dd[n]||0);
+    const v=S.modo==='acum'?{...acc}:Object.fromEntries(nomes.map(n=>[n,dd[n]||0]));
+    const ord=nomes.filter(n=>v[n]>0).sort((a,b)=>v[b]-v[a]||a.localeCompare(b));
+    return {d,v,ord,tot:ord.reduce((t,n)=>t+v[n],0)}; });
+  if(S.i==null||S.i>=Q.length||S.sig!==dias.join()+S.modo){ S.i=Q.length-1; S.play=false; }
+  S.sig=dias.join()+S.modo;
+  // cor fixa por separador (paleta categórica) e marca da loja
+  const PAL=['#e6b422','#4a8fd4','#3aa76d','#d9534f','#7e6bc4','#e07b39','#2bb3c0','#c45a9a','#8a9a3a','#5c7cfa','#b8860b','#20a080','#a0522d','#6a5acd','#cf4f7a'];
+  const cor={}; nomes.slice().sort((a,b)=>(Q[Q.length-1].v[b]||0)-(Q[Q.length-1].v[a]||0)).forEach((n,k)=>cor[n]=PAL[k%PAL.length]);
+  const lj=n=>Object.keys(lojaDe[n]).sort().join('+');
+  const fd=d=>(window._dsem?window._dsem(d)+' ':'')+d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
+  const ROW=34, N=S.top;
+  el.innerHTML=
+    `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.6rem">`+
+      `<button type="button" class="bt" data-rc="play" style="min-width:6.5rem;font-weight:700">${S.play?'⏸ Pausar':'▶ Reproduzir'}</button>`+
+      `<button type="button" class="bt" data-rc="ini" title="Voltar ao primeiro dia">⏮</button>`+
+      `<button type="button" class="bt" data-rc="-1" title="Dia anterior">◀</button>`+
+      `<button type="button" class="bt" data-rc="+1" title="Próximo dia">▶</button>`+
+      `<button type="button" class="bt" data-rc="fim" title="Ir ao último dia">⏭</button>`+
+      `<input type="range" data-rc="sl" min="0" max="${Q.length-1}" value="${S.i}" style="flex:1 1 12rem;accent-color:var(--y)">`+
+      `<span style="display:inline-flex;gap:.25rem">`+
+        `<button type="button" class="bt${S.modo==='acum'?' on':''}" data-rc="m-acum" title="Soma dos pedidos desde o primeiro dia do filtro">Acumulado</button>`+
+        `<button type="button" class="bt${S.modo==='dia'?' on':''}" data-rc="m-dia" title="Pedidos só do dia">Por dia</button></span>`+
+      `<select class="tmf" data-rc="top" title="Quantos separadores mostrar">${[5,10,15,20].map(k=>`<option value="${k}" ${k===N?'selected':''}>Top ${k}</option>`).join('')}</select>`+
+      `<select class="tmf" data-rc="vel" title="Velocidade">${[[0.5,'0,5x'],[1,'1x'],[2,'2x'],[4,'4x']].map(([k,l])=>`<option value="${k}" ${k===S.vel?'selected':''}>${l}</option>`).join('')}</select>`+
+    `</div>`+
+    `<div class="race-wrap" style="position:relative;display:flex;gap:1rem;align-items:flex-start">`+
+      `<div class="race" style="position:relative;flex:1;height:${N*ROW+6}px;overflow:hidden">`+
+        nomes.map(n=>`<div class="race-row" data-n="${_escP(n)}" style="position:absolute;left:0;right:0;height:${ROW-6}px;display:flex;align-items:center;gap:.5rem;transition:transform .55s cubic-bezier(.4,0,.2,1),opacity .4s;will-change:transform">`+
+          `<div class="race-pos" style="width:1.8rem;flex:none;text-align:right;font-weight:800;font-size:.9rem;color:var(--mu)"></div>`+
+          `<div class="race-nm" style="width:9rem;flex:none;font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escP(n)}">${_escP(n)} <span style="font-size:.64rem;font-weight:600;color:var(--mu)">${lj(n)}</span></div>`+
+          `<div style="flex:1;position:relative;height:100%"><div class="race-bar" style="height:100%;width:0;border-radius:3px;background:${cor[n]};transition:width .55s cubic-bezier(.4,0,.2,1);display:flex;align-items:center;justify-content:flex-end;padding-right:.45rem;box-sizing:border-box"></div>`+
+          `<span class="race-v" style="position:absolute;top:50%;transform:translateY(-50%);font-size:.8rem;font-weight:700;white-space:nowrap;transition:left .55s cubic-bezier(.4,0,.2,1)"></span></div></div>`).join('')+
+      `</div>`+
+      `<div class="race-side" style="width:11rem;flex:none;text-align:right">`+
+        `<div class="race-dia" style="font-size:1.6rem;font-weight:800;line-height:1.1;color:var(--y)"></div>`+
+        `<div class="race-sub" style="font-size:.78rem;color:var(--mu);margin-top:.3rem"></div>`+
+        `<div class="race-lider" style="font-size:.78rem;margin-top:.6rem;line-height:1.35"></div>`+
+      `</div>`+
+    `</div>`+
+    `<p class="mu2" style="margin:.6rem 0 0;font-size:.75rem">Cada barra é um separador (LT: separador do ERP · LL: quem separou no WMS); a cor acompanha o separador. <b>Acumulado</b> soma os pedidos desde o primeiro dia do filtro — veja quem ultrapassa quem ao longo dos dias. <b>Por dia</b> mostra o ranking de cada dia. A diferença ao lado do valor compara com o colocado logo acima. Pedidos cancelados ficam fora. Segue os filtros do painel (loja, período, rota etc.).</p>`;
+  const rows={}; el.querySelectorAll('.race-row').forEach(r=>rows[r.dataset.n]=r);
+  const desenha=()=>{
+    const q=Q[S.i], mx=Math.max(1,...q.ord.slice(0,N).map(n=>q.v[n]));
+    nomes.forEach(n=>{ const r=rows[n], pos=q.ord.indexOf(n), vis=pos>=0&&pos<N;
+      r.style.transform=`translateY(${(vis?pos:N)*ROW}px)`; r.style.opacity=vis?1:0; r.style.pointerEvents=vis?'':'none';
+      const w=vis?q.v[n]/mx*100:0, bar=r.querySelector('.race-bar'), lab=r.querySelector('.race-v');
+      bar.style.width=`calc((100% - 4.8rem) * ${w/100})`;
+      const ac=pos>0?q.v[q.ord[pos-1]]:null, dif=ac!=null?q.v[n]-ac:null;
+      lab.style.left=`calc((100% - 4.8rem) * ${w/100} + .35rem)`;
+      lab.innerHTML=vis?`${q.v[n].toLocaleString('pt-BR')}${dif!=null&&dif<0&&ac?` <small style="color:#d9534f;font-weight:600">${(dif/ac*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</small>`:''}`:'';
+      r.querySelector('.race-pos').textContent=vis?(pos+1)+'º':''; r.querySelector('.race-pos').style.color=pos===0?'var(--y)':'var(--mu)'; });
+    el.querySelector('.race-dia').textContent=fd(q.d);
+    el.querySelector('.race-sub').innerHTML=`dia ${S.i+1} de ${Q.length}<br>${q.tot.toLocaleString('pt-BR')} pedidos ${S.modo==='acum'?'acumulados':'no dia'}`;
+    const L=q.ord[0], L2=q.ord[1];
+    el.querySelector('.race-lider').innerHTML=L?`<span style="color:var(--mu)">Líder</span><br><b style="color:${cor[L]}">${_escP(L)}</b><br>${q.v[L].toLocaleString('pt-BR')} ped · ${(q.v[L]/q.tot*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}% do total`+(L2?`<br><span style="color:var(--mu)">vantagem sobre o 2º: ${(q.v[L]-q.v[L2]).toLocaleString('pt-BR')} ped</span>`:''):'';
+    const sl=el.querySelector('[data-rc=sl]'); if(sl) sl.value=S.i;
+  };
+  S.desenha=desenha; S.Q=Q;
+  desenha();
+  const passo=()=>{ if(!S.play) return; if(S.i>=Q.length-1){ S.play=false; const b=el.querySelector('[data-rc=play]'); if(b) b.textContent='▶ Reproduzir'; return; } S.i++; desenha(); S.tm=setTimeout(passo,900/S.vel); };
+  S.passo=passo; if(S.play) S.tm=setTimeout(passo,900/S.vel);
+}
+document.addEventListener('click',e=>{ const b=e.target.closest('#c-race [data-rc]'); if(!b||b.tagName==='SELECT'||b.tagName==='INPUT') return; const S=window._RACE, k=b.dataset.rc; if(!S.Q) return;
+  if(k==='play'){ S.play=!S.play; if(S.play&&S.i>=S.Q.length-1) S.i=0; b.textContent=S.play?'⏸ Pausar':'▶ Reproduzir'; if(S.tm){clearTimeout(S.tm);S.tm=null;} if(S.play){ S.desenha(); S.tm=setTimeout(S.passo,900/S.vel);} return; }
+  if(k==='m-acum'||k==='m-dia'){ S.modo=k.slice(2); renderRace(); return; }
+  S.play=false; if(S.tm){clearTimeout(S.tm);S.tm=null;} const pb=document.querySelector('#c-race [data-rc=play]'); if(pb) pb.textContent='▶ Reproduzir';
+  S.i=k==='ini'?0:k==='fim'?S.Q.length-1:Math.max(0,Math.min(S.Q.length-1,S.i+Number(k))); S.desenha(); });
+document.addEventListener('input',e=>{ const t=e.target.closest('#c-race [data-rc=sl]'); if(!t) return; const S=window._RACE; S.play=false; if(S.tm){clearTimeout(S.tm);S.tm=null;} S.i=Number(t.value); S.desenha(); const pb=document.querySelector('#c-race [data-rc=play]'); if(pb) pb.textContent='▶ Reproduzir'; });
+document.addEventListener('change',e=>{ const t=e.target.closest('#c-race select[data-rc]'); if(!t) return; const S=window._RACE; if(t.dataset.rc==='top') S.top=Number(t.value); else S.vel=Number(t.value); renderRace(); });
 let _wmsLoad=null;
 function carregarWms(){
   if(_wmsLoad) return _wmsLoad;
@@ -4617,7 +4703,7 @@ function render(){
   }
   // ── Tempos tab ──────────────────────────────────────────
   if(cur==='tempos'){ buildTmFilters(); const _sv={mes1:F.mes1,mes2:F.mes2,dt1:F.dt1,dt2:F.dt2}; const _diaUnico=F.dt1&&F.dt1===F.dt2;
-    if(_diaUnico){F.dt1=F.dt2='';} const rsEv=filtered(); Object.assign(F,_sv); renderTemposTab(rs,rsEv); renderItemPanel(rs);
+    if(_diaUnico){F.dt1=F.dt2='';} const rsEv=filtered(); Object.assign(F,_sv); renderTemposTab(rs,rsEv); renderItemPanel(rs); try{ renderRace(rsEv); }catch(e){ console.warn('[race]',e); }
     const _per=(F.mes1||F.mes2||F.dt1||F.dt2)?'(período filtrado'+(F.mes1&&F.mes1===F.mes2?': '+F.mes1.slice(5)+'/'+F.mes1.slice(0,4):'')+')':null;
     const p1=document.getElementById('tm-per1'),p2=document.getElementById('tm-per2');
     if(p1)p1.textContent=_per?_per.replace(')',' · até 60 dias)'):'(últimos 60 dias)'; if(p2)p2.textContent=_per?_per.replace(')',' · até 200 com separação)'):'(últimos 200 com separação)'; }
@@ -4708,6 +4794,7 @@ async function go(tab){
       `<article class="pn w2" id="wms-ll"><h3>🏷️ Separação e Conferência por operador <small style="font-weight:400;color:var(--mu)">(LT: ERP · LL: WMS)</small></h3><div id="c-wms-ll"><p class="mu2" style="padding:1rem">Carregando tempos do WMS…</p></div></article>`+
       `<article class="pn w2" id="wms-oc"><h3>🕗 Tempo até o 1º pedido e entre pedidos, por operador <small style="font-weight:400;color:var(--mu)">(LT: separação · LL: separação e conferência no WMS · jornada a partir das 08:00)</small></h3><div id="c-wms-oc"></div></article>`+
       `<article class="pn w2" id="prod-ind"><h3>📈 Produtividade e ociosidade individual <small style="font-weight:400;color:var(--mu)">(LT: ERP · LL: WMS · jornada a partir das 08:00)</small></h3><div id="c-prod-ind"><p class="mu2" style="padding:1rem">Carregando…</p></div></article>`+
+      `<article class="pn w2" id="race"><h3>🏁 Ranking evolutivo dos separadores <small style="font-weight:400;color:var(--mu)">(pedidos por separador, dia a dia · segue os filtros do painel)</small></h3><div id="c-race"><p class="mu2" style="padding:1rem">Carregando…</p></div></article>`+
       `<article class="pn w2"><h3>🔧 T2 (Separação) médio por separador/conferente</h3><div id="c-tm-conf-t2"></div></article>`+
       `<article class="pn w2"><h3>👤 Lead Total médio por vendedor</h3><div id="c-tm-vend-lead"></div></article>`+
       `<article class="pn w2"><h3>🔧 T1 e T2 médios por vendedor</h3><div id="c-tm-vend-t1t2"></div></article>`+
