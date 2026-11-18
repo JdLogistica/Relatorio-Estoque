@@ -1536,32 +1536,8 @@ async function importarErica(input){
       return {c:isNaN(Number(cod))?cod:Number(cod)||cod, r:String(ref).trim(), p:String(prod).trim(), e:est, ru, pr, ni, ap, ct, aj};
     }).filter(r=>r.p||r.c);
 
-    // ── Itens da planilha (guarda todos + filtra sem preço para sp) ──
-    // Leitura por ÍNDICE de coluna para não depender de encoding dos cabeçalhos
-    // Colunas confirmadas: A=Código B=Descrição C=Cód.Marca D=Marca E=Locação F=Qtde G=Saldo H=Cód.Danfe I=1ªConversão J=Peso K=Custo
-    const wsSp = getSheet('sem pre','itens pos','sp');
-    const rawSpArr = wsSp ? XLSX.utils.sheet_to_json(wsSp, {header:1, defval:''}) : [];
-    const sp_all = [];
-    for(let i=1; i<rawSpArr.length; i++){
-      const row = rawSpArr[i];
-      const cod  = String(row[0]||'').trim();
-      const desc = String(row[1]||'').trim();
-      // Marca: remove número do Cód.Marca colado no final (ex: "MASSEY  0 " → "MASSEY")
-      const marcaRaw = String(row[3]||'').trim();
-      const marca = marcaRaw.replace(/\s+\d+\s*$/, '').trim();
-      // Locação: ignora células com apenas underscores ou espaços
-      const locRaw = String(row[4]||'').trim();
-      const loc = /^[_\s]*$/.test(locRaw) ? '' : locRaw;
-      const saldo = parseFloat(row[6])||0;
-      const cv    = String(row[8]||'').trim();
-      const peso  = parseFloat(row[9])||0;
-      const cu    = parseFloat(row[10])||0;
-      const preco = 0; // planilha não tem coluna de preço de venda
-      if(!cod && !desc) continue;
-      sp_all.push({c:cod, d:desc, m:marca, l:loc, s:saldo, w:peso, cv, pv:preco, cu});
-    }
-    // sp = apenas itens SEM preço (todos, já que pv=0 para todos nesta planilha)
-    const sp = sp_all; // mantém compatibilidade — aba Estoques usa sp
+    // Itens sem preço e Sem locação agora vêm das planilhas ESTOQUELT/ESTOQUELL (tabela estoque) — não são mais lidos aqui
+    const sp=[], sp_all=[];
 
     // ── Divergências ─────────────────────────────────────────────
     const wsDv = getSheet('diverg','dv');
@@ -1583,34 +1559,25 @@ async function importarErica(input){
       };
     }).filter(Boolean);
 
-    // ── Sem locação ───────────────────────────────────────────────
-    const wsSl = getSheet('sem loc','sl','locac');
-    const rawSl = sheetToRows(wsSl);
-    const sl = rawSl.map(r=>{
-      const cod = String(r['Código']||r['Codigo']||r['COD']||r['cod']||'').trim();
-      if(!cod) return null;
-      return {
-        c: cod,
-        d: String(r['Descrição']||r['Descricao']||r['Produto']||'').trim(),
-        m: String(r['Marca']||r['marca']||'').trim(),
-        s: parseFloat(r['Saldo']||r['saldo']||r['Estoque']||0)||0,
-        w: parseFloat(r['Peso']||r['peso']||0)||0,
-        cu: parseFloat(r['Custo']||r['custo']||r['Custo Líquido']||0)||0
-      };
-    }).filter(Boolean);
+    const sl=[];
 
     const newData = { inv, sp, sp_all, dv, sl, meta:{pd, ve, en} };
-    if(!newData.inv.length && !newData.sp.length){
-      throw new Error('Nenhum dado encontrado. Verifique se as abas Inventário e Itens sem preço existem no arquivo.');
+    if(!newData.inv.length && !newData.dv.length){
+      throw new Error('Nenhum dado encontrado. Verifique se as abas Inventário e Divergências existem no arquivo.');
     }
+    // Grava no banco protegido (só administradores) para valer também nos próximos acessos
+    if(st) st.textContent='📤 Salvando no banco…';
+    const {error:eSave}=await _sb.from('relatorio_erica').upsert({id:'atual',dados:{inv,sp:[],dv,sl:[],meta:newData.meta},updated_at:new Date().toISOString()});
+    if(eSave) throw new Error(eSave.code==='42501'||/policy|permission/i.test(eSave.message)?'Apenas administradores podem importar o Relatório Erica.':'Supabase: '+eSave.message);
+    _ERICA_DATA={inv,sp:[],sp_all:[],dv,sl:[],meta:newData.meta};
     // Atualiza os dados globais em memória e reinicia bootE
     _dE = newData; window._dE = newData;
     reiniciarEstoqueE();
 
     if(lbl) lbl.className='imp-card done';
-    const summary = `inv:${inv.length} | sp:${sp.length} | dv:${dv.length} | sl:${sl.length}`;
+    const summary = `Inventário: ${inv.length} · Divergências: ${dv.length} (itens sem preço e sem locação vêm das planilhas de estoque)`;
     if(nm) nm.textContent = file.name+' — '+summary;
-    if(st){ st.textContent='✅ Relatório Erica atualizado! '+summary; st.className='imp-status ok'; }
+    if(st){ st.textContent='✅ Relatório Erica salvo! '+summary; st.className='imp-status ok'; }
     input.value='';
   }catch(err){
     console.error('[importarErica]', err);
@@ -2308,7 +2275,7 @@ function render(){
 }
 function overview(){
  const i=D.inv,sku=new Set(i.map(r=>r.c)).size,pcs=sum(i,'e');
- $('#e-kp').innerHTML=kpiHtml([['Produtos (SKU)',N(sku),N(i.length)+' endereços'],['Peças em estoque',N(pcs)],['Itens sem preço',N((D.sp_erica||D.sp).length)],['Valor em divergência',BRL(sum(D.dv,'v')),N(D.dv.length)+' itens'],['Saldo sem locação',N(D.sl.length),'itens']]);
+ $('#e-kp').innerHTML=kpiHtml([['Produtos (SKU)',N(sku),N(i.length)+' endereços'],['Peças em estoque',N(pcs)],['Itens sem preço',N(D.sp.filter(r=>!(r.cu>0)).length),'custo zerado (estoques)'],['Valor em divergência',BRL(sum(D.dv,'v')),N(D.dv.length)+' itens'],['Saldo sem locação',N(D.sl.length),'itens']]);
  // ── Dashboard Itens sem preço ───────────────────────────────
  const sp=D.sp;
  const spSaldo=sum(sp,'s'),spSemLoc=sp.filter(r=>!r.l).length,spSemCv=sp.filter(r=>!r.cv).length;
@@ -2325,7 +2292,7 @@ function overview(){
  // Gauge-style donut inline para % sem locação
  const gauLoc=Math.round(spPctLoc),gauCv=Math.round(spPctCv);
  const gaugeSvg=(pct,color,label)=>{const r=15.9155,c=2*Math.PI*r,dash=pct/100*c,gap=c-dash;return`<div style="display:flex;flex-direction:column;align-items:center;gap:.3rem"><svg viewBox="0 0 42 42" width="80" height="80" style="transform:rotate(-90deg)"><circle cx="21" cy="21" r="${r}" fill="none" stroke="var(--s2)" stroke-width="4"/><circle cx="21" cy="21" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-dasharray="${dash.toFixed(1)} ${gap.toFixed(1)}" stroke-linecap="round"/></svg><div style="margin-top:-4rem;font-size:1.1rem;font-weight:800;color:${color}">${pct}%</div><small style="font-size:.72rem;color:var(--mu);text-align:center;margin-top:1.6rem">${label}</small></div>`};
- const L=[['Itens positivos sem preço',N((D.sp_erica||D.sp).length)+' itens','sp'],['Saldo positivo sem locação (Sisrev)',N(D.sl.length)+' itens','sl'],['Divergências',N(D.dv.length)+' itens · '+BRL(sum(D.dv,'v')),'dv'],['Baixas e entradas especiais','Não está na planilha',''],['Inventário completo',N(i.length)+' endereços','inv'],['Quantidade de SKU geral',N(sku)+' SKUs','inv'],['Quantidade de itens e peças',N(pcs)+' peças','inv']];
+ const L=[['Itens positivos sem preço (custo zerado)',N(D.sp.filter(r=>!(r.cu>0)).length)+' itens','sp'],['Saldo positivo sem locação (estoques)',N(D.sl.length)+' itens','sl'],['Divergências',N(D.dv.length)+' itens · '+BRL(sum(D.dv,'v')),'dv'],['Baixas e entradas especiais','Não está na planilha',''],['Inventário completo',N(i.length)+' endereços','inv'],['Quantidade de SKU geral',N(sku)+' SKUs','inv'],['Quantidade de itens e peças',N(pcs)+' peças','inv']];
  $('#ch').innerHTML=
   // ── Bloco "Estoques" destacado ──
   `<article class="pn" style="grid-column:1/-1;border-left:4px solid var(--ok)">
@@ -2643,7 +2610,7 @@ function bootCE(){
  // ── Totais ──
  const totalSKU=new Set(todos.map(r=>r.c)).size;
  const saldoTotal=sum(todos,'s');
- const itensSemPreco=(D.sp_erica||todos.filter(r=>!r.pv||r.pv===0)).length;
+ const itensSemPreco=todos.filter(r=>!(r.cu>0)).length;
  const itensSemLoc=todos.filter(r=>!r.l).length;
  const valorTotal=todos.reduce((t,r)=>t+getCu(r)*r.s,0);
  const totalMarcas=new Set(todos.map(r=>r.m).filter(Boolean)).size;
