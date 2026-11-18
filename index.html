@@ -996,6 +996,11 @@ async function carregarPedidosSupa(){
     {
       await carregarRotas();
       const W=await carregarWms(), m={};
+      // tarefas do WMS que ficaram sem pedido na importação (o pedido do ERP ainda não estava no banco) são ligadas de novo aqui, a cada carga
+      try{ const sem=W.filter(w=>!w.pedido_id);
+        if(sem.length){ const usados=new Set(W.filter(w=>w.pedido_id).map(w=>String(w.pedido_id)));
+          const mm=_pwVincular(sem,out.filter(p=>!usados.has(String(p.id))));
+          sem.forEach(w=>{ const v=mm.get(w.pedido_wms); if(v){ w.pedido_id=v[0]; w.vinc_dif_min=v[1]; w._vincLocal=true; } }); } }catch(e){ console.warn('[wms re-vínculo]',e); }
       W.forEach(w=>{ if(!w.pedido_id||!w.inicio) return; const o=m[w.pedido_id]||(m[w.pedido_id]={si:null,sf:null,ci:null,cf:null});
         const fim=w.fim||w.inicio;
         if(w.tipo==='Separação'){ if(!o.si||w.inicio<o.si) o.si=w.inicio; if(!o.sf||fim>o.sf) o.sf=fim; }
