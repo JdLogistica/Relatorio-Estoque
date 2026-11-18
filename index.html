@@ -856,6 +856,7 @@ async function abrirPedido(id,loja){
         W.sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map(w=>`<tr><td>${w.tipo==='Separação'?'🟡':'🔵'} ${_escP(w.tipo)}</td><td><b>${_escP(w.operador)}</b></td><td>${_escP(w.pedido_wms)}</td><td>${hm(w.inicio)}</td><td>${hm(w.fim)}</td><td style="text-align:right"><b>${_fmtDur(+w.tempo_min)}</b></td><td style="text-align:right">${_escP(w.skus??'—')}</td><td style="text-align:right">${_escP(w.quantidade??'—')}</td><td style="text-align:right">${_escP(w.cortes??0)}</td></tr>`).join('')+`</tbody></table></div>`;
     }catch(e){ console.warn('[ped-wms]',e); }
   })();
+  if(p._soWms){ const el=document.getElementById('ped-itens'); if(el) el.innerHTML='<p class="mu2" style="padding:1rem">Pedido registrado só no WMS (nº '+_escP(p.pedido_wms||'')+'), ainda sem pedido correspondente no ERP — itens e NF-e aparecem quando o pedido do ERP for importado.</p>'; return; }
   try{
     const {data,error}=await _sb.from('itens').select('pedido_id,loja,seq,cod_produto,principal,descricao,marca,qtde,saldo,total')
       .eq('pedido_id',Number(id)).eq('loja',loja).order('seq');
@@ -945,7 +946,7 @@ function carregarWms(){
     let all=[],from=0;
     for(;;){
       const {data,error}=await _sb.from('wms_tempos')
-        .select('tipo,operador,pedido_wms,pedido_id,destinatario,checkout,posicao,skus,quantidade,cortes,inicio,fim,tempo_min')
+        .select('tipo,operador,pedido_wms,pedido_id,emissao,destinatario,operacao,checkout,posicao,skus,quantidade,peso,cortes,inicio,fim,tempo_min')
         .order('id').range(from,from+999);
       if(error) throw error;
       all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000;
@@ -1001,12 +1002,24 @@ async function carregarPedidosSupa(){
         if(sem.length){ const usados=new Set(W.filter(w=>w.pedido_id).map(w=>String(w.pedido_id)));
           const mm=_pwVincular(sem,out.filter(p=>!usados.has(String(p.id))));
           sem.forEach(w=>{ const v=mm.get(w.pedido_wms); if(v){ w.pedido_id=v[0]; w.vinc_dif_min=v[1]; w._vincLocal=true; } }); } }catch(e){ console.warn('[wms re-vínculo]',e); }
+      // WMS e ERP são sistemas diferentes: pedido que está só no WMS (LL) entra nos painéis como pedido próprio
+      try{ const G={}; W.forEach(w=>{ if(w.pedido_id||!w.pedido_wms) return; (G[w.pedido_wms]=G[w.pedido_wms]||[]).push(w); });
+        Object.entries(G).forEach(([pw,L])=>{ const id='WMS-'+pw;
+          const ts=L.flatMap(w=>[w.emissao,w.inicio]).filter(Boolean).sort(); const em=ts[0]; if(!em) return;
+          const w0=L.find(w=>w.destinatario)||L[0];
+          L.forEach(w=>{ w.pedido_id=id; w._soWms=true; });
+          out.push({id,loja:'LL',cli:w0.destinatario||'',vend:'',conf:'',tp:w0.operacao||'',tp2:'',sit:'Somente WMS',urg:false,canc:false,
+            dia:String(em).slice(0,10),mes:String(em).slice(0,7),exp:'',hr_emissao:String(em).slice(11,16)||null,
+            hr_sep_ini:null,hr_sep_fim:null,dt_sep_ini:null,dt_sep_fim:null,tempo_sep:null,hr_exp:null,dt_exp:null,dt_nf:null,hr_nf:null,dt_coleta:null,hr_coleta:null,
+            _soWms:true,pedido_wms:pw}); }); }catch(e){ console.warn('[wms só no WMS]',e); }
       W.forEach(w=>{ if(!w.pedido_id||!w.inicio) return; const o=m[w.pedido_id]||(m[w.pedido_id]={si:null,sf:null,ci:null,cf:null});
         const fim=w.fim||w.inicio;
-        if(w.tipo==='Separação'){ if(!o.si||w.inicio<o.si) o.si=w.inicio; if(!o.sf||fim>o.sf) o.sf=fim; }
+        if(w.tipo==='Separação'){ if(!o.si||w.inicio<o.si){ o.si=w.inicio; o.sop=String(w.operador||'').trim(); } if(!o.sf||fim>o.sf) o.sf=fim; }
         else { if(!o.ci||w.inicio<o.ci) o.ci=w.inicio; if(!o.cf||fim>o.cf) o.cf=fim; } });
-      out.forEach(r=>{ const o=m[String(r.id)]; if(r.loja!=='LL'||!o||!o.si) return;
-        r._erp={dt_sep_ini:r.dt_sep_ini,hr_sep_ini:r.hr_sep_ini,dt_sep_fim:r.dt_sep_fim,hr_sep_fim:r.hr_sep_fim,tempo_sep:r.tempo_sep};
+      out.forEach(r=>{ const o=m[String(r.id)]; if(r.loja!=='LL'||!o) return;
+        if(!o.si){ if(o.ci){ r.dt_conf_ini=o.ci.slice(0,10); r.hr_conf_ini=o.ci.slice(11,16); r.dt_conf_fim=o.cf.slice(0,10); r.hr_conf_fim=o.cf.slice(11,16); r._wms=true; } return; }
+        r._erp={dt_sep_ini:r.dt_sep_ini,hr_sep_ini:r.hr_sep_ini,dt_sep_fim:r.dt_sep_fim,hr_sep_fim:r.hr_sep_fim,tempo_sep:r.tempo_sep,conf:r.conf};
+        if(o.sop) r.conf=o.sop.toUpperCase(); // separador = quem separou no WMS
         r.dt_sep_ini=o.si.slice(0,10); r.hr_sep_ini=o.si.slice(11,16);
         r.dt_sep_fim=o.sf.slice(0,10); r.hr_sep_fim=o.sf.slice(11,16);
         r.tempo_sep=null; // T2 passa a ser calculado pelo início/fim do WMS
@@ -2949,7 +2962,7 @@ const N0pw=v=>Number(v||0).toLocaleString('pt-BR');
 const _PFT={};
 const PFT_COLS=[
   ['id','Pedido','n'],['loja','Loja'],['_em','Emissão','t'],['_rota','Rota'],['cli','Cliente'],['vend','Vendedor'],['tp2','Tipo entrega'],['tp','Transportadora'],['sit','Situação'],['urg','Urg.'],
-  ['conf','Separador (ERP)'],['_si','Início sep.','t'],['_sf','Fim sep.','t'],['_ws','Separador WMS'],['_wc','Conferente WMS'],['_ci','Início conf.','t'],['_cf','Fim conf.','t'],
+  ['conf','Separador'],['_si','Início sep.','t'],['_sf','Fim sep.','t'],['_ws','Separador WMS'],['_wc','Conferente WMS'],['_ci','Início conf.','t'],['_cf','Fim conf.','t'],
   ['_nf','NF-e','t'],['_ex','Expedição','t'],['_co','Coleta','t'],
   ['_t1','T1','m'],['_t2','T2','m'],['_esp','Espera sep.→conf.','m'],['_tc','Conferência','m'],['_t3','T3','m'],['_t4','T4','m'],['_lead','Lead','m']
 ];
@@ -5204,7 +5217,7 @@ function renderWmsLL(rsF){
   const _D=(d,h)=>d&&h?new Date(String(d).slice(0,10)+'T'+String(h).slice(0,5)+':00'):null;
   const LT=rsF.filter(r=>r.loja==='LT'&&r.hr_sep_ini&&r.hr_sep_fim).map(r=>{const a=_D(r.dt_sep_ini||r.dia,r.hr_sep_ini),b=_D(r.dt_sep_fim||r.dt_sep_ini||r.dia,r.hr_sep_fim);
     return a&&b&&b>=a?{tipo:'Separação',operador:String(r.conf||'(sem separador)').trim().toUpperCase(),pedido_id:'LT-'+r.id,tempo_min:(b-a)/60000,skus:null,quantidade:null,loja:'LT',inicio:null,fim:null}:null}).filter(Boolean);
-  const semV=window._WMS.filter(w=>!w.pedido_id).length;
+  const semV=new Set(window._WMS.filter(w=>w._soWms).map(w=>w.pedido_wms)).size;
   if(!W.length&&!LT.length){ if(_eh)_eh.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>'; if(_ch)_ch.innerHTML='<p style="color:var(--mu);text-align:center;padding:1.5rem">Sem dados suficientes</p>'; el.innerHTML='<p class="mu2" style="padding:1rem">Nenhum pedido da LL com tempo do WMS nos filtros atuais (o WMS cobre de 16/10/2026 em diante).</p>'; return; }
   const N=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
   const med=a=>{if(!a.length)return null;const s=a.slice().sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
@@ -5256,7 +5269,7 @@ function renderWmsLL(rsF){
       mk('Separação média',fm(eAll.avg),(lj?'':`LT ${fm(eLT.avg)} · LL ${fm(es.avg)} · `)+`mediana ${fm(eAll.med)}`,'var(--y)')+
       (lj!=='LT'?mk('Conferência média (LL)',fm(ec.avg),`mediana ${fm(ec.med)} · ${N(ec.skuh)} SKUs/h`,'#5aa9e6')+
       mk('Espera sep. → conf. (LL)',fm(avg(esp)),`mediana ${fm(med(esp))} · ${N(esp.length)} pedidos`)+
-      mk('Sem vínculo',N(semV),'linhas do WMS sem pedido LL correspondente'):'')+
+      mk('Só no WMS',N(semV),'pedidos do WMS ainda sem pedido no ERP (entram nos painéis)'):'')+
     `</div>`+
     `<div class="tw"><table class="ped-tb wms-tb"><thead><tr><th rowspan="2">Operador</th><th rowspan="2">Loja · origem</th><th colspan="5" style="text-align:center;border-bottom:1px solid var(--ln)">🟡 Separação</th><th colspan="5" style="text-align:center;border-bottom:1px solid var(--ln)">🔵 Conferência</th></tr>`+
       `<tr><th style="text-align:right">Pedidos</th><th style="text-align:right">Média</th><th style="text-align:right">Mediana</th><th style="text-align:right">SKUs/h</th><th style="text-align:right">Itens</th>`+
