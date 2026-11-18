@@ -940,6 +940,12 @@ async function carregarRotas(){ try{ const {data}=await _sb.from('app_config').s
 async function salvarRotas(v){ const {error}=await _sb.from('app_config').upsert({chave:'rotas',valor:v,atualizado_em:new Date().toISOString()}); if(error) throw new Error(error.code==='42501'||/policy|permission/i.test(error.message)?'Apenas administradores podem alterar o horário das rotas.':error.message); window._ROTAS=v; }
 function rotaDe(h){ h=String(h||'').slice(0,5); if(!/^\d\d:\d\d$/.test(h)) return ''; const R=window._ROTAS; if(h>=R.manha[0]&&h<=R.manha[1]) return 'manha'; if(h>=R.tarde[0]&&h<=R.tarde[1]) return 'tarde'; return 'fora'; }
 window._pctP=(n,t)=>t>0&&n!=null?`<span style="display:inline-flex;align-items:center;gap:.3rem;justify-content:flex-end"><i style="display:inline-block;height:.42rem;width:${Math.max(2,Math.round(n/t*40))}px;border-radius:2px;background:var(--y)"></i>${(n/t*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</span>`:'—';
+// Ranking por quantidade de pedidos: posição e diferença para quem está logo acima (1º → 2º, 2º → 3º…)
+window._rkCell=(vals,i)=>{ const v=vals[i]; if(v==null||isNaN(v)||!v) return '<span style="color:var(--mu)">—</span>';
+  const ord=vals.map((x,j)=>[+x||0,j]).sort((a,b)=>b[0]-a[0]||a[1]-b[1]); const pos=ord.findIndex(o=>o[1]===i);
+  if(pos===0) return `<b style="color:var(--y)">1º</b>`;
+  const pv=ord[pos-1][0], d=v-pv, pc=pv?d/pv*100:0;
+  return `<span title="${pos+1}º lugar · ${Math.abs(d).toLocaleString('pt-BR')} pedido(s) a menos que o ${pos}º (${Math.abs(pc).toLocaleString('pt-BR',{maximumFractionDigits:1})}% menos)" style="white-space:nowrap"><b>${pos+1}º</b> <span style="color:${d<0?'#d9534f':'var(--mu)'}">${d?(pc).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%':'empate'}</span> <small style="color:var(--mu)">(${d>0?'+':''}${d.toLocaleString('pt-BR')})</small></span>`; };
 let _wmsLoad=null;
 function carregarWms(){
   if(_wmsLoad) return _wmsLoad;
@@ -5033,6 +5039,7 @@ function renderTemposTab(rs,rsEvol){
         `<thead><tr><th style="text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Vendedor</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Pedidos</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">% dos pedidos</th>`+
+        `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)" title="Posição por quantidade de pedidos e diferença para o colocado logo acima">Ranking · vs. anterior</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Média</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Mediana (p50)</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">p90</th>`+
@@ -5042,6 +5049,7 @@ function renderTemposTab(rs,rsEvol){
             `<td style="padding:.3rem .5rem">${r.k}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;color:var(--mu)">${N2(r.cnt)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;font-weight:600">${_pctTm(r.cnt,_pTot)}</td>`+
+            `<td style="text-align:center;padding:.3rem .5rem">${_rkCell(vData.map(x=>x.cnt),i)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;font-weight:600">${fmtMin(r.v)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem">${fmtMin(r.med)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;color:var(--bad)">${fmtMin(r.p90)}</td>`+
@@ -5068,6 +5076,7 @@ function renderTemposTab(rs,rsEvol){
         `<thead><tr><th style="text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Vendedor</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Pedidos</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">% dos pedidos</th>`+
+        `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)" title="Posição por quantidade de pedidos e diferença para o colocado logo acima">Ranking · vs. anterior</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd);color:var(--y)">⏱ T1 Média</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd);color:var(--ok)">⏱ T2 Média</th>`+
         `</tr></thead><tbody>`+
@@ -5076,6 +5085,7 @@ function renderTemposTab(rs,rsEvol){
             `<td style="padding:.3rem .5rem">${r.k}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;color:var(--mu)">${N2(r.cnt)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;font-weight:600">${_pctTm(r.cnt,_pTot)}</td>`+
+            `<td style="text-align:center;padding:.3rem .5rem">${_rkCell(vData.map(x=>x.cnt),i)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;font-weight:600;color:var(--y)">${fmtMin(r.t1)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;font-weight:600;color:var(--ok)">${fmtMin(r.t2)}</td>`+
           `</tr>`
@@ -5108,6 +5118,7 @@ function renderTemposTab(rs,rsEvol){
         `<th style="text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Separador</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Pedidos</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">% dos pedidos</th>`+
+        `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)" title="Posição por quantidade de pedidos e diferença para o colocado logo acima">Ranking · vs. anterior</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Média T2</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">Mediana (p50)</th>`+
         `<th style="text-align:center;padding:.35rem .5rem;border-bottom:1px solid var(--bd)">p90 (pior 10%)</th>`+
@@ -5117,6 +5128,7 @@ function renderTemposTab(rs,rsEvol){
             `<td style="padding:.3rem .5rem;font-weight:600">${r.k}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;color:var(--mu)">${N2(r.cnt)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;font-weight:600">${_pctTm(r.cnt,_pTot)}</td>`+
+            `<td style="text-align:center;padding:.3rem .5rem">${_rkCell(cData.map(x=>x.cnt),i)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;font-weight:700;color:var(--ok)">${fmtMin(r.v)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem">${fmtMin(r.med)}</td>`+
             `<td style="text-align:center;padding:.3rem .5rem;color:var(--bad)">${fmtMin(r.p90)}</td>`+
@@ -5284,7 +5296,7 @@ function renderWmsLL(rsF){
   const mk=(l,v,sub,cor)=>`<div class="k" style="display:flex;flex-direction:column;gap:.15rem${cor?';border-left:3px solid '+cor:''}"><div class="kl" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)">${l}</div><div class="kv" style="font-size:1.35rem;font-weight:700">${v}</div>${sub?`<div style="font-size:.72rem;color:var(--mu)">${sub}</div>`:''}</div>`;
   const ops={};
   W.concat(LT).forEach(r=>{const k=r.operador+'|'+r.loja;(ops[k]=ops[k]||{S:[],C:[]})[r.tipo==='Separação'?'S':'C'].push(r);});
-  const linhas=Object.entries(ops).map(([k,o])=>{const [op,loja]=k.split('|');return {op,loja,s:est(o.S),c:est(o.C)}}).sort((a,b)=>(a.loja<b.loja?-1:a.loja>b.loja?1:0)||(b.s.n+b.c.n)-(a.s.n+a.c.n));
+  const linhas=Object.entries(ops).map(([k,o])=>{const [op,loja]=k.split('|');return {op,loja,s:est(o.S),c:est(o.C)}}).sort((a,b)=>((b.s.peds||0)-(a.s.peds||0))||((b.c.peds||0)-(a.c.peds||0))); // ordem do ranking de separação (1º, 2º, 3º…)
   const cel=(e,k)=>e.n&&k!=null&&k!=='—'?k:'<span style="color:var(--mu)">—</span>';
   const Nn=v=>v==null?'—':N(v);
   el.innerHTML=(window._diaNavHtml?`<div style="display:flex;justify-content:flex-end;margin:0 0 .6rem">${window._diaNavHtml()}</div>`:'')+
@@ -5296,12 +5308,12 @@ function renderWmsLL(rsF){
       mk('Espera sep. → conf. (LL)',fm(avg(esp)),`mediana ${fm(med(esp))} · ${N(esp.length)} pedidos`)+
       mk('Só no WMS',N(semV),'pedidos do WMS ainda sem pedido no ERP (entram nos painéis)'):'')+
     `</div>`+
-    `<div class="tw"><table class="ped-tb wms-tb"><thead><tr><th rowspan="2">Operador</th><th rowspan="2">Loja · origem</th><th colspan="6" style="text-align:center;border-bottom:1px solid var(--ln)">🟡 Separação</th><th colspan="6" style="text-align:center;border-bottom:1px solid var(--ln)">🔵 Conferência</th></tr>`+
-      `<tr><th style="text-align:right">Pedidos</th><th style="text-align:right">% dos pedidos</th><th style="text-align:right">Média</th><th style="text-align:right">Mediana</th><th style="text-align:right">SKUs/h</th><th style="text-align:right">Itens</th>`+
-      `<th style="text-align:right">Pedidos</th><th style="text-align:right">% dos pedidos</th><th style="text-align:right">Média</th><th style="text-align:right">Mediana</th><th style="text-align:right">SKUs/h</th><th style="text-align:right">Itens</th></tr></thead><tbody>`+
-      linhas.map(({op,loja,s:a,c:b})=>`<tr><td><b>${_escP(op)}</b></td><td><span class="bd ${loja==='LT'?'ok':'bl2c'}">${loja}</span> <span style="font-size:.72rem;color:var(--mu)">${loja==='LT'?'ERP':'WMS'}</span></td>`+
-        `<td data-v="${a.peds}" style="text-align:right">${cel(a,N(a.peds))}</td><td data-v="${a.peds}" style="text-align:right">${cel(a,_pctP(a.peds,eAll.peds))}</td><td data-v="${a.avg||0}" style="text-align:right">${cel(a,fm(a.avg))}</td><td data-v="${a.med||0}" style="text-align:right">${cel(a,fm(a.med))}</td><td data-v="${a.skuh||0}" style="text-align:right">${cel(a,Nn(a.skuh))}</td><td data-v="${a.qt??0}" style="text-align:right">${cel(a,Nn(a.qt))}</td>`+
-        `<td data-v="${b.peds}" style="text-align:right">${cel(b,N(b.peds))}</td><td data-v="${b.peds}" style="text-align:right">${cel(b,_pctP(b.peds,ec.peds))}</td><td data-v="${b.avg||0}" style="text-align:right">${cel(b,fm(b.avg))}</td><td data-v="${b.med||0}" style="text-align:right">${cel(b,fm(b.med))}</td><td data-v="${b.skuh||0}" style="text-align:right">${cel(b,N(b.skuh))}</td><td data-v="${b.qt}" style="text-align:right">${cel(b,N(b.qt))}</td></tr>`).join('')+
+    `<div class="tw"><table class="ped-tb wms-tb"><thead><tr><th rowspan="2">Operador</th><th rowspan="2">Loja · origem</th><th colspan="7" style="text-align:center;border-bottom:1px solid var(--ln)">🟡 Separação</th><th colspan="7" style="text-align:center;border-bottom:1px solid var(--ln)">🔵 Conferência</th></tr>`+
+      `<tr><th style="text-align:right">Pedidos</th><th style="text-align:right">% dos pedidos</th><th style="text-align:right" title="Posição e diferença para o colocado logo acima">Ranking · vs. anterior</th><th style="text-align:right">Média</th><th style="text-align:right">Mediana</th><th style="text-align:right">SKUs/h</th><th style="text-align:right">Itens</th>`+
+      `<th style="text-align:right">Pedidos</th><th style="text-align:right">% dos pedidos</th><th style="text-align:right" title="Posição e diferença para o colocado logo acima">Ranking · vs. anterior</th><th style="text-align:right">Média</th><th style="text-align:right">Mediana</th><th style="text-align:right">SKUs/h</th><th style="text-align:right">Itens</th></tr></thead><tbody>`+
+      linhas.map(({op,loja,s:a,c:b},ix)=>`<tr><td><b>${_escP(op)}</b></td><td><span class="bd ${loja==='LT'?'ok':'bl2c'}">${loja}</span> <span style="font-size:.72rem;color:var(--mu)">${loja==='LT'?'ERP':'WMS'}</span></td>`+
+        `<td data-v="${a.peds}" style="text-align:right">${cel(a,N(a.peds))}</td><td data-v="${a.peds}" style="text-align:right">${cel(a,_pctP(a.peds,eAll.peds))}</td><td style="text-align:right">${_rkCell(linhas.map(x=>x.s.peds),ix)}</td><td data-v="${a.avg||0}" style="text-align:right">${cel(a,fm(a.avg))}</td><td data-v="${a.med||0}" style="text-align:right">${cel(a,fm(a.med))}</td><td data-v="${a.skuh||0}" style="text-align:right">${cel(a,Nn(a.skuh))}</td><td data-v="${a.qt??0}" style="text-align:right">${cel(a,Nn(a.qt))}</td>`+
+        `<td data-v="${b.peds}" style="text-align:right">${cel(b,N(b.peds))}</td><td data-v="${b.peds}" style="text-align:right">${cel(b,_pctP(b.peds,ec.peds))}</td><td style="text-align:right">${_rkCell(linhas.map(x=>x.c.peds),ix)}</td><td data-v="${b.avg||0}" style="text-align:right">${cel(b,fm(b.avg))}</td><td data-v="${b.med||0}" style="text-align:right">${cel(b,fm(b.med))}</td><td data-v="${b.skuh||0}" style="text-align:right">${cel(b,N(b.skuh))}</td><td data-v="${b.qt}" style="text-align:right">${cel(b,N(b.qt))}</td></tr>`).join('')+
     `</tbody></table></div>`+
     `<p class="mu2" style="margin:.5rem 0 0;font-size:.75rem">LT: separação pelo ERP (separador, início e fim da separação; sem conferência nem SKUs no ERP). LL: exportações de produtividade do WMS (separação e conferência). Vínculo com o pedido LL pelo cliente + data/hora. Médias e ritmo desconsideram ${N(es.fora+ec.fora)} registro(s) acima de 8h (pedido que ficou aberto no WMS); a mediana usa todos. Clique num pedido da tabela de pedidos para ver as etapas dele.</p>`;
 }
@@ -5360,8 +5372,8 @@ function renderOciosidade(){
       mk('Espera fim sep. → início conf.',fm(avg(allEsp)),`LL · mediana ${fm(med(allEsp))} · ${N(allEsp.length)} pedidos`,'#5aa9e6')+
       mk('Pausas > '+OC_PAUSA+'min',N(dias.reduce((x,d)=>x+d.pausas,0)),'almoço/intervalos, fora da média')+
     `</div>`+
-    `<div class="tw"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R}>Sep.</th><th ${R}>Conf.</th><th ${R}>% das tarefas</th><th ${R}>Tarefas/dia</th><th ${R} title="Horário médio do 1º pedido">Hora 1º ped.</th><th ${R}>08:00 → 1º</th><th ${R}>Média entre pedidos</th><th ${R}>Mediana entre</th><th ${R}>Sep. média</th><th ${R}>Conf. média</th><th ${R}>Espera sep. → conf.</th><th ${R}>Pausas</th></tr></thead><tbody>`+
-      linhas.map(l=>`<tr><td><b>${_escP(l.op)}</b></td><td>${bdg(l.lojas)}</td><td data-v="${l.nd}" ${R}>${N(l.nd)}</td><td data-v="${l.nS}" ${R}>${N(l.nS)}</td><td data-v="${l.nC}" ${R}>${l.nC?N(l.nC):'—'}</td><td data-v="${l.nS+l.nC}" ${R}>${_pctP(l.nS+l.nC,linhas.reduce((t,x)=>t+x.nS+x.nC,0))}</td><td data-v="${l.porDia}" ${R}>${N(l.porDia)}</td><td data-v="${l.pri}" ${R}>${hh(l.pri)}</td><td data-v="${l.ate1}" ${R}><b>${fm(l.ate1)}</b></td><td data-v="${l.gm??0}" ${R}><b>${fm(l.gm)}</b></td><td data-v="${l.gmed??0}" ${R}>${fm(l.gmed)}</td><td data-v="${l.dS??0}" ${R}>${fm(l.dS)}</td><td data-v="${l.dC??0}" ${R}>${fm(l.dC)}</td><td data-v="${l.esp??0}" ${R} title="${l.nesp} pedidos conferidos">${fm(l.esp)}</td><td data-v="${l.pausas}" ${R}>${N(l.pausas)}</td></tr>`).join('')+
+    `<div class="tw"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R}>Sep.</th><th ${R}>Conf.</th><th ${R}>% das tarefas</th><th ${R} title="Posição por tarefas e diferença para o colocado logo acima">Ranking · vs. anterior</th><th ${R}>Tarefas/dia</th><th ${R} title="Horário médio do 1º pedido">Hora 1º ped.</th><th ${R}>08:00 → 1º</th><th ${R}>Média entre pedidos</th><th ${R}>Mediana entre</th><th ${R}>Sep. média</th><th ${R}>Conf. média</th><th ${R}>Espera sep. → conf.</th><th ${R}>Pausas</th></tr></thead><tbody>`+
+      linhas.map((l,ix)=>`<tr><td><b>${_escP(l.op)}</b></td><td>${bdg(l.lojas)}</td><td data-v="${l.nd}" ${R}>${N(l.nd)}</td><td data-v="${l.nS}" ${R}>${N(l.nS)}</td><td data-v="${l.nC}" ${R}>${l.nC?N(l.nC):'—'}</td><td data-v="${l.nS+l.nC}" ${R}>${_pctP(l.nS+l.nC,linhas.reduce((t,x)=>t+x.nS+x.nC,0))}</td><td ${R}>${_rkCell(linhas.map(x=>x.nS+x.nC),ix)}</td><td data-v="${l.porDia}" ${R}>${N(l.porDia)}</td><td data-v="${l.pri}" ${R}>${hh(l.pri)}</td><td data-v="${l.ate1}" ${R}><b>${fm(l.ate1)}</b></td><td data-v="${l.gm??0}" ${R}><b>${fm(l.gm)}</b></td><td data-v="${l.gmed??0}" ${R}>${fm(l.gmed)}</td><td data-v="${l.dS??0}" ${R}>${fm(l.dS)}</td><td data-v="${l.dC??0}" ${R}>${fm(l.dC)}</td><td data-v="${l.esp??0}" ${R} title="${l.nesp} pedidos conferidos">${fm(l.esp)}</td><td data-v="${l.pausas}" ${R}>${N(l.pausas)}</td></tr>`).join('')+
     `</tbody></table></div>`+
     `<details style="margin-top:.6rem"><summary style="cursor:pointer;font-size:.85rem;font-weight:600">📅 Detalhe por dia (${dias.length} linhas)</summary>`+
       `<div class="tw" style="max-height:26rem;overflow:auto;margin-top:.4rem"><table class="ped-tb wms-tb"><thead><tr><th>Dia</th><th>Operador</th><th>Loja</th><th ${R}>Separações</th><th ${R}>Conferências</th><th ${R}>1º pedido</th><th ${R}>Último fim</th><th ${R}>08:00 → 1º</th><th ${R}>Média entre pedidos</th><th ${R}>Mediana</th><th ${R}>Pausas &gt; ${OC_PAUSA}min</th></tr></thead><tbody>`+
@@ -5535,12 +5547,12 @@ function renderProdInd(rsF){
   // ── Tabela de indicadores por operador
   const R='style="text-align:right"', td=(v,txt,b)=>`<td data-v="${v==null||isNaN(v)?-1:v}" ${R}>${b?'<b>'+txt+'</b>':txt}</td>`;
   const tab=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:1rem 0 .3rem"><h4 style="margin:0;font-size:.88rem;flex:1 1 auto">📋 Indicadores por operador <small style="font-weight:400;color:var(--mu)">(período filtrado · médias por dia trabalhado)</small></h4>${window._diaNavHtml?window._diaNavHtml():''}</div>`+
-    `<div class="tw" style="overflow:auto"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R}>Pedidos</th><th ${R}>% dos pedidos</th><th ${R}>Pedidos/dia</th><th ${R}>Itens separados</th><th ${R}>Itens/pedido</th><th ${R}>Tempo/pedido</th><th ${R}>Tempo/item</th><th ${R}>Conf./pedido</th><th ${R}>Pedidos/h</th><th ${R}>Itens/h</th>`+
+    `<div class="tw" style="overflow:auto"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R}>Pedidos</th><th ${R}>% dos pedidos</th><th ${R} title="Posição por pedidos e diferença para o colocado logo acima">Ranking · vs. anterior</th><th ${R}>Pedidos/dia</th><th ${R}>Itens separados</th><th ${R}>Itens/pedido</th><th ${R}>Tempo/pedido</th><th ${R}>Tempo/item</th><th ${R}>Conf./pedido</th><th ${R}>Pedidos/h</th><th ${R}>Itens/h</th>`+
       `<th ${R} title="Horário médio em que pegou o 1º pedido">1º pedido às</th><th ${R}>08:00 → 1º</th><th ${R} title="Duração da separação do 1º pedido">Sep. do 1º</th><th ${R} title="Das 08:00 até terminar a separação do 1º pedido">08:00 → fim 1º</th>`+
       `<th ${R} title="Fim da separação → início da conferência">Sep. → conferir</th><th ${R} title="Fim da separação → início do próximo pedido">Sep. → próx. pedido</th><th ${R} title="Fim da conferência → início da próxima separação">Conf. → separar</th><th ${R}>Até próx. função</th>`+
       `<th ${R}>Trabalhando/dia</th><th ${R}>Parado/dia</th><th ${R}>Pausas/dia</th><th ${R}>Utilização</th></tr></thead><tbody>`+
     ind.map(i=>`<tr><td><b>${_escP(i.op)}</b></td><td>${i.lojas.split('+').map(x=>`<span class="bd ${x==='LT'?'ok':'bl2c'}" style="margin-right:.2rem">${x}</span>`).join('')}</td>`+
-      td(i.nd,N(i.nd))+td(i.peds,N(i.peds),1)+td(i.peds,_pctP(i.peds,totPed))+td(i.porDia,N(i.porDia))+td(i.qt,N(i.qt))+td(i.itPed,N(i.itPed))+td(i.tPed,fm(i.tPed),1)+td(i.tItem,fs(i.tItem),1)+td(i.tConf,fm(i.tConf))+td(i.pedH,N(i.pedH))+td(i.itH,N(i.itH))+
+      td(i.nd,N(i.nd))+td(i.peds,N(i.peds),1)+td(i.peds,_pctP(i.peds,totPed))+`<td ${R}>${_rkCell(ind.map(x=>x.peds),ind.indexOf(i))}</td>`+td(i.porDia,N(i.porDia))+td(i.qt,N(i.qt))+td(i.itPed,N(i.itPed))+td(i.tPed,fm(i.tPed),1)+td(i.tItem,fs(i.tItem),1)+td(i.tConf,fm(i.tConf))+td(i.pedH,N(i.pedH))+td(i.itH,N(i.itH))+
       td(i.hr1,hh(i.hr1))+td(i.ate1,fm(i.ate1),1)+td(i.dur1,fm(i.dur1))+td(i.fim1,fm(i.fim1))+
       td(i.SC,fm(i.SC))+td(i.SS,fm(i.SS))+td(i.CS,fm(i.CS))+td(i.gap,fm(i.gap),1)+
       td(i.prodD,fm(i.prodD))+td(i.ociosoD,`<span style="color:${C.oc}">${fm(i.ociosoD)}</span>`,1)+td(i.pausaD,fm(i.pausaD))+
