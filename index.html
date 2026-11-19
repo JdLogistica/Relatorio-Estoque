@@ -2535,6 +2535,11 @@ function bootEnd(){
  const ult=r=>{if(!temGiro)return'';const g=giroDe(r);return g[2]?g[2].split('-').reverse().join('/'):'—'};
  const tab=(cols,rows,max=300)=>`<div class="tw" style="max-height:460px;overflow:auto"><table class="ped-tb"><thead><tr>${cols.map(c=>`<th${c[1]?' style="text-align:center"':''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.slice(0,max).join('')}</tbody></table></div>${rows.length>max?`<p style="font-size:.74rem;color:var(--mu)">Mostrando ${max} de ${N(rows.length)} — use os filtros ou o CSV.</p>`:''}`;
  const td=(v,c,dv)=>`<td${dv!=null?` data-v="${dv}"`:''}${c?' style="text-align:center"':''}>${v}</td>`;
+ // endereço do próprio Cód. Danfe (chave única do estoque): locação do ERP + posição no WMS quando houver
+ if(!window._EWMS&&!window._ewmsPedido&&typeof carregarEstoqueWms==='function'){ window._ewmsPedido=true; carregarEstoqueWms().then(()=>{ if(cur==='end') renderGeral(); }).catch(()=>{}); }
+ const wmsEnd=new Map(); (window._EWMS||[]).forEach(w=>{ const k=w.loja+'|'+String(w.referencia||'').trim().toUpperCase(); if(!w.endereco||!w.referencia) return; (wmsEnd.get(k)||wmsEnd.set(k,new Set()).get(k)).add(w.endereco); });
+ const endDanfe=r=>{ const w=[...(wmsEnd.get(r.lj+'|'+String(r.r||'').trim().toUpperCase())||[])]; return {erp:r.l||'',wms:w}; };
+ const endDanfeHtml=r=>{ const x=endDanfe(r); return (x.erp?`<b>${esc(x.erp)}</b>`:'<span style="color:var(--bad)">sem locação</span>')+(x.wms.length?` <small style="color:var(--mu)">WMS: ${x.wms.map(esc).join(', ')}</small>`:''); };
  const endLink=e=>`<span data-endk="sel" data-endv="${esc(e)}" style="cursor:pointer;text-decoration:underline dotted;color:var(--y)" title="Ver itens deste endereço">${esc(e)}</span>`;
  // ── painel do endereço selecionado / filtrado ──
  const mostraItens=EF.sel||GF.loc||EF.rua&&EF.prat||endsF.length<=15;
@@ -2543,8 +2548,8 @@ function bootEnd(){
   const lst=endsF.slice().sort((a,b)=>a.e.localeCompare(b.e,'pt-BR',{numeric:true})).slice(0,60);
   painel=`<article class="pn w2"><h3>📍 Itens ${EF.sel?'do endereço '+esc(EF.sel):'dos endereços filtrados'} <small style="font-weight:400;color:var(--mu)">— ${N(lst.length)} endereço(s)</small> <button type="button" class="bt" id="end-csv" style="float:right;font-size:.75rem;padding:.2rem .6rem">Exportar CSV</button></h3>`+
    lst.map(a=>{const its=a.its.filter(giroOk).sort((x,y)=>(y.s||0)-(x.s||0));return `<div style="margin:.5rem 0 .2rem;display:flex;gap:.8rem;flex-wrap:wrap;align-items:baseline"><b style="font-size:.95rem">${esc(a.e)}</b><span style="font-size:.78rem;color:var(--mu)">${esc(a.lj)} · rua ${esc(a.rua)}${a.prat?' · prateleira '+esc(a.prat):''}${a.niv?' · nível/posição '+esc(a.niv):''} · <b>${its.length}</b> itens · <b>${N(its.reduce((s,r)=>s+(r.s||0),0))}</b> peças · ${BRL(its.reduce((s,r)=>s+(r.cu||0)*(r.s||0),0))} · ${new Set(its.map(r=>r.m).filter(Boolean)).size} marca(s)</span></div>`+
-    tab([['Cód. produto'],['Cód. Danfe'],['Descrição'],['Marca'],['Qtde',1],['Custo un.',1],['Valor',1],['Vendas no ano',1],['Última venda',1],['Outros endereços do item']],
-     its.map(r=>{const o=[...(locsDe.get(r.lj+'|'+r.c)||[])].filter(x=>x!==a.e);return `<tr>${td(esc(r.c))}${td(esc(r.r||''))}${td(esc(r.d))}${td(esc(r.m))}${td('<b>'+N0(r.s)+'</b>',1,r.s||0)}${td(BRL(r.cu||0),1,r.cu||0)}${td(BRL((r.cu||0)*(r.s||0)),1,(r.cu||0)*(r.s||0))}${td(gT(r),1,temGiro?giroDe(r)[0]:'')}${td(ult(r),1,temGiro?(giroDe(r)[2]||''):'')}${td(o.length?o.map(endLink).join(', '):'—')}</tr>`}),200)}).join('')+`</article>`;
+    tab([['Cód. produto'],['Cód. Danfe'],['Endereço do Cód. Danfe'],['Descrição'],['Marca'],['Qtde',1],['Custo un.',1],['Valor',1],['Vendas no ano',1],['Última venda',1],['Outros endereços do item']],
+     its.map(r=>{const o=[...(locsDe.get(r.lj+'|'+r.c)||[])].filter(x=>x!==a.e);return `<tr>${td(esc(r.c))}${td(esc(r.r||''))}${td(endDanfeHtml(r))}${td(esc(r.d))}${td(esc(r.m))}${td('<b>'+N0(r.s)+'</b>',1,r.s||0)}${td(BRL(r.cu||0),1,r.cu||0)}${td(BRL((r.cu||0)*(r.s||0)),1,(r.cu||0)*(r.s||0))}${td(gT(r),1,temGiro?giroDe(r)[0]:'')}${td(ult(r),1,temGiro?(giroDe(r)[2]||''):'')}${td(o.length?o.map(endLink).join(', '):'—')}</tr>`}),200)}).join('')+`</article>`;
  }
  // ── gráficos ──
  const porFx=END_FX.map(f=>{const es=ends.filter(a=>passE(a,'fx')&&a.fx===f[0]);return{k:f[0],l:f[1],v:es.length,it:es.reduce((s,a)=>s+a.its.length,0)}});
@@ -2581,8 +2586,8 @@ function bootEnd(){
  const csvB=document.getElementById('end-csv');
  if(csvB) csvB.onclick=()=>{
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const lin=[['Endereço','Filial','Rua/área','Prateleira','Nível/pos.','Cód. produto','Cód. Danfe','Descrição','Marca','Qtde','Custo un.','Valor','Pedidos no ano','Unidades no ano','Última venda'].map(q).join(';')];
-  endsF.forEach(a=>a.its.filter(giroOk).forEach(r=>{const g=giroDe(r)||[];lin.push([a.e,a.lj,a.rua,a.prat,a.niv,r.c,r.r,r.d,r.m,String(r.s).replace('.',','),String(r.cu||0).replace('.',','),String(((r.cu||0)*(r.s||0)).toFixed(2)).replace('.',','),g[0]??'',g[1]??'',g[2]||''].map(q).join(';'))}));
+  const lin=[['Endereço','Filial','Rua/área','Prateleira','Nível/pos.','Cód. produto','Cód. Danfe','Endereço do Cód. Danfe (ERP)','Endereço WMS','Descrição','Marca','Qtde','Custo un.','Valor','Pedidos no ano','Unidades no ano','Última venda'].map(q).join(';')];
+  endsF.forEach(a=>a.its.filter(giroOk).forEach(r=>{const g=giroDe(r)||[];lin.push([a.e,a.lj,a.rua,a.prat,a.niv,r.c,r.r,endDanfe(r).erp,endDanfe(r).wms.join(' / '),r.d,r.m,String(r.s).replace('.',','),String(r.cu||0).replace('.',','),String(((r.cu||0)*(r.s||0)).toFixed(2)).replace('.',','),g[0]??'',g[1]??'',g[2]||''].map(q).join(';'))}));
   const el=document.createElement('a');el.href=URL.createObjectURL(new Blob(['﻿'+lin.join('\n')],{type:'text/csv;charset=utf-8'}));el.download='enderecos-itens.csv';el.click();URL.revokeObjectURL(el.href);
  };
 }
