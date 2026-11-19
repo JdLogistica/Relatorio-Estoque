@@ -2572,7 +2572,12 @@ function bootEnd(){
   `<article class="pn"><h3>🛣️ Itens por rua / área (top 25)</h3>${barras(ruasT,'rua',EF.rua,'var(--ok)',x=>`${N(x.v)} itens · ${N(x.e)} end.`)}</article>`+
   `<article class="pn"><h3>🗄️ Itens por prateleira (top 25)</h3>${barras(pratT,'prat',EF.prat,'var(--bl)',x=>`${N(x.v)} itens · ${N(x.e)} end.`)}</article>`+
   `<article class="pn w2"><h3>🔀 Itens em mais de um endereço <small style="font-weight:400;color:var(--mu)">— juntar num lugar só facilita a separação</small></h3>`+
-   tab([['Filial'],['Cód. produto'],['Descrição'],['Nº de endereços',1],['Saldo total',1],['Endereços']],espRows.map(x=>`<tr>${td(esc(x.lj))}${td(esc(x.c))}${td(esc(x.its[0].d))}${td('<b>'+x.s.size+'</b>',1,x.s.size)}${td(N0(x.its.reduce((s,r)=>s+(r.s||0),0)),1,x.its.reduce((s,r)=>s+(r.s||0),0))}${td([...x.s].map(endLink).join(', '))}</tr>`),200)+`</article>`+
+   tab([['Filial'],['Cód. produto'],['Descrição'],['Marca(s)'],['Nº de Cód. Danfe',1],['Nº de endereços',1],['Saldo total',1],['Valor total',1],['Vendas no ano',1],['Última venda',1],['Endereço · Cód. Danfe · marca · saldo']],espRows.map(x=>{
+     const all=(danfesDe.get(x.lj+'|'+x.c)||x.its).slice().sort((a,b)=>(b.s||0)-(a.s||0)), sal=all.reduce((s,r)=>s+(r.s||0),0), val=all.reduce((s,r)=>s+(r.cu||0)*(r.s||0),0);
+     const mar=[...new Set(all.map(r=>r.m).filter(Boolean))], d0=(all.find(r=>r.d)||x.its[0]).d;
+     return `<tr>${td(esc(x.lj))}${td('<b>'+esc(x.c)+'</b>')}${td(esc(d0))}${td(mar.map(esc).join('<br>')||'—')}${td(N(all.length),1,all.length)}${td('<b>'+x.s.size+'</b>',1,x.s.size)}${td('<b>'+N0(sal)+'</b>',1,sal)}${td(BRL(val),1,val)}${td(gT(all[0]),1,temGiro?giroDe(all[0])[0]:'')}${td(ult(all[0]),1,temGiro?(giroDe(all[0])[2]||''):'')}`+
+       `${td(all.map(r=>`<div style="white-space:nowrap">${r.l?endLink(r.l):'<span style="color:var(--bad)">sem locação</span>'} · ${esc(r.r||'')} · ${esc(r.m||'')} · <b>${N0(r.s)}</b> un.</div>`).join(''))}</tr>`;}),200)+
+   `<button type="button" class="bt" id="esp-csv" style="margin-top:.4rem;font-size:.75rem;padding:.2rem .6rem">Exportar CSV (uma linha por Cód. Danfe)</button></article>`+
   `<article class="pn w2"><h3>🚫 Itens com saldo e sem endereço <small style="font-weight:400;color:var(--mu)">— ${temGiro?'ordenados pelos que mais vendem':'por saldo'}: priorize endereçar estes</small></h3>`+
    tab([['Filial'],['Cód. produto'],['Descrição'],['Marca'],['Saldo',1],['Vendas no ano',1],['Última venda',1]],semEndV.map(r=>`<tr>${td(esc(r.lj))}${td(esc(r.c))}${td(esc(r.d))}${td(esc(r.m))}${td(N0(r.s),1,r.s||0)}${td(gT(r),1,temGiro?giroDe(r)[0]:'')}${td(ult(r),1)}</tr>`),200)+`</article>`+
   `<article class="pn w2"><h3>⚡ Itens que mais vendem e onde estão <small style="font-weight:400;color:var(--mu)">— candidatos a ficar perto da expedição</small></h3>`+
@@ -2584,6 +2589,12 @@ function bootEnd(){
   `<article class="pn w2"><h3>📋 Todos os endereços</h3>`+
    tab([['Endereço'],['Filial'],['Rua/área'],['Prateleira'],['Nível/pos.'],['Itens',1],['Peças',1],['Valor',1],['Marcas',1],['Itens com venda',1],['Itens parados',1]],
     endsF.slice().sort((a,b)=>b.its.length-a.its.length).map(a=>`<tr>${td(endLink(a.e))}${td(esc(a.lj))}${td(esc(a.rua))}${td(esc(a.prat||'—'))}${td(esc(a.niv||'—'))}${td('<b>'+a.its.length+'</b>',1,a.its.length)}${td(N(a.pcs),1,a.pcs)}${td(BRL(a.val),1,a.val)}${td(a.mar.size,1,a.mar.size)}${td(temGiro?a.cv:'…',1,a.cv)}${td(temGiro?a.sv:'…',1,a.sv)}</tr>`),1000)+`</article>`;
+ const espB=document.getElementById('esp-csv');
+ if(espB) espB.onclick=()=>{ const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"', nf=v=>String(v??'').replace('.',',');
+  const lin=[['Filial','Cód. produto','Descrição','Nº de Cód. Danfe','Nº de endereços','Saldo total do produto','Cód. Danfe','Endereço','Marca','Saldo','Custo un.','Valor','Pedidos no ano','Unidades no ano','Última venda'].map(q).join(';')];
+  espRows.forEach(x=>{ const all=danfesDe.get(x.lj+'|'+x.c)||x.its, sal=all.reduce((s,r)=>s+(r.s||0),0), g=(temGiro&&giroDe(all[0]))||[];
+    all.forEach(r=>lin.push([x.lj,x.c,r.d,all.length,x.s.size,nf(sal),r.r,r.l||'sem locação',r.m,nf(r.s),nf(r.cu||0),nf(((r.cu||0)*(r.s||0)).toFixed(2)),g[0]??'',g[1]??'',g[2]||''].map(q).join(';'))); });
+  const el=document.createElement('a');el.href=URL.createObjectURL(new Blob(['\ufeff'+lin.join('\n')],{type:'text/csv;charset=utf-8'}));el.download='itens-em-varios-enderecos.csv';el.click();URL.revokeObjectURL(el.href); };
  const csvB=document.getElementById('end-csv');
  if(csvB) csvB.onclick=()=>{
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
