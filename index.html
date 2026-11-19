@@ -1091,9 +1091,12 @@ async function carregarPedidosSupa(){
       await carregarRotas();
       const W=await carregarWms(), m={};
       // tarefas do WMS que ficaram sem pedido na importação (o pedido do ERP ainda não estava no banco) são ligadas de novo aqui, a cada carga
+      // recomeça do que está no banco (a carga pode rodar mais de uma vez na sessão)
+      W.forEach(w=>{ if(w._vincLocal||w._soWms){ w.pedido_id=null; delete w._vincLocal; delete w._soWms; } if(w._inicio_wms){ w.inicio=w._inicio_wms; delete w._inicio_wms; delete w._iniERP; } });
       try{ const sem=W.filter(w=>!w.pedido_id);
         if(sem.length){ const usados=new Set(W.filter(w=>w.pedido_id).map(w=>String(w.pedido_id)));
-          const mm=_pwVincular(sem,out.filter(p=>!usados.has(String(p.id))));
+          const cands=_pwCandidatos(sem,out.filter(p=>!usados.has(String(p.id)))); let itM=null; try{ itM=await _itensLL(cands.map(p=>p.id)); }catch(e){ console.warn('[itens LL p/ vínculo]',e); }
+          const mm=_pwVincular(sem,cands,itM);
           sem.forEach(w=>{ const v=mm.get(w.pedido_wms); if(v){ w.pedido_id=v[0]; w.vinc_dif_min=v[1]; w._vincLocal=true; } }); } }catch(e){ console.warn('[wms re-vínculo]',e); }
       // Tempo do início ao fim, juntando os dois sistemas: o WMS só grava a separação quando ela é finalizada
       // (início = fim, ou poucos segundos). Se o ERP registrou o início da separação antes, ele vale como início; o fim continua o do WMS.
@@ -3012,11 +3015,28 @@ function _pwParse(texto, nome){
   return out;
 }
 const _pwNz=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-function _pwVincular(W, pedidos){
-  // pedido do WMS → pedido da LL: mesmo cliente, emissão do ERP até 30 min depois / 3 dias antes do WMS; 1 para 1, o mais próximo primeiro
-  const erp=new Map(); (pedidos||[]).forEach(p=>{ if(p.loja!=='LL'||!p.dia) return; const t=new Date(p.dia+'T'+String(p.hr_emissao||'00:00').slice(0,5)+':00'); const k=_pwNz(p.cli); (erp.get(k)||erp.set(k,[]).get(k)).push({id:String(p.id),t}); });
-  const wp=new Map(); W.forEach(w=>{ const o=wp.get(w.pedido_wms)||{cli:_pwNz(w.destinatario),ref:null}; [w.emissao,w.inicio].forEach(x=>{ if(x){const d=new Date(x); if(!o.ref||d<o.ref) o.ref=d;} }); if(!o.cli&&w.destinatario) o.cli=_pwNz(w.destinatario); wp.set(w.pedido_wms,o); });
-  const cand=[]; wp.forEach((o,pw)=>{ if(!o.ref) return; (erp.get(o.cli)||[]).forEach(e=>{ const dif=(o.ref-e.t)/60000; if(dif>=-30&&dif<=3*24*60) cand.push([Math.abs(dif),pw,e.id,Math.round(dif)]); }); });
+// Itens do ERP (LL) por pedido: quantidade de itens (linhas/SKUs) e de peças — usado para ligar o pedido certo do WMS
+async function _itensLL(ids){
+  const M=new Map(), L=[...new Set((ids||[]).map(x=>Number(x)).filter(x=>x>0))];
+  for(let i=0;i<L.length;i+=150){ const ch=L.slice(i,i+150); let from=0;
+    while(true){ const {data,error}=await _sb.from('itens').select('pedido_id,qtde').eq('loja','LL').in('pedido_id',ch).range(from,from+999);
+      if(error) throw error; (data||[]).forEach(r=>{ const k=String(r.pedido_id), o=M.get(k)||{n:0,q:0}; o.n++; o.q+=(+r.qtde||0); M.set(k,o); });
+      if(!data||data.length<1000) break; from+=1000; } }
+  return M;
+}
+// pedidos do ERP que podem ser ligados (mesmo cliente de alguma linha do WMS)
+function _pwCandidatos(W, pedidos){ const cl=new Set(W.map(w=>_pwNz(w.destinatario)).filter(Boolean)); return (pedidos||[]).filter(p=>p.loja==='LL'&&!p._soWms&&cl.has(_pwNz(p.cli))); }
+function _pwVincular(W, pedidos, itMap){
+  // pedido do WMS → pedido da LL: mesmo cliente, emissão do ERP até 30 min depois / 3 dias antes do WMS; 1 para 1.
+  // Quando o cliente tem vários pedidos no mesmo período, vale primeiro quem bate a quantidade de SKUs e de peças com os itens do ERP; depois o horário mais próximo.
+  const erp=new Map(); (pedidos||[]).forEach(p=>{ if(p.loja!=='LL'||!p.dia||p._soWms) return; const t=new Date(p.dia+'T'+String(p.hr_emissao||'00:00').slice(0,5)+':00'); const k=_pwNz(p.cli); (erp.get(k)||erp.set(k,[]).get(k)).push({id:String(p.id),t}); });
+  const wp=new Map(); W.forEach(w=>{ const o=wp.get(w.pedido_wms)||{cli:_pwNz(w.destinatario),ref:null,sk:null,qt:null};
+    [w.emissao,w.inicio].forEach(x=>{ if(x){const d=new Date(x); if(!o.ref||d<o.ref) o.ref=d;} }); if(!o.cli&&w.destinatario) o.cli=_pwNz(w.destinatario);
+    if(w.skus!=null&&(o.sk==null||w.tipo==='Separação')) o.sk=+w.skus; if(w.quantidade!=null&&(o.qt==null||w.tipo==='Separação')) o.qt=+w.quantidade; wp.set(w.pedido_wms,o); });
+  const cand=[]; wp.forEach((o,pw)=>{ if(!o.ref) return; (erp.get(o.cli)||[]).forEach(e=>{ const dif=(o.ref-e.t)/60000; if(!(dif>=-30&&dif<=3*24*60)) return;
+    let sc=Math.abs(dif); const it=itMap&&itMap.get(e.id);
+    if(it&&o.sk!=null){ const okS=o.sk===it.n, okQ=o.qt!=null&&o.qt===it.q; if(okS) sc-=1e6; if(okQ) sc-=5e5; if(!okS&&!okQ) sc+=1e5; }
+    cand.push([sc,pw,e.id,Math.round(dif)]); }); });
   cand.sort((a,b)=>a[0]-b[0]); const uw=new Set(), ue=new Set(), m=new Map();
   cand.forEach(([,pw,pe,dif])=>{ if(uw.has(pw)||ue.has(pe)) return; uw.add(pw); ue.add(pe); m.set(pw,[pe,dif]); });
   return m;
@@ -3038,7 +3058,8 @@ async function importarProdutividadeWms(input){
     if(!W.length) throw new Error('Os arquivos não têm linhas de pedidos.');
     msg(`🔗 Ligando ${new Set(W.map(w=>w.pedido_wms)).size} pedidos do WMS aos pedidos da LL...`);
     let ped=(typeof _dP!=='undefined'&&_dP&&_dP.rows&&_dP.rows.length)?_dP.rows:await carregarPedidosSupa();
-    const m=_pwVincular(W,ped);
+    ped=_pwCandidatos(W,ped); let itM=null; try{ itM=await _itensLL(ped.map(p=>p.id)); }catch(e){ console.warn('[itens LL p/ vínculo]',e); }
+    const m=_pwVincular(W,ped,itM);
     W.forEach(w=>{ const v=m.get(w.pedido_wms); w.pedido_id=v?v[0]:null; w.vinc_dif_min=v?v[1]:null; });
     msg('🧹 Substituindo a produtividade WMS anterior...');
     const {error:de}=await _sb.from('wms_tempos').delete().gt('id',0);
