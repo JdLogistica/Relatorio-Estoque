@@ -2572,11 +2572,33 @@ function bootEnd(){
   `<article class="pn"><h3>🛣️ Itens por rua / área (top 25)</h3>${barras(ruasT,'rua',EF.rua,'var(--ok)',x=>`${N(x.v)} itens · ${N(x.e)} end.`)}</article>`+
   `<article class="pn"><h3>🗄️ Itens por prateleira (top 25)</h3>${barras(pratT,'prat',EF.prat,'var(--bl)',x=>`${N(x.v)} itens · ${N(x.e)} end.`)}</article>`+
   `<article class="pn w2"><h3>🔀 Itens em mais de um endereço <small style="font-weight:400;color:var(--mu)">— juntar num lugar só facilita a separação</small></h3>`+
-   tab([['Filial'],['Cód. produto'],['Descrição'],['Marca(s)'],['Nº de Cód. Danfe',1],['Nº de endereços',1],['Saldo total',1],['Valor total',1],['Vendas no ano',1],['Última venda',1],['Endereço · Cód. Danfe · marca · saldo']],espRows.map(x=>{
-     const all=(danfesDe.get(x.lj+'|'+x.c)||x.its).slice().sort((a,b)=>(b.s||0)-(a.s||0)), sal=all.reduce((s,r)=>s+(r.s||0),0), val=all.reduce((s,r)=>s+(r.cu||0)*(r.s||0),0);
-     const mar=[...new Set(all.map(r=>r.m).filter(Boolean))], d0=(all.find(r=>r.d)||x.its[0]).d;
-     return `<tr>${td(esc(x.lj))}${td('<b>'+esc(x.c)+'</b>')}${td(esc(d0))}${td(mar.map(esc).join('<br>')||'—')}${td(N(all.length),1,all.length)}${td('<b>'+x.s.size+'</b>',1,x.s.size)}${td('<b>'+N0(sal)+'</b>',1,sal)}${td(BRL(val),1,val)}${td(gT(all[0]),1,temGiro?giroDe(all[0])[0]:'')}${td(ult(all[0]),1,temGiro?(giroDe(all[0])[2]||''):'')}`+
-       `${td(all.map(r=>`<div style="white-space:nowrap">${r.l?endLink(r.l):'<span style="color:var(--bad)">sem locação</span>'} · ${esc(r.r||'')} · ${esc(r.m||'')} · <b>${N0(r.s)}</b> un.</div>`).join(''))}</tr>`;}),200)+
+   (()=>{ // uma linha por posição (Cód. Danfe); dados do produto agrupados à esquerda
+     const G=espRows.map(x=>{ const all=(danfesDe.get(x.lj+'|'+x.c)||x.its).slice().sort((a,b)=>(b.s||0)-(a.s||0)); const sal=all.reduce((s,r)=>s+(r.s||0),0);
+       return {x,all,sal,val:all.reduce((s,r)=>s+(r.cu||0)*(r.s||0),0),ne:x.s.size,g:temGiro?giroDe(all[0]):null}; });
+     const totP=G.reduce((s,g)=>s+g.all.length,0), totPc=G.reduce((s,g)=>s+g.sal,0);
+     const resumo=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.5rem;margin:.2rem 0 .7rem">`+
+       [['Produtos espalhados',N(G.length),'mesmo código em 2+ endereços'],['Posições envolvidas',N(totP),'códigos Danfe com saldo'],['Peças nessas posições',N0(totPc),'saldo somado'],
+        ['Endereços a liberar',N(G.reduce((s,g)=>s+Math.max(0,g.ne-1),0)),'se cada produto ficar num endereço só'],['Média de endereços/produto',G.length?(G.reduce((s,g)=>s+g.ne,0)/G.length).toLocaleString('pt-BR',{maximumFractionDigits:1}):'—','']]
+       .map(([l,v,sub])=>`<div class="k" style="padding:.55rem .7rem"><span style="font-size:.7rem">${l}</span><b style="font-size:1.15rem">${v}</b>${sub?`<small>${sub}</small>`:''}</div>`).join('')+`</div>`;
+     const th=(t,r,w)=>`<th style="${r?'text-align:right;':''}${w?'min-width:'+w+';':''}position:sticky;top:0;z-index:1;background:var(--bg2,#1b1b1b)">${t}</th>`;
+     const RT='style="text-align:right;white-space:nowrap"', GR=(k,n)=>`rowspan="${n}" style="vertical-align:top;border-right:1px solid var(--ln);${k||''}"`;
+     const linhas=G.slice(0,200).map((g,gi)=>{ const n=g.all.length, bg=gi%2?'background:color-mix(in srgb,var(--bd) 14%,transparent);':'';
+       return g.all.map((r,k)=>{ const pc=g.sal?(r.s||0)/g.sal*100:0, princ=k===0;
+         return `<tr style="${bg}${k===n-1?'border-bottom:2px solid var(--ln);':''}">`+
+           (k===0?`<td ${GR('',n)}>${esc(g.x.lj)}</td><td ${GR('font-weight:700;white-space:nowrap',n)}>${esc(g.x.c)}</td><td ${GR('min-width:14rem',n)}>${esc((g.all.find(z=>z.d)||{}).d||'')}</td>`+
+             `<td ${GR('text-align:right',n)}><b>${g.ne}</b></td><td ${GR('text-align:right',n)}><b>${N0(g.sal)}</b></td><td ${GR('text-align:right;white-space:nowrap',n)}>${BRL(g.val)}</td>`+
+             `<td ${GR('text-align:right;white-space:nowrap',n)}>${temGiro?gT(g.all[0]):'…'}</td><td ${GR('text-align:right;white-space:nowrap',n)}>${temGiro?ult(g.all[0]):''}</td>`:'')+
+           `<td style="white-space:nowrap">${esc(r.r||'')}</td><td style="white-space:nowrap">${esc(r.m||'')}</td>`+
+           `<td style="white-space:nowrap">${r.l?endLink(r.l):'<span style="color:var(--bad)">sem locação</span>'}${princ?' <span class="bd ok" style="font-size:.62rem" title="Endereço com o maior saldo do produto">principal</span>':''}</td>`+
+           `<td ${RT}><b>${N0(r.s)}</b></td>`+
+           `<td ${RT}><span style="display:inline-flex;align-items:center;gap:.35rem"><i style="display:inline-block;height:.45rem;width:${Math.max(2,Math.round(pc*0.5))}px;border-radius:2px;background:${princ?'var(--ok)':'var(--y)'}"></i>${pc.toLocaleString('pt-BR',{maximumFractionDigits:1})}%</span></td>`+
+           `<td ${RT}>${BRL(r.cu||0)}</td><td ${RT}>${BRL((r.cu||0)*(r.s||0))}</td>`+
+           `<td style="white-space:nowrap;font-size:.76rem;color:var(--mu)">${princ?'manter':(g.all[0].l?'juntar em '+esc(g.all[0].l):'—')}</td></tr>`; }).join(''); });
+     return resumo+`<div class="tw" style="max-height:620px;overflow:auto"><table class="ped-tb" style="border-collapse:collapse"><thead><tr>`+
+       th('Filial')+th('Cód. produto')+th('Descrição')+th('Nº end.',1)+th('Saldo total',1)+th('Valor total',1)+th('Vendas no ano',1)+th('Última venda',1)+
+       th('Cód. Danfe')+th('Marca')+th('Endereço')+th('Saldo',1)+th('% do produto',1)+th('Custo un.',1)+th('Valor',1)+th('Sugestão')+
+       `</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`+(G.length>200?`<p style="font-size:.74rem;color:var(--mu)">Mostrando 200 de ${N(G.length)} produtos — use os filtros ou o CSV para ver todos.</p>`:'')+
+       `<p style="font-size:.74rem;color:var(--mu);margin:.4rem 0 0">Cada linha é uma posição (Cód. Danfe) do produto; os dados do produto (à esquerda) valem para o grupo. <b>Principal</b> = endereço com o maior saldo do produto; a sugestão é juntar as outras posições nele. Ordenado pelos produtos com mais endereços.</p>`; })()+
    `<button type="button" class="bt" id="esp-csv" style="margin-top:.4rem;font-size:.75rem;padding:.2rem .6rem">Exportar CSV (uma linha por Cód. Danfe)</button></article>`+
   `<article class="pn w2"><h3>🚫 Itens com saldo e sem endereço <small style="font-weight:400;color:var(--mu)">— ${temGiro?'ordenados pelos que mais vendem':'por saldo'}: priorize endereçar estes</small></h3>`+
    tab([['Filial'],['Cód. produto'],['Descrição'],['Marca'],['Saldo',1],['Vendas no ano',1],['Última venda',1]],semEndV.map(r=>`<tr>${td(esc(r.lj))}${td(esc(r.c))}${td(esc(r.d))}${td(esc(r.m))}${td(N0(r.s),1,r.s||0)}${td(gT(r),1,temGiro?giroDe(r)[0]:'')}${td(ult(r),1)}</tr>`),200)+`</article>`+
