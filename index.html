@@ -3916,7 +3916,9 @@ function renderHoraDia(rs,el){
     `<tr class="hd-tot"><th style="text-align:left">Total</th>${tH.map(v=>`<td>${v.toLocaleString('pt-BR')}</td>`).join('')}<td>${tot.toLocaleString('pt-BR')}</td></tr>`+
     (_hdMode==='dow'?'':`<tr class="hd-tot"><th style="text-align:left">Média/dia</th>${tH.map(v=>`<td>${(v/nd).toLocaleString('pt-BR',{maximumFractionDigits:1})}</td>`).join('')}<td>${(tot/nd).toLocaleString('pt-BR',{maximumFractionDigits:1})}</td></tr>`)+
     `</tbody></table></div>`+
-    `<div style="display:flex;align-items:flex-end;gap:3px;height:70px;margin-top:.6rem" title="Total por hora">${tH.map((v,i)=>`<div data-hdh="${horas[i]}" style="flex:1;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><div style="width:100%;height:${Math.max(2,Math.round(v/mxH*100))}%;background:${F.hr===horas[i]?'var(--tx)':'var(--y)'};border-radius:3px 3px 0 0"></div><span style="font-size:.66rem;color:var(--mu)">${horas[i]}</span></div>`).join('')}</div>`;
+    (()=>{ const nDias=new Set(R.map(r=>r.dia)).size||1, mH=tH.map(v=>v/nDias), mxM=Math.max(...mH,0.0001), f1=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:1});
+      return `<div style="display:flex;align-items:baseline;gap:.5rem;margin-top:.8rem;font-size:.78rem"><b>Média de pedidos por hora</b><span style="color:var(--mu)">por dia · ${nDias.toLocaleString('pt-BR')} dia(s) no filtro · média geral ${f1(tot/nDias)} pedidos/dia</span></div>`+
+      `<div style="display:flex;align-items:flex-end;gap:3px;height:92px;margin-top:.3rem">${mH.map((v,i)=>`<div data-hdh="${horas[i]}" title="${horas[i]}h: média de ${f1(v)} pedido(s) por dia (total ${tH[i].toLocaleString('pt-BR')} em ${nDias} dia(s))" style="flex:1;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><span style="font-size:.7rem;font-weight:700;margin-bottom:2px">${f1(v)}</span><div style="width:100%;height:${Math.max(2,Math.round(v/mxM*68))}%;background:${F.hr===horas[i]?'var(--tx)':'var(--y)'};border-radius:3px 3px 0 0"></div><span style="font-size:.66rem;color:var(--mu)">${horas[i]}h</span></div>`).join('')}</div>`; })();
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-hdm]'); if(b){_hdMode=b.dataset.hdm; window._rerenderP&&window._rerenderP(); return;}
@@ -5493,6 +5495,23 @@ async function _carregarItensLT(ids){
   }
   return true;
 }
+// Padrão de tempo de separação por item (último mês de dados, por loja): soma do tempo de separação ÷ soma dos itens.
+// Separações registradas como instantâneas (< 15 s) ou acima de 8h ficam fora do cálculo.
+function _benchSepItem(){
+  const P=(typeof _dP!=='undefined'&&_dP&&_dP.rows)||[], W=window._WMS||[]; const sig=P.length+'|'+W.length+'|'+Object.keys(window._ITC||{}).length;
+  if(window._BSI&&window._BSI.sig===sig) return window._BSI;
+  const ts=(d,h)=>d&&h?new Date(String(d).slice(0,10)+'T'+String(h).slice(0,5)+':00'):null;
+  const tk=[]; // {loja,dia,dur,qt,id}
+  W.forEach(w=>{ if(w.tipo!=='Separação'||!w.inicio||!(+w.quantidade>0)) return; const a=new Date(w.inicio),b=new Date(w.fim||w.inicio),d=(b-a)/60000; if(!(d>=0.25&&d<=480)) return; tk.push({loja:'LL',dia:String(w.fim||w.inicio).slice(0,10),dur:d,qt:+w.quantidade}); });
+  const ltSem=[];
+  P.forEach(r=>{ if(r.loja!=='LT'||!r.conf||!r.hr_sep_ini||!r.hr_sep_fim) return; const a=ts(r.dt_sep_ini||r.dia,r.hr_sep_ini),b=ts(r.dt_sep_fim||r.dt_sep_ini||r.dia,r.hr_sep_fim); if(!a||!b) return; const d=(b-a)/60000; if(!(d>=0.25&&d<=480)) return;
+    const it=(window._ITC||{})['LT|'+r.id]; if(!it){ ltSem.push({id:r.id,dia:r.dia}); return; } if(it.qt>0) tk.push({loja:'LT',dia:r.dia,dur:d,qt:it.qt}); });
+  const fim=[...tk.map(t=>t.dia),...ltSem.map(t=>t.dia)].sort().pop()||''; const ini=fim?new Date(new Date(fim+'T12:00:00')-30*86400000).toISOString().slice(0,10):'';
+  const B={sig,ini,fim,LT:null,LL:null,n:{LT:0,LL:0},faltaLT:ltSem.filter(t=>t.dia>ini).map(t=>t.id)};
+  ['LT','LL'].forEach(l=>{ const a=tk.filter(t=>t.loja===l&&t.dia>ini&&t.dia<=fim); const q=a.reduce((x,t)=>x+t.qt,0); B[l]=q?a.reduce((x,t)=>x+t.dur,0)/q:null; B.n[l]=a.length; });
+  window._BSI=B; return B;
+}
+window._benchSepItem=_benchSepItem;
 function renderProdInd(rsF){
   const el=document.getElementById('c-prod-ind'); if(!el||!window._WMS) return;
   if(rsF) window._PIrs=rsF; else rsF=window._PIrs||[];
@@ -5522,6 +5541,8 @@ function renderProdInd(rsF){
     const dur=(b-a)/60000; if(dur>LIM){abertos++;return;}
     const it=window._ITC['LT|'+r.id]; if(!it) ltIds.push(r.id);
     T.push({op:String(r.conf).trim().toUpperCase(),loja:'LT',tipo:'S',ini:a,fim:b,dur,ped:r.id,cli:r.cli||'',skus:it?it.skus:null,qt:it?it.qt:null}); });
+  const BS=_benchSepItem(); BS.faltaLT.forEach(id=>ltIds.push(id));
+  T.forEach(t=>{ const b=t.tipo==='S'?BS[t.loja]:null; t.esp=b&&t.qt>0?t.qt*b:null; t.atr=t.esp!=null?Math.max(0,t.dur-t.esp):0; });
   if(ltIds.length&&!window._ITCload){ window._ITCload=true;
     _carregarItensLT(ltIds).then(ch=>{window._ITCload=false; if(ch) renderProdInd();}).catch(e=>{window._ITCload=false;console.warn('[itens LT]',e);}); }
   if(!T.length){ el.innerHTML='<p class="mu2" style="padding:1rem">Sem tarefas de separação/conferência nos filtros atuais.</p>'; return; }
@@ -5539,7 +5560,9 @@ function renderProdInd(rsF){
     const prod=uniao(L), sepU=uniao(L.filter(t=>t.tipo==='S')), confU=Math.max(0,prod-sepU);
     const ociosoEntre=sum(gOk), ocioso=ate1+ociosoEntre;
     const s1=L.find(t=>t.tipo==='S');
-    OD.push({op,dia,L,seq,lojas:[...new Set(L.map(t=>t.loja))].sort().join('+'),p0,ate1,fimD,jorn,prod,sepU,confU,ocioso,ociosoEntre,pausa,
+    const sepAt=Math.min(sepU,sum(L.filter(t=>t.tipo==='S').map(t=>t.atr))), sepOk=Math.max(0,sepU-sepAt);
+    const Le=L.filter(t=>t.tipo==='S'&&t.esp!=null), esp=sum(Le.map(t=>t.esp)), durE=sum(Le.map(t=>t.dur));
+    OD.push({op,dia,L,seq,lojas:[...new Set(L.map(t=>t.loja))].sort().join('+'),p0,ate1,fimD,jorn,prod,sepU,sepAt,sepOk,esp,durE,confU,ocioso,ociosoEntre,pausa,
       util:jorn-pausa>0?prod/(jorn-pausa):null,dur1:s1?s1.dur:null,fim1:s1?Math.max(0,mDia(s1.fim)-J0):null,
       tr:{SS:seq.filter(s=>s.de==='S'&&s.t.tipo==='S'&&!s.pz).map(s=>s.gap),SC:seq.filter(s=>s.de==='S'&&s.t.tipo==='C'&&!s.pz).map(s=>s.gap),
           CS:seq.filter(s=>s.de==='C'&&s.t.tipo==='S'&&!s.pz).map(s=>s.gap),CC:seq.filter(s=>s.de==='C'&&s.t.tipo==='C'&&!s.pz).map(s=>s.gap)},gOk});
@@ -5561,7 +5584,8 @@ function renderProdInd(rsF){
       pedH:prod?peds/(prod/60):null,itH:tSepI?qt/(tSepI/60):null,
       ate1:avg(D.map(d=>d.ate1)),hr1:avg(D.map(d=>d.p0)),dur1:avg(D.map(d=>d.dur1)),fim1:avg(D.map(d=>d.fim1)),
       gap:avg(D.flatMap(d=>d.gOk)),SS:avg(tr('SS')),SC:avg(tr('SC')),CS:avg(tr('CS')),CC:avg(tr('CC')),
-      prodD:prod/nd,sepD:sum(D.map(d=>d.sepU))/nd,confD:sum(D.map(d=>d.confU))/nd,ate1D:avg(D.map(d=>d.ate1)),entreD:sum(D.map(d=>d.ociosoEntre))/nd,
+      prodD:prod/nd,sepD:sum(D.map(d=>d.sepU))/nd,sepOkD:sum(D.map(d=>d.sepOk))/nd,atrD:sum(D.map(d=>d.sepAt))/nd,atrTot:sum(D.map(d=>d.sepAt)),
+      efic:(()=>{const e=sum(D.map(d=>d.esp)),u=sum(D.map(d=>d.durE));return u>0?e/u:null})(),nAtr:Ls.filter(t=>t.atr>0.5).length,nEsp:Ls.filter(t=>t.esp!=null).length,confD:sum(D.map(d=>d.confU))/nd,ate1D:avg(D.map(d=>d.ate1)),entreD:sum(D.map(d=>d.ociosoEntre))/nd,
       ociosoD:sum(D.map(d=>d.ocioso))/nd,pausaD:sum(D.map(d=>d.pausa))/nd,jornD:sum(D.map(d=>d.jorn))/nd,
       util:(()=>{const den=sum(D.map(d=>d.jorn-d.pausa));return den>0?prod/den:null})()};
   }).sort((a,b)=>b.peds-a.peds); };
@@ -5578,13 +5602,15 @@ function renderProdInd(rsF){
   const totQt=sum(ind.map(i=>i.qt||0)), denU=sum(ODall.map(d=>d.jorn-d.pausa)), prodAll=sum(ODall.map(d=>d.prod));
   const tItemG=(()=>{const a=ind.filter(i=>i.tItem!=null);const q=sum(a.map(i=>i.qt));return q?sum(a.map(i=>i.tItem*i.qt))/q:null})();
   const mk=(l,v,sub,cor)=>`<div class="k" style="display:flex;flex-direction:column;gap:.15rem${cor?';border-left:3px solid '+cor:''}"><div class="kl" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)">${l}</div><div class="kv" style="font-size:1.35rem;font-weight:700">${v}</div>${sub?`<div style="font-size:.72rem;color:var(--mu)">${sub}</div>`:''}</div>`;
-  const C={a1:'#8a919c',S:'#e6b422',C:'#3aa76d',oc:'#d9534f',pz:'#7e6bc4'};
-  const BG={a1:C.a1,S:C.S,C:C.C,oc:C.oc,pz:C.pz};
+  const C={a1:'#8a919c',S:'#e6b422',C:'#3aa76d',oc:'#d9534f',pz:'#7e6bc4',at:'#e8762c'};
+  const BG={a1:C.a1,S:C.S,C:C.C,oc:C.oc,pz:C.pz,at:C.at};
   const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:.5rem;margin-bottom:.9rem">`+
     mk('Pedidos',N(totPed),`${N(Lall.length)} separações · ${N(T.length-Lall.length)} conferências`,'#3ecf8e')+
     mk('Itens separados',N(totQt),`média ${N(avg(ind.filter(i=>i.itPed!=null).map(i=>i.itPed)))} itens/pedido`,C.S)+
     mk('Tempo médio por pedido',fm(avg(Object.values(T.filter(t=>t.tipo==='S').reduce((o,t)=>{const k=t.loja+'|'+(t.ped||t.pw);o[k]=(o[k]||0)+t.dur;return o},{})))),'separação, início → fim',C.S)+
     mk('Tempo por item',fs(tItemG),'tempo de separação ÷ itens',C.S)+
+    (()=>{ const e=sum(OD.map(d=>d.esp)), u=sum(OD.map(d=>d.durE)), at=sum(OD.map(d=>d.sepAt)), nA=T.filter(t=>t.tipo==='S'&&t.atr>0.5).length, nE=T.filter(t=>t.tipo==='S'&&t.esp!=null).length;
+      return mk('Eficiência da separação',u?Math.round(e/u*100)+'%':'—',`tempo padrão ÷ tempo real · em atraso ${fm(at)} (${N(nA)} de ${N(nE)} separações)`,C.at); })()+
     mk('Utilização',denU?Math.round(prodAll/denU*100)+'%':'—','tempo trabalhando ÷ jornada (sem pausas)','#3ecf8e')+
     mk('Ociosidade média/dia',fm(avg(ODall.map(d=>d.ocioso))),`08:00 → 1º ${fm(avg(ODall.map(d=>d.ate1)))} · entre tarefas ${fm(avg(ODall.map(d=>d.ociosoEntre)))}`,C.oc)+
     mk('Até a próxima função',fm(avg(ODall.flatMap(d=>d.gOk))),`após separar → conferir ${fm(avg(ODall.flatMap(d=>d.tr.SC)))} · → próx. pedido ${fm(avg(ODall.flatMap(d=>d.tr.SS)))}`,'#b48cf2')+
@@ -5592,15 +5618,16 @@ function renderProdInd(rsF){
   // ── Composição da jornada média por operador (barras empilhadas)
   const maxJ=Math.max(1,...ind.map(i=>i.ate1D+i.sepD+i.confD+i.entreD+i.pausaD));
   const leg=`<div style="display:flex;flex-wrap:wrap;gap:.8rem;font-size:.75rem;color:var(--mu);margin:.2rem 0 .5rem">`+
-    [[BG.a1,'Parado 08:00 → 1º pedido'],[BG.S,'Separando'],[BG.C,'Conferindo'],[BG.oc,'Parado entre tarefas'],[BG.pz,'Almoço / pausas > '+PZ+'min']].map(([c,l])=>`<span><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;background:${c};vertical-align:-1px;margin-right:.3rem"></i>${l}</span>`).join('')+`</div>`;
+    [[BG.a1,'Parado 08:00 → 1º pedido'],[BG.S,'Separação no padrão'],[BG.at,'Separação em atraso'],[BG.C,'Conferindo'],[BG.oc,'Parado entre tarefas'],[BG.pz,'Almoço / pausas > '+PZ+'min']].map(([c,l])=>`<span><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;background:${c};vertical-align:-1px;margin-right:.3rem"></i>${l}</span>`).join('')+`</div>`;
   const seg=(v,c,t,tot)=>v>0.5&&tot>0?`<div title="${t}: ${fm(v)} (${Math.round(v/tot*100)}%)" style="width:${v/tot*100}%;background:${c};height:100%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:600;color:${c===C.S?'#1a1a1a':'#fff'};overflow:hidden;white-space:nowrap;border-right:1px solid var(--bg,#111)"><span class="pi-st">${v/tot>0.09?fm(v):''}</span></div>`:'';
   const dMin=dias[dias.length-1], dMax=dias[0], fdc=d=>d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
   const perLbl=dMin===dMax?fd(dMin):`${fdc(dMin)} a ${fdc(dMax)} · ${dias.length} dias · média por dia`;
   const comp=`<h4 style="margin:.4rem 0 .1rem;font-size:.88rem">⏱️ Composição da jornada <small style="font-weight:400;color:var(--mu)">(${perLbl} · segue os filtros do painel · 100% = das 08:00 até o fim da última tarefa)</small></h4>`+leg+
+    `<div style="font-size:.74rem;color:var(--mu);margin:-.2rem 0 .5rem">Padrão de separação por item (últimos 30 dias até ${BS.fim?fdc(BS.fim):'—'}): `+['LT','LL'].map(l=>`<b style="color:var(--tx)">${l} ${BS[l]!=null?fs(BS[l]):'—'}</b>/item`).join(' · ')+` — tempo esperado do pedido = itens × padrão; o que passar disso é <b style="color:${C.at}">separação em atraso</b>.${window._ITCload?' <i>carregando itens da LT…</i>':''}</div>`+
     `<div style="display:flex;flex-direction:column;gap:.35rem">`+ind.map(i=>`<div style="display:flex;align-items:center;gap:.5rem">`+
       `<div class="pi-nm" style="width:8.5rem;flex:none;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_escP(i.op)}">${_escP(i.op)} <span style="font-size:.66rem;color:var(--mu)">${i.lojas}</span></div>`+
       `<div style="flex:1;display:flex;height:1.25rem;border-radius:3px;overflow:hidden">`+
-        (t=>seg(i.ate1D,BG.a1,'Parado 08:00 → 1º pedido',t)+seg(i.sepD,BG.S,'Separando',t)+seg(i.confD,BG.C,'Conferindo',t)+seg(i.entreD,BG.oc,'Parado entre tarefas',t)+seg(i.pausaD,BG.pz,'Pausas',t))(i.ate1D+i.sepD+i.confD+i.entreD+i.pausaD)+`</div>`+
+        (t=>seg(i.ate1D,BG.a1,'Parado 08:00 → 1º pedido',t)+seg(i.sepOkD,BG.S,'Separação no padrão',t)+seg(i.atrD,BG.at,'Separação em atraso (acima do padrão por item)',t)+seg(i.confD,BG.C,'Conferindo',t)+seg(i.entreD,BG.oc,'Parado entre tarefas',t)+seg(i.pausaD,BG.pz,'Pausas',t))(i.ate1D+i.sepD+i.confD+i.entreD+i.pausaD)+`</div>`+
       `<div class="pi-sd" style="width:13.5rem;flex:none;text-align:right;font-size:.76rem;white-space:nowrap"><span class="pi-w" style="color:var(--mu)">parado</span> <b style="color:#d9604c">${fm(i.ociosoD)}</b><span class="pi-w" style="color:var(--mu)"> · </span><br class="pi-br"><b style="color:${i.util>=.7?'#3ecf8e':i.util>=.5?'#f5c518':'#ef5350'}">${i.util!=null?Math.round(i.util*100)+'%':'—'}</b> <span style="color:var(--mu)">útil</span></div></div>`).join('')+`</div>`;
   // ── Linha do tempo do dia
   const DD=OD.filter(d=>d.dia===S.dia&&(!S.op||d.op===S.op)).sort((a,b)=>a.p0-b.p0);
@@ -5622,7 +5649,8 @@ function renderProdInd(rsF){
       ticks.forEach(m=>{h+=`<div style="position:absolute;top:0;bottom:0;left:${X(m)}%;border-left:1px solid color-mix(in srgb,var(--bd) 45%,transparent)"></div>`;});
       if(d.ate1>0) h+=blk(J0,d.p0,BG.a1,`Parado 08:00 → 1º pedido: ${fm(d.ate1)}`,fm(d.ate1));
       d.seq.forEach((s,i)=>{ if(i>0&&s.gap>0){const b=mDia(s.t.ini);h+=blk(b-s.gap,b,s.pz?BG.pz:BG.oc,`${s.pz?'Pausa':'Parado'}: ${fm(s.gap)} (${hm(new Date(+s.t.ini-s.gap*60000))} → ${hm(s.t.ini)})`,fm(s.gap));}
-        const t=s.t; h+=blk(mDia(t.ini),mDia(t.fim),BG[t.tipo],`${t.tipo==='S'?'Separação':'Conferência'} · ${t.loja} pedido ${t.ped||('WMS '+t.pw)}${t.cli?' · '+t.cli:''}\n${hm(t.ini)} → ${hm(t.fim)} · ${fm(t.dur)}${t.qt!=null?' · '+N(t.qt)+' itens':''}`); });
+        const t=s.t, tt=`${t.tipo==='S'?'Separação':'Conferência'} · ${t.loja} pedido ${t.ped||('WMS '+t.pw)}${t.cli?' · '+t.cli:''}\n${hm(t.ini)} → ${hm(t.fim)} · ${fm(t.dur)}${t.qt!=null?' · '+N(t.qt)+' itens':''}${t.esp!=null?`\nPadrão: ${fs(t.esp)}${t.atr>0.5?` · em atraso: ${fs(t.atr)}`:' · dentro do padrão'}`:''}`;
+        if(t.tipo==='S'&&t.atr>0.5){ const m0=mDia(t.ini), m1=mDia(t.fim), mc=m1-t.atr; h+=blk(m0,mc,BG.S,tt)+blk(mc,m1,BG.at,tt); } else h+=blk(mDia(t.ini),mDia(t.fim),BG[t.tipo],tt); });
       return `<div style="display:flex;align-items:center;gap:.5rem;cursor:pointer" data-pi-op="${_escP(d.op)}" title="Clique para ver a sequência de ${_escP(d.op)}">`+
         `<div class="pi-nm" style="width:8.5rem;flex:none;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escP(d.op)} <span style="font-size:.66rem;color:var(--mu)">${d.lojas}</span></div>`+
         `<div style="flex:1;position:relative;height:1.6rem;background:color-mix(in srgb,var(--bd) 10%,transparent);border-radius:3px">${h}</div>`+
@@ -5634,28 +5662,28 @@ function renderProdInd(rsF){
   if(dS){
     const R='style="text-align:right"';
     seqH=`<h4 style="margin:1rem 0 .3rem;font-size:.88rem">🔁 Sequência de ${_escP(dS.op)} em ${fd(dS.dia)} <small style="font-weight:400;color:var(--mu)">trabalhando ${fm(dS.prod)} · parado ${fm(dS.ocioso)} · pausas ${fm(dS.pausa)} · utilização ${dS.util!=null?Math.round(dS.util*100)+'%':'—'}</small></h4>`+
-      `<div class="tw" style="max-height:24rem;overflow:auto"><table class="ped-tb wms-tb"><thead><tr><th>#</th><th ${R}>Parado antes</th><th>Função</th><th>Loja</th><th>Pedido</th><th>Cliente</th><th ${R}>Início</th><th ${R}>Fim</th><th ${R}>Duração</th><th ${R}>Itens</th><th ${R}>SKUs</th><th ${R}>Tempo/item</th></tr></thead><tbody>`+
+      `<div class="tw" style="max-height:24rem;overflow:auto"><table class="ped-tb wms-tb"><thead><tr><th>#</th><th ${R}>Parado antes</th><th>Função</th><th>Loja</th><th>Pedido</th><th>Cliente</th><th ${R}>Início</th><th ${R}>Fim</th><th ${R}>Duração</th><th ${R}>Itens</th><th ${R}>SKUs</th><th ${R}>Tempo/item</th><th ${R} title="Itens × padrão de tempo por item da loja">Padrão</th><th ${R}>Em atraso</th></tr></thead><tbody>`+
       dS.seq.map((s,i)=>{const t=s.t, lk=t.ped?` class="ped-row" data-pid="${_escP(t.ped)}" data-pl="${t.loja}" style="cursor:pointer"`:'';
         const pa=i===0?`<span style="color:${C.a1}">${fm(s.gap)}</span> <small style="color:var(--mu)">desde 08:00</small>`:(s.pz?`<span style="color:var(--mu)">${fm(s.gap)} pausa</span>`:`<span style="color:${s.gap>15?C.oc:'inherit'}">${fm(s.gap)}</span> <small style="color:var(--mu)">${s.de==='S'?'após sep.':'após conf.'}</small>`);
-        return `<tr${lk}><td>${i+1}</td><td ${R}>${pa}</td><td><i style="display:inline-block;width:.6rem;height:.6rem;border-radius:2px;margin-right:.35rem;background:${C[t.tipo]}"></i>${t.tipo==='S'?'Separação':'Conferência'}</td><td><span class="bd ${t.loja==='LT'?'ok':'bl2c'}">${t.loja}</span></td><td><b>${_escP(t.ped||('WMS '+t.pw))}</b></td><td>${_escP(String(t.cli||'—').slice(0,32))}</td><td ${R}>${hm(t.ini)}${t.iniERP?' <small style="color:var(--mu)" title="O WMS só registrou o fim; o início veio do ERP">ERP</small>':''}</td><td ${R}>${hm(t.fim)}</td><td ${R}><b>${t.dur<1?Math.round(t.dur*60)+'s':fm(t.dur)}</b>${t.dur<1?' <small style="color:var(--mu)" title="Início e fim registrados quase no mesmo instante">instantâneo</small>':''}</td><td ${R}>${N(t.qt)}</td><td ${R}>${N(t.skus)}</td><td ${R}>${t.qt?fs(t.dur/t.qt):'—'}</td></tr>`;}).join('')+
+        return `<tr${lk}><td>${i+1}</td><td ${R}>${pa}</td><td><i style="display:inline-block;width:.6rem;height:.6rem;border-radius:2px;margin-right:.35rem;background:${C[t.tipo]}"></i>${t.tipo==='S'?'Separação':'Conferência'}</td><td><span class="bd ${t.loja==='LT'?'ok':'bl2c'}">${t.loja}</span></td><td><b>${_escP(t.ped||('WMS '+t.pw))}</b></td><td>${_escP(String(t.cli||'—').slice(0,32))}</td><td ${R}>${hm(t.ini)}${t.iniERP?' <small style="color:var(--mu)" title="O WMS só registrou o fim; o início veio do ERP">ERP</small>':''}</td><td ${R}>${hm(t.fim)}</td><td ${R}><b>${t.dur<1?Math.round(t.dur*60)+'s':fm(t.dur)}</b>${t.dur<1?' <small style="color:var(--mu)" title="Início e fim registrados quase no mesmo instante">instantâneo</small>':''}</td><td ${R}>${N(t.qt)}</td><td ${R}>${N(t.skus)}</td><td ${R}>${t.qt?fs(t.dur/t.qt):'—'}</td><td ${R}>${t.esp!=null?fs(t.esp):'—'}</td><td ${R}>${t.esp==null?'—':t.atr>0.5?`<b style="color:${C.at}">${fs(t.atr)}</b>`:'<span style="color:#3aa76d">no padrão</span>'}</td></tr>`;}).join('')+
       `</tbody></table></div>`;
   }
   // ── Tabela de indicadores por operador
   const R='style="text-align:right"', td=(v,txt,b)=>`<td data-v="${v==null||isNaN(v)?-1:v}" ${R}>${b?'<b>'+txt+'</b>':txt}</td>`;
   const tab=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:1rem 0 .3rem"><h4 style="margin:0;font-size:.88rem;flex:1 1 auto">📋 Indicadores por operador <small style="font-weight:400;color:var(--mu)">(período filtrado · médias por dia trabalhado)</small></h4>${window._diaNavHtml?window._diaNavHtml():''}</div>`+
-    `<div class="tw" style="overflow:auto"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R}>Pedidos</th><th ${R}>% dos pedidos</th><th ${R} title="Posição por pedidos e diferença para o colocado logo acima">Ranking · vs. anterior</th><th ${R}>Pedidos/dia</th><th ${R}>Itens separados</th><th ${R}>Itens/pedido</th><th ${R}>Tempo/pedido</th><th ${R}>Tempo/item</th><th ${R}>Conf./pedido</th><th ${R}>Pedidos/h</th><th ${R}>Itens/h</th>`+
+    `<div class="tw" style="overflow:auto"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R}>Pedidos</th><th ${R}>% dos pedidos</th><th ${R} title="Posição por pedidos e diferença para o colocado logo acima">Ranking · vs. anterior</th><th ${R}>Pedidos/dia</th><th ${R}>Itens separados</th><th ${R}>Itens/pedido</th><th ${R}>Tempo/pedido</th><th ${R}>Tempo/item</th><th ${R} title="Tempo padrão (itens × padrão por item) ÷ tempo real de separação">Eficiência sep.</th><th ${R} title="Tempo de separação acima do padrão, média por dia">Sep. em atraso/dia</th><th ${R}>Pedidos em atraso</th><th ${R}>Conf./pedido</th><th ${R}>Pedidos/h</th><th ${R}>Itens/h</th>`+
       `<th ${R} title="Horário médio em que pegou o 1º pedido">1º pedido às</th><th ${R}>08:00 → 1º</th><th ${R} title="Duração da separação do 1º pedido">Sep. do 1º</th><th ${R} title="Das 08:00 até terminar a separação do 1º pedido">08:00 → fim 1º</th>`+
       `<th ${R} title="Fim da separação → início da conferência">Sep. → conferir</th><th ${R} title="Fim da separação → início do próximo pedido">Sep. → próx. pedido</th><th ${R} title="Fim da conferência → início da próxima separação">Conf. → separar</th><th ${R}>Até próx. função</th>`+
       `<th ${R}>Trabalhando/dia</th><th ${R}>Parado/dia</th><th ${R}>Pausas/dia</th><th ${R}>Utilização</th></tr></thead><tbody>`+
     ind.map(i=>`<tr><td><b>${_escP(i.op)}</b></td><td>${i.lojas.split('+').map(x=>`<span class="bd ${x==='LT'?'ok':'bl2c'}" style="margin-right:.2rem">${x}</span>`).join('')}</td>`+
-      td(i.nd,N(i.nd))+td(i.peds,N(i.peds),1)+td(i.peds,_pctP(i.peds,totPed))+`<td ${R}>${_rkCell(ind.map(x=>x.peds),ind.indexOf(i))}</td>`+td(i.porDia,N(i.porDia))+td(i.qt,N(i.qt))+td(i.itPed,N(i.itPed))+td(i.tPed,fm(i.tPed),1)+td(i.tItem,fs(i.tItem),1)+td(i.tConf,fm(i.tConf))+td(i.pedH,N(i.pedH))+td(i.itH,N(i.itH))+
+      td(i.nd,N(i.nd))+td(i.peds,N(i.peds),1)+td(i.peds,_pctP(i.peds,totPed))+`<td ${R}>${_rkCell(ind.map(x=>x.peds),ind.indexOf(i))}</td>`+td(i.porDia,N(i.porDia))+td(i.qt,N(i.qt))+td(i.itPed,N(i.itPed))+td(i.tPed,fm(i.tPed),1)+td(i.tItem,fs(i.tItem),1)+td(i.efic,i.efic!=null?`<span style="color:${i.efic>=1?'#3aa76d':i.efic>=.8?'#e6b422':'#e8762c'}">${Math.round(i.efic*100)}%</span>`:'—',1)+td(i.atrD,i.atrD>0.5?`<span style="color:#e8762c">${fm(i.atrD)}</span>`:fm(i.atrD))+td(i.nAtr,i.nEsp?`${N(i.nAtr)} <small style="color:var(--mu)">de ${N(i.nEsp)}</small>`:'—')+td(i.tConf,fm(i.tConf))+td(i.pedH,N(i.pedH))+td(i.itH,N(i.itH))+
       td(i.hr1,hh(i.hr1))+td(i.ate1,fm(i.ate1),1)+td(i.dur1,fm(i.dur1))+td(i.fim1,fm(i.fim1))+
       td(i.SC,fm(i.SC))+td(i.SS,fm(i.SS))+td(i.CS,fm(i.CS))+td(i.gap,fm(i.gap),1)+
       td(i.prodD,fm(i.prodD))+td(i.ociosoD,`<span style="color:${C.oc}">${fm(i.ociosoD)}</span>`,1)+td(i.pausaD,fm(i.pausaD))+
       td(i.util,i.util!=null?`<span style="color:${i.util>=.7?'#3ecf8e':i.util>=.5?'#f5c518':'#ef5350'}">${Math.round(i.util*100)}%</span>`:'—',1)+`</tr>`).join('')+
     `</tbody></table></div>`;
   el.innerHTML=kpis+comp+gantt+seqH+tab+
-    `<p class="mu2" style="margin:.6rem 0 0;font-size:.75rem">Jornada a partir das 08:00 até o fim da última tarefa do dia. <b>Trabalhando</b> = tempo dentro de alguma separação/conferência (tarefas sobrepostas contam uma vez). <b>Parado</b> = 08:00 → 1º pedido + intervalos entre tarefas até ${PZ} min; acima de ${PZ} min conta como <b>pausa</b> (almoço etc.) e sai da utilização. <b>Utilização</b> = trabalhando ÷ (jornada − pausas). <b>Tempo/item</b> = tempo de separação ÷ quantidade de itens separados. LT: separação do ERP (separador, início/fim) e itens da base de itens; LL: separação e conferência do WMS. Tarefas acima de 8h (pedido esquecido aberto) ficam fora${abertos?` (${abertos} no período)`:''}. Clique numa linha da linha do tempo para ver a sequência do operador e num pedido para abrir o detalhe.</p>`;
+    `<p class="mu2" style="margin:.6rem 0 0;font-size:.75rem">Jornada a partir das 08:00 até o fim da última tarefa do dia. <b>Trabalhando</b> = tempo dentro de alguma separação/conferência (tarefas sobrepostas contam uma vez). <b>Parado</b> = 08:00 → 1º pedido + intervalos entre tarefas até ${PZ} min; acima de ${PZ} min conta como <b>pausa</b> (almoço etc.) e sai da utilização. <b>Utilização</b> = trabalhando ÷ (jornada − pausas). <b>Tempo/item</b> = tempo de separação ÷ quantidade de itens separados. LT: separação do ERP (separador, início/fim) e itens da base de itens; LL: separação e conferência do WMS. Tarefas acima de 8h (pedido esquecido aberto) ficam fora${abertos?` (${abertos} no período)`:''}. <b>Separação em atraso</b> = tempo de separação acima do padrão (itens do pedido × tempo médio por item da loja nos últimos 30 dias de dados); ex.: 10 itens × 1 min = 10 min de padrão — se levou 12 min, 2 min ficam como atraso. <b>Eficiência</b> = tempo padrão ÷ tempo real (100% ou mais = no padrão ou mais rápido). Clique numa linha da linha do tempo para ver a sequência do operador e num pedido para abrir o detalhe.</p>`;
 }
 document.addEventListener('change',e=>{const s=e.target.closest('#c-prod-ind [data-pi]'); if(!s) return; window._PI[s.dataset.pi]=s.value; renderProdInd();});
 document.addEventListener('click',e=>{
