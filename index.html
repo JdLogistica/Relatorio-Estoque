@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1200">
+<meta name="version" content="20261124-1337">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -3780,6 +3780,10 @@ async function importarEstoque(input, loja){
     const dedupMap=new Map();
     normRaw.forEach(r=>dedupMap.set(r.cod+'|'+r.loja, r));
     const norm=[...dedupMap.values()];
+    // A planilha traz só itens com saldo: o que não vier nela não tem mais estoque → a carga SUBSTITUI o estoque da filial
+    const {count:antes}=await _sb.from('estoque').select('cod',{count:'exact',head:true}).eq('loja',loja);
+    if(antes&&norm.length<antes*0.5&&!confirm(`Esta planilha tem ${norm.length.toLocaleString('pt-BR')} itens e o estoque ${loja} atual tem ${antes.toLocaleString('pt-BR')}.\n\nA importação substitui o estoque da ${loja}: itens que não estão na planilha saem do painel.\n\nConfirma que é a planilha completa da ${loja}?`)) throw new Error('Importação cancelada — nada foi alterado.');
+    const lote='L'+Date.now(); norm.forEach(r=>{ r.lote_import=lote; });
     if(st) st.textContent=`📤 Enviando ${norm.length} itens (${loja})...`;
     // Envia em lotes de 500
     const BATCH=500;
@@ -3787,10 +3791,15 @@ async function importarEstoque(input, loja){
       const {error}=await _sb.from('estoque').upsert(norm.slice(i,i+BATCH),{onConflict:'cod,loja'});
       if(error) throw new Error('Supabase: '+error.message);
     }
+    // remove da filial o que não veio nesta planilha (saldo zerado no ERP)
+    if(st) st.textContent=`🧹 Removendo itens da ${loja} que não estão mais na planilha...`;
+    const {error:eDel,count:removidos}=await _sb.from('estoque').delete({count:'exact'}).eq('loja',loja).or(`lote_import.is.null,lote_import.neq.${lote}`);
+    if(eDel) throw new Error((eDel.code==='42501'||/policy|permission/i.test(eDel.message)?'Apenas administradores podem substituir o estoque. ':'Supabase: ')+eDel.message);
+    window._remEst=removidos||0;
     _estoque=null; // invalida cache
     reiniciarEstoqueE();
     if(lbl) lbl.className='imp-card done';
-    if(st){ st.className='imp-status ok'; st.textContent=`✅ ${norm.length} itens de estoque (${loja}) importados!`; }
+    if(st){ st.className='imp-status ok'; st.textContent=`✅ ${norm.length} itens de estoque (${loja}) importados — ${(window._remEst||0).toLocaleString('pt-BR')} item(ns) que não estavam mais na planilha foram removidos.`; }
     // Se a aba estoque está aberta, recarrega
     if(typeof cur!=='undefined'&&cur==='estoque') renderEstoqueTab();
   }catch(e){
