@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1412">
+<meta name="version" content="20261124-1421">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -452,6 +452,13 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 #c-prod-ind .pi-nm{min-width:0}#c-prod-ind .pi-br{display:none}
 @media (max-width:720px){#c-prod-ind .pi-nm{width:5.6rem!important;font-size:.72rem!important}#c-prod-ind .pi-sd{width:4rem!important;font-size:.66rem!important;white-space:normal!important}#c-prod-ind .pi-st,#c-prod-ind .pi-odd,#c-prod-ind .pi-w{display:none}#c-prod-ind .pi-br{display:inline}}
 @media (max-width:720px){#c-race .race-wrap{flex-direction:column-reverse;gap:.4rem}#c-race .race{flex:none!important;width:100%}#c-race .race-side{width:100%!important;text-align:left!important;display:grid;grid-template-columns:auto 1fr;gap:.1rem .8rem;align-items:start;font-size:.72rem}#c-race .race-dia{font-size:1.1rem!important;grid-row:span 2}#c-race .race-sub,#c-race .race-lider{margin:0!important;font-size:.7rem!important}#c-race .race-nm{width:5.6rem!important;font-size:.72rem!important}#c-race .race-pos{width:1.4rem!important;font-size:.78rem!important}}
+/* Tabelas de todos os dashboards: compactas, uma linha por registro; texto longo cortado com … (texto completo ao passar o mouse) */
+table:not(.hd-tb):not(.wms-map) td{white-space:nowrap;max-width:20rem;overflow:hidden;text-overflow:ellipsis;padding:.3rem .6rem;line-height:1.3;vertical-align:middle}
+table:not(.hd-tb):not(.wms-map) th{padding:.4rem .6rem;line-height:1.25;vertical-align:bottom}
+table:not(.hd-tb):not(.wms-map) th:has(> button){padding:0}
+table:not(.hd-tb):not(.wms-map) th > button{padding:.4rem .6rem}
+table:not(.hd-tb):not(.wms-map) td.wrap,table.wrap td{white-space:normal;max-width:none}
+@media(max-width:600px){table:not(.hd-tb):not(.wms-map) td{padding:.26rem .42rem;max-width:14rem}table:not(.hd-tb):not(.wms-map) th > button{padding:.3rem .42rem}}
 </style>
 <script>
 // ── Versão do painel: mostra no rodapé e avisa quando há versão nova publicada (cada navegador guarda a página em cache) ──
@@ -1005,6 +1012,8 @@ function toggleFiltros(forcar){
   try{ localStorage.setItem('lt-fhide',esc?'1':'0'); }catch(e){}
 }
 document.addEventListener('DOMContentLoaded',()=>{ let v=null; try{ v=localStorage.getItem('lt-fhide'); }catch(e){} if(v==='1') toggleFiltros(true); });
+// Célula cortada com … → mostra o texto completo ao passar o mouse
+document.addEventListener('mouseover',e=>{ const td=e.target&&e.target.closest?e.target.closest('td'):null; if(td&&!td.title&&td.scrollWidth>td.clientWidth+1) td.title=td.innerText.trim(); },{passive:true});
 // Horário das rotas (manhã/tarde) — compartilhado no banco (app_config.rotas); usado no filtro "Rota"
 window._ROTAS={manha:['07:00','11:59'],tarde:['12:00','18:00']};
 async function carregarRotas(){ try{ const {data}=await _sb.from('app_config').select('valor').eq('chave','rotas').maybeSingle(); if(data&&data.valor&&data.valor.manha) window._ROTAS=data.valor; }catch(e){ console.warn('[rotas]',e); } }
