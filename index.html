@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1550">
+<meta name="version" content="20261124-1607">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -466,6 +466,9 @@ table:not(.hd-tb):not(.wms-map) td.wrap,table.wrap td{white-space:normal;max-wid
 #ac-pop .ac-it b{font-weight:600;color:var(--tx)}#ac-pop .ac-it small{color:var(--mu);overflow:hidden;text-overflow:ellipsis}
 #ac-pop .ac-it:hover,#ac-pop .ac-it.on{background:color-mix(in srgb,var(--y) 18%,transparent)}
 #ac-pop mark{background:none;color:var(--y);font-weight:800}
+/* Colunas numéricas e de valores (R$) centralizadas em todas as tabelas — cabeçalho e dados alinhados no centro */
+table th.r,table td.r,table th[style*="text-align:right"],table td[style*="text-align:right"],table th[style*="text-align: right"],table td[style*="text-align: right"],table th[align="right"],table td[align="right"]{text-align:center!important;font-variant-numeric:tabular-nums}
+table th.r button,table th[style*="text-align:right"] button{justify-content:center;text-align:center}
 </style>
 <script>
 // ── Versão do painel: mostra no rodapé e avisa quando há versão nova publicada (cada navegador guarda a página em cache) ──
