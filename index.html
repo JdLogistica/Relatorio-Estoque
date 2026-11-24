@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261110-1900">
+<meta name="version" content="20261123-2326">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lojão dos Tratores · Painel Gerencial</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23FFC500'/%3E%3Ctext x='16' y='23' font-size='18' font-weight='900' font-style='italic' text-anchor='middle' font-family='Arial' fill='%230a0a0a'%3ELT%3C/text%3E%3C/svg%3E">
@@ -450,6 +453,32 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 @media (max-width:720px){#c-prod-ind .pi-nm{width:5.6rem!important;font-size:.72rem!important}#c-prod-ind .pi-sd{width:4rem!important;font-size:.66rem!important;white-space:normal!important}#c-prod-ind .pi-st,#c-prod-ind .pi-odd,#c-prod-ind .pi-w{display:none}#c-prod-ind .pi-br{display:inline}}
 @media (max-width:720px){#c-race .race-wrap{flex-direction:column-reverse;gap:.4rem}#c-race .race{flex:none!important;width:100%}#c-race .race-side{width:100%!important;text-align:left!important;display:grid;grid-template-columns:auto 1fr;gap:.1rem .8rem;align-items:start;font-size:.72rem}#c-race .race-dia{font-size:1.1rem!important;grid-row:span 2}#c-race .race-sub,#c-race .race-lider{margin:0!important;font-size:.7rem!important}#c-race .race-nm{width:5.6rem!important;font-size:.72rem!important}#c-race .race-pos{width:1.4rem!important;font-size:.78rem!important}}
 </style>
+<script>
+// ── Versão do painel: mostra no rodapé e avisa quando há versão nova publicada (cada navegador guarda a página em cache) ──
+(function(){
+  const atual=(document.querySelector('meta[name=version]')||{}).content||'';
+  const fmt=v=>v.replace(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2}).*/,'$3/$2/$1 $4:$5');
+  const pinta=()=>{ const el=document.getElementById('ver-painel'); if(el) el.textContent=fmt(atual); };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',pinta); else pinta();
+  let avisado=false;
+  async function checa(){
+    if(avisado||!navigator.onLine) return;
+    try{
+      const r=await fetch(location.pathname+'?nc='+Date.now(),{cache:'no-store'}); if(!r.ok) return;
+      const m=(await r.text()).match(/<meta name="version" content="([^"]+)"/); if(!m||!atual||m[1]===atual) return;
+      avisado=true;
+      const b=document.createElement('div'); b.id='nova-versao';
+      b.style.cssText='position:fixed;left:50%;bottom:1rem;transform:translateX(-50%);z-index:99999;background:#ffc107;color:#111;padding:.65rem 1rem;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.45);font:600 .9rem system-ui,sans-serif;display:flex;gap:.8rem;align-items:center;max-width:calc(100vw - 2rem)';
+      b.innerHTML='<span>🔄 Há uma versão nova do painel ('+fmt(m[1])+'). Você está na de '+fmt(atual)+'.</span><button type="button" style="background:#111;color:#ffc107;border:0;border-radius:6px;padding:.4rem .8rem;font-weight:700;cursor:pointer">Atualizar agora</button>';
+      b.querySelector('button').onclick=()=>{ location.href=location.pathname+'?v='+m[1]+location.hash; };
+      document.body.appendChild(b);
+    }catch(e){}
+  }
+  window.addEventListener('load',()=>setTimeout(checa,3000));
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') checa(); });
+  setInterval(checa,5*60*1000);
+})();
+</script>
 </head>
 <body>
 <header class="hd"><div class="wrap">
@@ -769,7 +798,7 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
     <button class="clr-fab" id="clr-fab" type="button" hidden>
       <span class="ic">🗑️</span> Limpar filtros <span id="clr-fab-n"></span>
     </button>
-    <footer style="color:var(--mu);font-size:.78rem;padding:.5rem 0 1rem">Fonte: PEDDOSLT.xlsx (LT · 12.842 pedidos) e PEDIDOSLL.xlsx (LL · 8.778 pedidos) · LL: fim da separação e conferência do WMS · <b>versão do painel 16/11 08:50</b></footer>
+    <footer style="color:var(--mu);font-size:.78rem;padding:.5rem 0 1rem">Fonte: PEDDOSLT.xlsx (LT · 12.842 pedidos) e PEDIDOSLL.xlsx (LL · 8.778 pedidos) · LL: fim da separação e conferência do WMS · <b>versão do painel <span id="ver-painel"></span></b></footer>
   </main>
 </div>
 
