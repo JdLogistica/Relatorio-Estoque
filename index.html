@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1337">
+<meta name="version" content="20261124-1350">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -2258,10 +2258,11 @@ D.sp.forEach(r=>{
  r.lc=r.l?'Com locação':'Sem locação';
  r.pw=r.w<=0?'Sem peso':r.w<=1?'≤ 1 kg':r.w<=5?'1–5 kg':r.w<=20?'5–20 kg':'> 20 kg';
  r.c2=r.cv?'Com 1ª conversão':'Sem 1ª conversão';
+ r.ve=(r.s||0)*(r.cu||0); r.vw=r.wq==null?null:(r.wq||0)*(r.cu||0); r.vd=r.vw==null?null:r.vw-r.ve;
  r.fs=r.s===0?'0':r.s===1?'1':r.s<=5?'2–5':r.s<=10?'6–10':r.s<=50?'11–50':r.s<=200?'51–200':'201+';
 });
 // itens que só existem no WMS: não têm locação, peso nem conversão no ERP — não entram como "sem locação" do ERP
-(D.wmsOnly||[]).forEach(r=>{ r.lc='Locação só no WMS'; r.pw='Só no WMS (sem cadastro no ERP)'; r.c2='Só no WMS (sem cadastro no ERP)'; r.fs='0'; });
+(D.wmsOnly||[]).forEach(r=>{ r.ve=0; r.vw=null; r.vd=null; r.lc='Locação só no WMS'; r.pw='Só no WMS (sem cadastro no ERP)'; r.c2='Só no WMS (sem cadastro no ERP)'; r.fs='0'; });
 D.dv.forEach(r=>{r.st=r.s===0?'Sem saldo':r.s<r.q?'Saldo parcial':'Saldo suficiente';r.pl=(r.p+' '+r.d).trim()});
 
 const dash=r=>v=>v?esc(v):'<span class="mu">—</span>';
@@ -2274,13 +2275,15 @@ inv:{n:'Inventário',rows:D.inv,s:['c','r','p'],ph:'Buscar código, referência 
  ch:[{t:'Mapa do depósito (rua × prédio)',heat:1},{t:'Endereços por faixa de estoque',k:'fx',ord:FX,type:'col'},{t:'Endereços por nível',k:'ni',ord:'key',type:'col',pre:'N'},{t:'Situação da contagem',k:'cl',type:'donut',u:'endereços',col:{'Sem registro':'var(--bad)','1 contagem':'var(--y)','2 contagens':'var(--tx)'}}]},
 sp:{n:'Estoques',rows:D.sp.concat(D.wmsOnly||[]),s:['c','r','d','m'],ph:'Buscar código, Danfe, descrição ou marca',
  f:[['wx','WMS × ERP'],['pw','Peso'],['c2','1ª conversão']],
- col:[['c','Código'],['d','Descrição'],['m','Marca'],['l','Locação','',r=>dash()(r.l)],['s','Saldo ERP','r',r=>N(r.s)],['wq','Saldo WMS','r',r=>wmsCel(r.lj,r.r,r.s)],['wp','Posição WMS','',r=>dash()(r.wp)],['w','Peso (kg)','r',r=>N(r.w)],['cv','1ª conversão','',r=>dash()(r.cv)]],
+ col:[['c','Código'],['d','Descrição'],['m','Marca'],['l','Locação','',r=>dash()(r.l)],['s','Saldo ERP','r',r=>N(r.s)],['wq','Saldo WMS','r',r=>wmsCel(r.lj,r.r,r.s)],['wp','Posição WMS','',r=>dash()(r.wp)],['cu','Custo un.','r',r=>r._soWms?'—':BRL(r.cu)],['ve','Valor ERP','r',r=>r._soWms?'—':BRL(r.ve)],['vw','Valor WMS','r',r=>r.vw==null?(r._soWms?'<span style="color:var(--mu)" title="Sem custo: item não está no ERP">sem custo</span>':'—'):BRL(r.vw)],['vd','Dif. valor','r',r=>r.vd==null||!r.vd?'—':`<b style="color:${r.vd>0?'var(--y)':'var(--bad)'}">${r.vd>0?'+':''}${BRL(r.vd)}</b>`],['w','Peso (kg)','r',r=>N(r.w)],['cv','1ª conversão','',r=>dash()(r.cv)]],
  kpi:rs=>{
   const tot=rs.length,saldo=sum(rs,'s'),semLoc=rs.filter(r=>!r.l&&!r._soWms).length,semCv=rs.filter(r=>!r.cv).length;
   const marcas=new Set(rs.map(r=>r.m)).size,pesoTotal=sum(rs,'w');
   return[
    ['Total de itens',N(tot),N(new Set(rs.map(r=>r.c)).size)+' códigos únicos'],
    ['Saldo em estoque',N(saldo),'peças no total'],
+   ['Valor em estoque (ERP)',BRL(sum(rs.filter(r=>!r._soWms),'ve')),'saldo ERP × custo'],
+   ...(rs.some(r=>r.vw!=null)?[['Valor no WMS',BRL(rs.reduce((a,r)=>a+(r.vw||0),0)),'saldo WMS × custo do ERP · itens com dados do WMS'],['Diferença de valor',BRL(rs.reduce((a,r)=>a+(r.vd||0),0)),'WMS − ERP (itens com dados do WMS)']]:[]),
    ['Marcas',N(marcas),'marcas distintas'],
    ['Peso total',N(Math.round(pesoTotal))+'kg','≈ '+N(Math.round(pesoTotal/1000))+'t'],
    ['Sem locação',N(semLoc),PC(semLoc,tot)+' dos itens'],
@@ -2531,7 +2534,7 @@ function overview(){
     const comW=base.filter(r=>window._SW.lojas.has(r.lj)), cnt=st=>st===WX[4]?so.length:comW.filter(r=>r.wx===st).length;
     const pcsSo=so.reduce((x,r)=>x+(r.wq||0),0);
     return `<article class="pn w2"><h3>⚖️ Estoque WMS × ERP <small style="font-weight:400;color:var(--mu)">— ${lojasW.join(', ')} · pelo Cód. Danfe · fonte WMS: ${lojasW.map(l=>l+': '+(window._SW.fonte[l]||'—')).join(' · ')}</small></h3>`+
-     `<div class="kp" style="margin-bottom:.6rem">${WX.map(st=>`<div class="k" style="cursor:pointer" data-go="sp" title="Abrir a aba Estoques e filtrar por WMS × ERP"><span>${st}</span><b style="color:${st===WX[0]?'var(--ok)':st===WX[4]?'var(--bad)':'var(--y)'}">${N(cnt(st))}</b><small>${st===WX[4]?N(pcsSo)+' peças só no WMS':'itens'}</small></div>`).join('')}</div>`+
+     `<div class="kp" style="margin-bottom:.6rem">${WX.map(st=>`<div class="k" style="cursor:pointer" data-go="sp" title="Abrir a aba Estoques e filtrar por WMS × ERP"><span>${st}</span><b style="color:${st===WX[0]?'var(--ok)':st===WX[4]?'var(--bad)':'var(--y)'}">${N(cnt(st))}</b><small>${st===WX[4]?N(pcsSo)+' peças só no WMS · sem custo no ERP':(()=>{const rr=comW.filter(r=>r.wx===st);return st===WX[0]?'itens · '+BRL(rr.reduce((x,r)=>x+(r.s||0)*(r.cu||0),0)):'itens · dif. '+BRL(rr.reduce((x,r)=>x+((r.wq||0)-(r.s||0))*(r.cu||0),0))})()}</small></div>`).join('')}</div>`+
      (so.length?`<h4 style="margin:.2rem 0 .35rem;font-size:.85rem">🚩 Com saldo no WMS e sem saldo no ERP (${N(so.length)} itens) — maior quantidade primeiro</h4><div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Filial</th><th>Cód. Danfe</th><th>Cód. WMS</th><th>Descrição</th><th style="text-align:right">Saldo WMS</th><th style="text-align:right">Saldo ERP</th><th>Posição WMS</th></tr></thead><tbody>`+
        so.slice().sort((a,b)=>(b.wq||0)-(a.wq||0)).slice(0,300).map(r=>`<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(String(r.c).replace('(WMS) ',''))}</td><td>${esc(r.d)}</td><td style="text-align:right"><b>${N(r.wq)}</b></td><td style="text-align:right;color:var(--bad)">0</td><td>${esc(r.wp||'—')}</td></tr>`).join('')+`</tbody></table></div>`:'<p style="color:var(--ok)">Nenhum item com saldo só no WMS.</p>')+`</article>`; })()+
   `<article class="pn w2"><h3>Relatórios solicitados</h3><ol class="ck">${L.map((x,j)=>`<li><span class="n">${j+1}</span><span>${x[0]}</span><span class="${x[2]?'v':'no'}">${x[1]}</span>${x[2]?`<button class="bt" data-go="${x[2]}">Abrir</button>`:'<span></span>'}</li>`).join('')}</ol></article>`+
