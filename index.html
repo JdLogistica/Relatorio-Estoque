@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1148">
+<meta name="version" content="20261124-1200">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -2260,6 +2260,8 @@ D.sp.forEach(r=>{
  r.c2=r.cv?'Com 1ª conversão':'Sem 1ª conversão';
  r.fs=r.s===0?'0':r.s===1?'1':r.s<=5?'2–5':r.s<=10?'6–10':r.s<=50?'11–50':r.s<=200?'51–200':'201+';
 });
+// itens que só existem no WMS: não têm locação, peso nem conversão no ERP — não entram como "sem locação" do ERP
+(D.wmsOnly||[]).forEach(r=>{ r.lc='Locação só no WMS'; r.pw='Só no WMS (sem cadastro no ERP)'; r.c2='Só no WMS (sem cadastro no ERP)'; r.fs='0'; });
 D.dv.forEach(r=>{r.st=r.s===0?'Sem saldo':r.s<r.q?'Saldo parcial':'Saldo suficiente';r.pl=(r.p+' '+r.d).trim()});
 
 const dash=r=>v=>v?esc(v):'<span class="mu">—</span>';
@@ -2326,9 +2328,14 @@ function gfPass(r,kind,...ex){
  if(on('lj')&&kind!=='dv'){const lj=kind==='inv'?String(r.r||'').slice(0,2).toUpperCase():r.lj;if(lj!==GF.lj)return false}
  if(kind==='est'){
   const l=String(r.l||'');
-  if(on('loc')&&!l.toUpperCase().startsWith(GF.loc.trim().toUpperCase()))return false;
+  if(on('loc')&&!r._soWms&&!l.toUpperCase().startsWith(GF.loc.trim().toUpperCase()))return false;
+  if(r._soWms){ // só no WMS: sem dados do ERP (locação, preço) — filtros do ERP não se aplicam a ele
+   if(on('lc')||on('pr'))return false;
+   if(on('loc')&&!String(r.wp||'').toUpperCase().split(', ').some(x=>x.startsWith(GF.loc.trim().toUpperCase())))return false;
+  }else{
   if(on('lc')&&(GF.lc==='Com locação')!==!!l)return false;
   if(on('pr')&&(GF.pr==='Com preço')!==(Number(r.cu)>0))return false;
+  }
  }else if(kind==='inv'&&on('loc')){
   if(!String(r.loc||'').toUpperCase().startsWith(GF.loc.trim().toUpperCase()))return false;
  }
@@ -2519,7 +2526,7 @@ function overview(){
    </div>
   </article>`+
   (()=>{ if(!window._SW) return ''; // ── Estoque WMS × ERP ──
-    const base=(D.sp||[]).filter(r=>(!GF.lj||r.lj===GF.lj)), so=(D.wmsOnly||[]).filter(r=>!GF.lj||r.lj===GF.lj), lojasW=[...window._SW.lojas].filter(l=>!GF.lj||l===GF.lj);
+    const base=(D.sp||[]).filter(r=>(!GF.lj||r.lj===GF.lj)), so=(D.wmsOnly||[]).filter(r=>gfPass(r,'est')), lojasW=[...window._SW.lojas].filter(l=>!GF.lj||l===GF.lj);
     if(!lojasW.length) return '';
     const comW=base.filter(r=>window._SW.lojas.has(r.lj)), cnt=st=>st===WX[4]?so.length:comW.filter(r=>r.wx===st).length;
     const pcsSo=so.reduce((x,r)=>x+(r.wq||0),0);
