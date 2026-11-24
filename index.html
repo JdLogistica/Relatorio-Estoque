@@ -642,6 +642,41 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
         </div>
         <div id="imp-ewms-status" class="imp-status" style="display:none"></div>
       </div>
+      <!-- Posições WMS: Estoque Posição + Mapeamento de Produto + Posições de Estoque (cód. barras) -->
+      <div id="imp-pwms-upload-area">
+        <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span style="font-size:.8rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Posições WMS (estoque, mapeamento e cadastro de posições)</span>
+          <span style="font-size:.7rem;color:var(--mu);background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:.1rem .4rem">pasta Estoque WMS ou os 3 arquivos · cada arquivo substitui a carga anterior da filial</span>
+        </div>
+        <div class="imp-cards">
+          <label class="imp-card" id="lbl-pwms">
+            <input type="file" id="imp-pwms-pasta" webkitdirectory multiple onchange="importarPosicoesWms(this)">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">📍</span>
+              <div>
+                <strong>Pasta Estoque WMS</strong>
+                <small id="nm-pwms">Estoque Posição · Mapeamento de Produto · Posições de Estoque</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar pasta</span>
+          </label>
+          <label class="imp-card" id="lbl-pwms-arq">
+            <input type="file" id="imp-pwms-arq" accept=".xlsx,.xls,.csv" multiple onchange="importarPosicoesWms(this)">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">📄</span>
+              <div>
+                <strong>Ou escolha os arquivos</strong>
+                <small>pode selecionar 1, 2 ou os 3 de uma vez</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar arquivos</span>
+          </label>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem;font-size:.78rem;color:var(--mu)">Filial:
+          <select id="imp-pwms-loja" style="font-size:.78rem"><option value="">Automático (pela referência)</option><option value="LL">LL</option><option value="LT">LT</option></select>
+        </div>
+        <div id="imp-pwms-status" class="imp-status" style="display:none"></div>
+      </div>
       <!-- Produtividade WMS (pasta de CSVs) -->
       <div id="imp-prodwms-upload-area">
         <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
@@ -2295,6 +2330,7 @@ function renderGeral(){
  else if(cur==='ce'){$('#e-kp').innerHTML='';comFiltroGeral(bootCE)}
  else if(cur==='end'){comFiltroGeral(bootEnd)}
  else if(cur==='wms'){comFiltroGeral(bootWmsE)}
+ else if(cur==='pwms'){comFiltroGeral(bootPosW)}
  else if(TB[cur]){S[cur].pg=0;render()}
 }
 function gfSet(k,v){GF[k]=GF[k]===v?'':v;renderGeral()}
@@ -2449,15 +2485,16 @@ function overview(){
 window._rerenderE=()=>go(cur);
 function go(tab){
  cur=tab;try{history.replaceState(null,'','#'+tab);localStorage.setItem('lt-tab-e',tab)}catch(e){}
- const extraTabs=[['ov','Visão geral'],...Object.entries(TB).flatMap(([k,t])=>k==='inv'?[[k,t.n],['wms','Estoque WMS']]:[[k,t.n]]),['end','Endereços'],['ce','Controle de Estoque']];
+ const extraTabs=[['ov','Visão geral'],...Object.entries(TB).flatMap(([k,t])=>k==='inv'?[[k,t.n],['wms','Estoque WMS'],['pwms','Posições WMS']]:[[k,t.n]]),['end','Endereços'],['ce','Controle de Estoque']];
  $('#e-tabs').innerHTML=extraTabs.map(([k,l])=>`<button role="tab" type="button" data-tab="${k}" aria-selected="${k==tab}">${l}</button>`).join('');
- const ovw=tab=='ov',ce=tab=='ce',en=tab=='end',wm=tab=='wms';
- $('#e-fb').hidden=ovw||ce;$('#e-tb').hidden=ovw||ce||en||wm;
+ const ovw=tab=='ov',ce=tab=='ce',en=tab=='end',wm=tab=='wms',pw=tab=='pwms';
+ $('#e-fb').hidden=ovw||ce;$('#e-tb').hidden=ovw||ce||en||wm||pw;
  if(!$('#e-gf').childElementCount)buildFiltrosGerais();else gfSync();
  if(ovw){$('#e-tb').innerHTML='';$('#e-fb').innerHTML='';return comFiltroGeral(overview)}
  if(ce){$('#e-tb').innerHTML='';$('#e-fb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootCE)}
  if(en){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootEnd)}
  if(wm){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootWmsE)}
+ if(pw){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootPosW)}
  buildFilters();
  $('#ch').innerHTML=TB[tab].ch.map((c,i)=>`<article class="pn${c.heat||c.type=='pareto'?' w2':''}" data-tab="${tab}"><h3>${c.t}${c.heat?'<span class="seg"><button type="button" data-hm="sku">Endereços</button><button type="button" data-hm="pcs">Peças</button></span>':''}</h3><div id="c${i}"></div></article>`).join('');
  render();
@@ -2760,6 +2797,222 @@ document.addEventListener('click',e=>{
 });
 
 // ═══════════════════════════════════════════════════════
+// POSIÇÕES WMS — onde cada produto está, posições, mapeamento × estoque e WMS × ERP
+// ═══════════════════════════════════════════════════════
+const PWF={rua:'',pr:'',ni:'',ap:'',setor:'',sit:'',ocup:'',fx:'',mm:'',erp:'',usr:'',q:'',pos:'',vis:'prod',pg:0};
+const PW_SIT=['Mapeado e com estoque','Estoque fora da posição mapeada','Produto sem mapeamento','Mapeado sem estoque'];
+const PW_FX=[['0','Zerado',-1e9,0],['1','1 peça',1,1],['2-5','2 a 5',2,5],['6-10','6 a 10',6,10],['11-50','11 a 50',11,50],['51+','Mais de 50',51,1e12]];
+const PW_MM=['Abaixo do mínimo','Dentro do mín./máx.','Acima do máximo'];
+const PW_ERP=['Igual ao ERP','WMS maior que ERP','WMS menor que ERP','Só no WMS'];
+function bootPosW(){
+ const kp=$('#e-kp'), ch=$('#ch');
+ if(!window._PWMS){
+  kp.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando Posições WMS…</span>'; ch.innerHTML=''; $('#e-fb').innerHTML='';
+  carregarPosWms().then(()=>{if(cur==='pwms')renderGeral()}).catch(e=>{ch.innerHTML=`<article class="pn w2"><p style="color:var(--bad)">Erro ao carregar as Posições WMS: ${esc(e.message||e)}</p></article>`});
+  return;
+ }
+ const P=window._PWMS;
+ if(!P.cad.length&&!P.est.length&&!P.map.length){ kp.innerHTML=''; $('#e-fb').innerHTML='';
+  ch.innerHTML=`<article class="pn w2"><h3>📍 Posições WMS</h3><p style="color:var(--mu)">Nenhum arquivo importado ainda. Na <b>tela inicial</b>, no bloco <b>Posições WMS</b>, selecione a pasta <b>Estoque WMS</b> (ou os 3 arquivos: Estoque Posição, Mapeamento de Produto e Posições de Estoque com código de barras).</p></article>`; return; }
+ const N0=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+ const low=v=>String(v??'').toLowerCase();
+ const srt=a=>[...new Set(a)].filter(x=>x!==''&&x!=null&&x!=='—').sort((x,y)=>String(x).localeCompare(String(y),'pt-BR',{numeric:true}));
+ const fxOf=q=>PW_FX.find(f=>q>=f[2]&&q<=f[3])[0];
+ // ── ERP (ESTOQUELT/LL) por filial + Cód. Danfe (= Referência no WMS) ──
+ const erp=new Map();((window._DFULL&&(window._DFULL.sp_all||window._DFULL.sp))||D.sp_all||D.sp||[]).forEach(r=>{const k=r.lj+'|'+_ck(r.r);const o=erp.get(k)||{s:0,l:new Set(),cu:r.cu||0,d:r.d,m:r.m,cp:r.c};o.s+=r.s||0;if(r.l)o.l.add(r.l);erp.set(k,o)});
+ // ── cadastro de posições ──
+ const pos=new Map(), concIdx=new Map();
+ P.cad.forEach(c=>{const k=c.loja+'|'+c.pos_id;const o={lj:c.loja,pid:c.pos_id,cod:c.codigo||'',ru:c.rua??'',pr:c.predio??'',ni:c.nivel??'',ap:c.apto??'',conc:c.conc||'',cb:c.cod_barras||''};o.e=[o.ru,o.pr,o.ni,o.ap].join('-');pos.set(k,o);
+  const ck=c.loja+'|'+o.conc;(concIdx.get(ck)||concIdx.set(ck,[]).get(ck)).push(o.pid)});
+ const posDe=(lj,pid)=>pos.get(lj+'|'+pid)||{lj,pid,cod:'',ru:'?',pr:'?',ni:'?',ap:'?',conc:'',e:'pos. '+pid+' (sem cadastro)',semCad:true};
+ // ── estoque por posição (fase 2) e mapeamento (fase 1) ──
+ const E=P.est.map(r=>({lj:r.loja,ref:_ck(r.referencia),cw:r.cod_wms||'',d:r.descricao||'',q:Number(r.qtde)||0,pid:r.pos_id,setor:r.setor||'',lote:r.lote||'',val:r.dt_validade||''}));
+ const temEst=new Set(E.map(r=>r.lj+'|'+r.ref+'|'+r.pid));
+ const M=P.map.map(r=>{let ids=concIdx.get(r.loja+'|'+r.posicao)||[];const ref=_ck(r.referencia);
+  if(ids.length>1){const c=ids.filter(id=>temEst.has(r.loja+'|'+ref+'|'+id));ids=c.length?c.slice(0,1):ids.slice(0,1)} // posição ambígua (ex.: 11101 = 1-1-10-1 ou 11-1-0-1): fica a que tem estoque do produto
+  return {lj:r.loja,ref,cw:r.cod_wms||'',d:r.produto||'',setor:r.setor||'',conc:r.posicao,pid:ids[0]??null,min:r.minimo,max:r.maximo,usr:r.usuario||'',dh:r.data_hora||''}});
+ // ── uma linha por produto × posição (estoque ∪ mapeamento) ──
+ const L=new Map(); const kL=(lj,ref,pid)=>lj+'|'+ref+'|'+pid;
+ E.forEach(r=>{const k=kL(r.lj,r.ref,r.pid);const o=L.get(k)||{lj:r.lj,ref:r.ref,cw:r.cw,d:r.d,pid:r.pid,q:0,hasE:false,hasM:false,setor:r.setor,lote:r.lote,val:r.val};o.q+=r.q;o.hasE=true;L.set(k,o)});
+ M.forEach(m=>{const pid=m.pid??('?'+m.conc);const k=kL(m.lj,m.ref,pid);const o=L.get(k)||{lj:m.lj,ref:m.ref,cw:m.cw,d:m.d,pid,q:0,hasE:false,hasM:false,setor:m.setor};
+  o.hasM=true;o.min=m.min;o.max=m.max;o.usr=m.usr;o.dh=m.dh;o.conc=m.conc;if(!o.d)o.d=m.d;if(!o.cw)o.cw=m.cw;L.set(k,o)});
+ const mapeados=new Set(M.map(m=>m.lj+'|'+m.ref));
+ const R=[...L.values()].map(o=>{const p=typeof o.pid==='number'?posDe(o.lj,o.pid):{lj:o.lj,pid:o.pid,e:'mapa '+o.conc+' (posição não cadastrada)',ru:'?',pr:'?',ni:'?',ap:'?',cod:''};
+  const e=erp.get(o.lj+'|'+o.ref);
+  o.p=p;o.m=e?e.m:'';o.cp=e?e.cp:'';o.cu=e?e.cu:0;if(!o.d&&e)o.d=e.d;
+  o.sit=o.hasE&&o.hasM?PW_SIT[0]:o.hasE?(mapeados.has(o.lj+'|'+o.ref)?PW_SIT[1]:PW_SIT[2]):PW_SIT[3];
+  o.mm=o.hasE&&o.hasM&&(o.min!=null||o.max!=null)?(o.min!=null&&o.q<o.min?PW_MM[0]:o.max!=null&&o.max>0&&o.q>o.max?PW_MM[2]:PW_MM[1]):'';
+  return o});
+ // ── por produto: total WMS × ERP ──
+ const prodM=new Map();R.forEach(o=>{const k=o.lj+'|'+o.ref;const p=prodM.get(k)||{lj:o.lj,ref:o.ref,cw:o.cw,cp:o.cp,d:o.d,m:o.m,cu:o.cu,q:0,posE:new Set(),posM:new Set(),rows:[]};
+  p.q+=o.q;if(o.hasE)p.posE.add(o.p.e);if(o.hasM)p.posM.add(o.p.e);p.rows.push(o);prodM.set(k,p)});
+ prodM.forEach(p=>{const e=erp.get(p.lj+'|'+p.ref);p.erp=e?e.s:null;p.locErp=e?[...e.l].join(', '):'';p.dif=e?p.q-e.s:null;
+  p.st=p.posE.size===0?'':!e?PW_ERP[3]:p.q===e.s?PW_ERP[0]:p.q>e.s?PW_ERP[1]:PW_ERP[2];
+  p.conf=!p.posM.size?'Sem mapeamento':[...p.posE].every(x=>p.posM.has(x))?([...p.posM].every(x=>p.posE.has(x))?'Conforme':'Conforme (há posição mapeada vazia)'):'Divergente'});
+ R.forEach(o=>{o.prod=prodM.get(o.lj+'|'+o.ref)});
+ // ── filtros ──
+ const posTxt=o=>[o.p.e,o.p.cod,String(o.p.pid),o.p.conc].map(_ck);
+ const passG=o=>(!GF.lj||o.lj===GF.lj)&&(!GF.cod||[o.ref,o.cp,o.cw].some(x=>low(x).includes(low(GF.cod).trim())))&&(!GF.desc||low(o.d).includes(low(GF.desc).trim()))&&(!GF.m||o.m===GF.m);
+ const qTxt=low(PWF.q).trim(), pTxt=_ck(PWF.pos), pExact=(pTxt.match(/-/g)||[]).length>=3||/^\d{10}$/.test(pTxt), pMatch=x=>pExact?x===pTxt:x.startsWith(pTxt);
+ const passR=(o,ex)=>passG(o)&&(ex==='rua'||!PWF.rua||String(o.p.ru)===PWF.rua)&&(ex==='pr'||!PWF.pr||String(o.p.pr)===PWF.pr)&&(ex==='ni'||!PWF.ni||String(o.p.ni)===PWF.ni)&&(ex==='ap'||!PWF.ap||String(o.p.ap)===PWF.ap)
+   &&(ex==='setor'||!PWF.setor||o.setor===PWF.setor)&&(ex==='sit'||!PWF.sit||o.sit===PWF.sit)&&(ex==='ocup'||!PWF.ocup||(PWF.ocup==='Ocupada'?o.q>0:o.q<=0))&&(ex==='fx'||!PWF.fx||fxOf(o.q)===PWF.fx)
+   &&(ex==='mm'||!PWF.mm||o.mm===PWF.mm)&&(ex==='erp'||!PWF.erp||o.prod.st===PWF.erp)&&(ex==='usr'||!PWF.usr||o.usr===PWF.usr)
+   &&(!qTxt||[o.ref,o.cw,o.cp,o.d,o.m].some(x=>low(x).includes(qTxt)))&&(!pTxt||posTxt(o).some(pMatch));
+ const RF=R.filter(o=>passR(o));
+ const prodFiltro=!!(PWF.setor||PWF.sit||PWF.fx||PWF.mm||PWF.erp||PWF.usr||qTxt||GF.cod||GF.desc||GF.m);
+ const lojasCad=new Set([...pos.values()].map(p=>p.lj));
+ const passPos=(p,ex)=>(!GF.lj||p.lj===GF.lj)&&(ex==='rua'||!PWF.rua||String(p.ru)===PWF.rua)&&(ex==='pr'||!PWF.pr||String(p.pr)===PWF.pr)&&(ex==='ni'||!PWF.ni||String(p.ni)===PWF.ni)&&(ex==='ap'||!PWF.ap||String(p.ap)===PWF.ap)&&(!pTxt||[p.e,p.cod,String(p.pid),p.conc].map(_ck).some(pMatch));
+ // posições (uma linha por posição cadastrada + posições com estoque sem cadastro)
+ const posStat=new Map();R.forEach(o=>{if(typeof o.pid!=='number')return;const k=o.lj+'|'+o.pid;const s=posStat.get(k)||{q:0,itE:new Set(),itM:new Set(),rows:[]};s.q+=o.hasE?o.q:0;if(o.hasE&&o.q>0)s.itE.add(o.ref);if(o.hasM)s.itM.add(o.ref);s.rows.push(o);posStat.set(k,s)});
+ const allPos=[...pos.values()];posStat.forEach((s,k)=>{if(!pos.has(k)){const [lj,pid]=k.split('|');allPos.push(posDe(lj,Number(pid)))}});
+ const rfPos=new Set(RF.map(o=>o.lj+'|'+o.pid));
+ const POSF=allPos.map(p=>{const s=posStat.get(p.lj+'|'+p.pid)||{q:0,itE:new Set(),itM:new Set(),rows:[]};return {...p,q:s.q,nE:s.itE.size,nM:s.itM.size,rows:s.rows,oc:s.q>0?'Ocupada':'Vazia'}})
+   .filter(p=>passPos(p)&&(!PWF.ocup||p.oc===PWF.ocup)&&(!prodFiltro||rfPos.has(p.lj+'|'+p.pid)));
+ // ── barra de filtros ──
+ const op=(v,l,s)=>`<option value="${esc(v)}"${String(s)===String(v)?' selected':''}>${esc(l)}</option>`;
+ const posBase=allPos.filter(p=>!GF.lj||p.lj===GF.lj);
+ const nPF=['rua','pr','ni','ap','setor','sit','ocup','fx','mm','erp','usr','q','pos'].filter(k=>PWF[k]).length;
+ const sel=(k,rot,todos,vals,lab)=>`<label class="fl">${rot}<select class="pwsel" data-k="${k}">${op('',todos,PWF[k])}${vals.map(v=>op(v,lab?lab(v):v,PWF[k])).join('')}</select></label>`;
+ $('#e-fb').hidden=false;
+ $('#e-fb').innerHTML=
+  sel('rua','Rua','Todas',srt(posBase.filter(p=>passPos(p,'rua')).map(p=>String(p.ru))))+
+  sel('pr','Prédio','Todos',srt(posBase.filter(p=>passPos(p,'pr')).map(p=>String(p.pr))))+
+  sel('ni','Nível','Todos',srt(posBase.filter(p=>passPos(p,'ni')).map(p=>String(p.ni))))+
+  sel('ap','Apto','Todos',srt(posBase.filter(p=>passPos(p,'ap')).map(p=>String(p.ap))))+
+  sel('ocup','Ocupação','Todas',['Ocupada','Vazia'])+
+  sel('sit','Mapeamento × estoque','Todas',PW_SIT)+
+  sel('mm','Mín. / máx.','Todos',PW_MM)+
+  sel('erp','WMS × ERP','Todos',PW_ERP)+
+  sel('fx','Faixa de estoque','Todas',PW_FX.map(f=>f[0]),v=>PW_FX.find(f=>f[0]===v)[1])+
+  sel('setor','Setor','Todos',srt(R.filter(o=>passR(o,'setor')).map(o=>o.setor)))+
+  sel('usr','Mapeado por','Todos',srt(R.filter(o=>passR(o,'usr')).map(o=>o.usr)))+
+  `<label class="fl">Produto<input class="pwin" data-k="q" type="search" placeholder="Cód., Danfe, descrição, marca" value="${esc(PWF.q)}"></label>`+
+  `<label class="fl">Posição<input class="pwin" data-k="pos" type="search" placeholder="Ex.: 1-2-0 ou 0020000045" value="${esc(PWF.pos)}"></label>`+
+  `<div class="fa"><button id="pw-clr" class="bt" type="button"${nPF?'':' disabled'}>${nPF?`Limpar (${nPF})`:'Limpar'}</button></div>`;
+ // ── KPIs ──
+ const ocup=POSF.filter(p=>p.oc==='Ocupada').length, vaz=POSF.length-ocup;
+ const RE=RF.filter(o=>o.hasE), pcs=RE.reduce((s,o)=>s+o.q,0), val=RE.reduce((s,o)=>s+o.q*(o.cu||0),0);
+ const itens=new Set(RE.filter(o=>o.q>0).map(o=>o.lj+'|'+o.ref)).size;
+ const pOk=RF.filter(o=>o.sit===PW_SIT[0]).length, pFora=RF.filter(o=>o.sit===PW_SIT[1]).length, pSem=new Set(RF.filter(o=>o.sit===PW_SIT[2]).map(o=>o.lj+'|'+o.ref)).size, pVaz=RF.filter(o=>o.sit===PW_SIT[3]).length;
+ const prF=[...new Set(RF.map(o=>o.prod))];
+ const difs=prF.filter(p=>p.dif!=null&&p.dif!==0&&p.posE.size).length, abMin=RF.filter(o=>o.mm===PW_MM[0]).length;
+ const ult=[...P.cad,...P.est,...P.map].reduce((m,r)=>r.importado_em>m?r.importado_em:m,'');
+ const kk=(rot,v,sub,cor,k,vv,tit)=>`<div class="k"${k?` data-pwk="${k}" data-pwv="${esc(vv)}" style="cursor:pointer"`:''}${tit?` title="${esc(tit)}"`:''}><span>${rot}</span><b${cor?` style="color:${cor}"`:''}>${v}</b><small>${sub}</small></div>`;
+ kp.innerHTML=
+  kk('Posições',N(POSF.length),`${N(new Set(POSF.map(p=>p.ru)).size)} ruas · ${N(new Set(POSF.map(p=>p.ru+'|'+p.pr)).size)} prédios`)+
+  kk('Posições ocupadas',N(ocup),`${POSF.length?Math.round(ocup/POSF.length*100):0}% de ocupação`,'var(--ok)','ocup','Ocupada')+
+  kk('Posições vazias',N(vaz),'sem estoque no WMS','var(--y)','ocup','Vazia')+
+  kk('Itens em estoque',N(itens),`${N(RE.length)} linhas produto × posição`)+
+  kk('Peças em estoque',N0(pcs),`${BRL(val)} (custo do ERP)`)+
+  kk('Mapa = estoque',N(pOk),`${RE.length?Math.round(pOk/RE.length*100):0}% das linhas com estoque`,'var(--ok)','sit',PW_SIT[0],'Produto com estoque na posição em que foi mapeado')+
+  kk('Estoque fora do mapa',N(pFora),'estoque numa posição não mapeada','var(--bad)','sit',PW_SIT[1])+
+  kk('Sem mapeamento',N(pSem),'produtos com estoque e sem mapa','var(--bad)','sit',PW_SIT[2])+
+  kk('Mapeado sem estoque',N(pVaz),'posição mapeada vazia','var(--y)','sit',PW_SIT[3])+
+  kk('Abaixo do mínimo',N(abMin),'estoque menor que o mínimo do mapa','var(--y)','mm',PW_MM[0])+
+  kk('WMS × ERP',N(difs),'produtos com saldo diferente',difs?'var(--bad)':'var(--ok)','erp','');
+ // ── helpers de gráfico/tabela ──
+ const barras=(arr,k,selv,cor,fmt)=>{const mx=Math.max(1,...arr.map(x=>x.v));if(!arr.length)return '<p style="color:var(--mu)">Sem dados</p>';
+  return `<div style="display:grid;grid-template-columns:auto minmax(3rem,1fr) auto;gap:.18rem .55rem;align-items:center">`+arr.map(x=>{const op=selv&&selv!==String(x.k)?'opacity:.35;':'', on=selv===String(x.k)?'font-weight:700;color:var(--y);':'';
+   return `<div data-pwk="${k}" data-pwv="${esc(x.k)}" title="${esc(x.l||x.k)} — clique para filtrar" style="display:contents;cursor:pointer">`+
+    `<span style="${op}${on}font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:14rem;cursor:pointer">${esc(x.l||x.k)}</span>`+
+    `<div style="${op}background:var(--s2);border-radius:3px;height:9px;overflow:hidden;display:flex;cursor:pointer">${x.v2!=null?`<div style="width:${x.v2/mx*100}%;height:100%;background:${cor}"></div><div style="width:${(x.v-x.v2)/mx*100}%;height:100%;background:color-mix(in srgb,${cor} 30%,transparent)"></div>`:`<div style="width:${x.v/mx*100}%;height:100%;background:${cor}"></div>`}</div>`+
+    `<span style="${op}font-size:.76rem;color:var(--mu);text-align:right;white-space:nowrap;cursor:pointer">${fmt(x)}</span></div>`}).join('')+`</div>`};
+ const posLink=p=>`<span data-pwk="pos" data-pwv="${esc(p.e)}" style="cursor:pointer;text-decoration:underline dotted;color:var(--y);white-space:nowrap" title="Ver esta posição">${esc(p.e)}</span>`;
+ const sitBd=s=>`<span class="bd ${s===PW_SIT[0]||s==='Conforme'?'ok':s===PW_SIT[3]||s.startsWith('Conforme (')?'wn':'bad'}" style="white-space:nowrap">${esc(s)}</span>`;
+ const erpBd=s=>s?`<span class="bd ${s===PW_ERP[0]?'ok':s===PW_ERP[3]?'wn':'bad'}" style="white-space:nowrap">${esc(s)}</span>`:'—';
+ const dif=v=>v==null?'—':v===0?'0':`<b style="color:${v>0?'var(--y)':'var(--bad)'}">${v>0?'+':''}${N0(v)}</b>`;
+ const fdh=v=>v?String(v).slice(8,10)+'/'+String(v).slice(5,7)+'/'+String(v).slice(0,4)+' '+String(v).slice(11,16):'—';
+ // ── mapa rua × prédio (ocupação) ──
+ const mpBase=posBase.filter(p=>passPos(p,'rua')&&passPos(p,'pr')&&(!PWF.ocup||((posStat.get(p.lj+'|'+p.pid)||{q:0}).q>0?'Ocupada':'Vazia')===PWF.ocup));
+ const ruas=srt(mpBase.map(p=>String(p.ru))), preds=srt(mpBase.map(p=>String(p.pr)));
+ const hm={};mpBase.forEach(p=>{const k=p.ru+'|'+p.pr;const o=hm[k]=hm[k]||{t:0,o:0};o.t++;if((posStat.get(p.lj+'|'+p.pid)||{q:0}).q>0)o.o++});
+ const mapa=ruas.length&&preds.length?`<div class="tw" style="overflow:auto"><table class="wms-map"><thead><tr><th>Rua \\ Prédio</th>${preds.map(p=>`<th style="text-align:center">${esc(p)}</th>`).join('')}</tr></thead><tbody>${ruas.map(ru=>`<tr><td><b>${esc(ru)}</b></td>${preds.map(p=>{const o=hm[ru+'|'+p],on=PWF.rua===ru&&PWF.pr===p;if(!o)return '<td></td>';const pc=o.o/o.t;return `<td data-pwhm="${esc(ru)}|${esc(p)}" title="Rua ${esc(ru)}, prédio ${esc(p)}: ${o.o} de ${o.t} posições ocupadas (${Math.round(pc*100)}%)" style="text-align:center;cursor:pointer;white-space:nowrap;font-size:.74rem;background:${o.o?`color-mix(in srgb,var(--y) ${Math.round(14+pc*66)}%,transparent)`:'color-mix(in srgb,var(--bd) 35%,transparent)'};${on?'outline:2px solid var(--tx)':''}">${o.o}/${o.t}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`+
+   `<p style="font-size:.72rem;color:var(--mu);margin:.3rem 0 0">Em cada célula: posições ocupadas / posições cadastradas. Quanto mais forte o amarelo, mais cheio o prédio; cinza = todas vazias.</p>`:'<p style="color:var(--mu)">Sem posições cadastradas nos filtros.</p>';
+ // ── séries ──
+ const grp=(arr,kf)=>{const m=new Map();arr.forEach(x=>{const k=kf(x);(m.get(k)||m.set(k,[]).get(k)).push(x)});return m};
+ const posRua=[...grp(posBase.filter(p=>passPos(p,'rua')),p=>String(p.ru))].map(([k,a])=>({k,l:'Rua '+k,v:a.length,v2:a.filter(p=>(posStat.get(p.lj+'|'+p.pid)||{q:0}).q>0).length})).sort((a,b)=>String(a.k).localeCompare(String(b.k),'pt-BR',{numeric:true}));
+ const posNiv=[...grp(posBase.filter(p=>passPos(p,'ni')),p=>String(p.ni))].map(([k,a])=>({k,l:'Nível '+k,v:a.length,v2:a.filter(p=>(posStat.get(p.lj+'|'+p.pid)||{q:0}).q>0).length})).sort((a,b)=>String(a.k).localeCompare(String(b.k),'pt-BR',{numeric:true}));
+ const sitC=PW_SIT.map(s=>({k:s,v:R.filter(o=>passR(o,'sit')&&o.sit===s).length}));
+ const fxC=PW_FX.map(f=>({k:f[0],l:f[1],v:R.filter(o=>o.hasE&&passR(o,'fx')&&fxOf(o.q)===f[0]).length}));
+ const usrC=[...grp(R.filter(o=>o.hasM&&o.usr&&passR(o,'usr')),o=>o.usr)].map(([k,a])=>({k,v:a.length,ok:a.filter(o=>o.sit===PW_SIT[0]).length})).sort((a,b)=>b.v-a.v).slice(0,15);
+ const erpC=PW_ERP.map(s=>({k:s,v:[...new Set(R.filter(o=>passR(o,'erp')&&o.prod.st===s).map(o=>o.prod))].length}));
+ const mmC=PW_MM.map(s=>({k:s,v:R.filter(o=>passR(o,'mm')&&o.mm===s).length}));
+ // ── painel da posição escolhida ──
+ const posSel=PWF.pos?POSF.filter(p=>[p.e,p.cod,String(p.pid)].map(_ck).some(x=>x===pTxt)):[];
+ const painel=posSel.length?`<article class="pn w2"><h3>📍 Posição ${esc(posSel[0].e)} <small style="font-weight:400;color:var(--mu)">código ${esc(posSel[0].cod||'—')} · rua ${esc(posSel[0].ru)} · prédio ${esc(posSel[0].pr)} · nível ${esc(posSel[0].ni)} · apto ${esc(posSel[0].ap)} · ${posSel[0].oc}</small></h3>`+
+   (posSel[0].rows.length?`<div class="tw"><table class="ped-tb"><thead><tr><th>Cód. WMS</th><th>Cód. Danfe</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th style="text-align:right">Qtde WMS</th><th style="text-align:right">Mín.</th><th style="text-align:right">Máx.</th><th>Situação</th><th>Outras posições do produto</th></tr></thead><tbody>`+
+    posSel[0].rows.map(o=>`<tr><td>${esc(o.cw)}</td><td><b>${esc(o.ref)}</b></td><td>${esc(o.cp||'—')}</td><td>${esc(o.d)}</td><td>${esc(o.m||'—')}</td><td style="text-align:right"><b>${o.hasE?N0(o.q):'—'}</b></td><td style="text-align:right">${o.min??'—'}</td><td style="text-align:right">${o.max??'—'}</td><td>${sitBd(o.sit)}</td><td>${o.prod.rows.filter(x=>x!==o).map(x=>posLink(x.p)+(x.hasE?` <small>(${N0(x.q)})</small>`:' <small>(mapa)</small>')).join(', ')||'—'}</td></tr>`).join('')+`</tbody></table></div>`:'<p style="color:var(--mu)">Posição vazia e sem produto mapeado.</p>')+`</article>`:'';
+ // ── visões em tabela (paginadas) ──
+ const VIS=[['prod','Onde está cada produto'],['pos','Posições'],['item','Produtos (WMS × ERP)'],['conf','Conferência mapa × estoque']];
+ const PG=100;
+ let cab=[], linhas=[], csvCab=[], csvLin=[], titulo='';
+ if(PWF.vis==='pos'){
+  const rows=POSF.slice().sort((a,b)=>String(a.e).localeCompare(String(b.e),'pt-BR',{numeric:true}));
+  titulo=`${N(rows.length)} posições`;
+  cab=['Posição','Código','Filial','Rua','Prédio','Nível','Apto','Situação','Itens com estoque','Peças','Produtos mapeados','Produtos na posição'];
+  linhas=rows.map(p=>`<tr><td>${posLink(p)}</td><td>${esc(p.cod||'—')}</td><td>${esc(p.lj)}</td><td style="text-align:center">${esc(p.ru)}</td><td style="text-align:center">${esc(p.pr)}</td><td style="text-align:center">${esc(p.ni)}</td><td style="text-align:center">${esc(p.ap)}</td><td><span class="bd ${p.oc==='Ocupada'?'ok':'wn'}">${p.oc}${p.semCad?' · sem cadastro':''}</span></td><td style="text-align:right">${N(p.nE)}</td><td style="text-align:right"><b>${N0(p.q)}</b></td><td style="text-align:right">${N(p.nM)}</td><td style="font-size:.76rem">${p.rows.filter(o=>o.hasE&&o.q>0).slice(0,6).map(o=>esc(o.ref)+` <small>(${N0(o.q)})</small>`).join(', ')}${p.nE>6?` +${p.nE-6}`:''}</td></tr>`);
+  csvCab=['Posição','Código','Filial','Rua','Prédio','Nível','Apto','Situação','Itens com estoque','Peças','Produtos mapeados','Produtos (Cód. Danfe: qtde)'];
+  csvLin=rows.map(p=>[p.e,p.cod,p.lj,p.ru,p.pr,p.ni,p.ap,p.oc,p.nE,N0(p.q),p.nM,p.rows.filter(o=>o.hasE&&o.q>0).map(o=>o.ref+': '+o.q).join(' / ')]);
+ }else if(PWF.vis==='item'){
+  const rows=prF.filter(p=>p.posE.size||p.posM.size).sort((a,b)=>Math.abs(b.dif??0)-Math.abs(a.dif??0)||b.q-a.q);
+  titulo=`${N(rows.length)} produtos · maior diferença WMS × ERP primeiro`;
+  cab=['Filial','Cód. WMS','Cód. Danfe','Cód. produto','Descrição','Marca','Qtde WMS','Saldo ERP','Diferença','WMS × ERP','Posições com estoque','Posições mapeadas','Locação ERP','Mapeamento'];
+  linhas=rows.map(p=>`<tr><td>${esc(p.lj)}</td><td>${esc(p.cw)}</td><td><b>${esc(p.ref)}</b></td><td>${esc(p.cp||'—')}</td><td>${esc(p.d)}</td><td>${esc(p.m||'—')}</td><td style="text-align:right"><b>${N0(p.q)}</b></td><td style="text-align:right">${p.erp==null?'—':N0(p.erp)}</td><td style="text-align:right">${dif(p.dif)}</td><td>${erpBd(p.st)}</td><td>${p.rows.filter(o=>o.hasE).map(o=>posLink(o.p)+` <small>(${N0(o.q)})</small>`).join('<br>')||'—'}</td><td>${p.rows.filter(o=>o.hasM).map(o=>posLink(o.p)).join('<br>')||'—'}</td><td>${esc(p.locErp||'—')}</td><td>${sitBd(p.conf)}</td></tr>`);
+  csvCab=['Filial','Cód. WMS','Cód. Danfe','Cód. produto','Descrição','Marca','Qtde WMS','Saldo ERP','Diferença','WMS × ERP','Posições com estoque','Posições mapeadas','Locação ERP','Mapeamento'];
+  csvLin=rows.map(p=>[p.lj,p.cw,p.ref,p.cp,p.d,p.m,N0(p.q),p.erp??'',p.dif??'',p.st,p.rows.filter(o=>o.hasE).map(o=>o.p.e+' ('+o.q+')').join(' / '),p.rows.filter(o=>o.hasM).map(o=>o.p.e).join(' / '),p.locErp,p.conf]);
+ }else if(PWF.vis==='conf'){
+  const rows=prF.filter(p=>p.conf!=='Conforme').sort((a,b)=>(a.conf==='Divergente'?0:a.conf==='Sem mapeamento'?1:2)-(b.conf==='Divergente'?0:b.conf==='Sem mapeamento'?1:2)||b.q-a.q);
+  titulo=`${N(rows.length)} produtos fora do padrão · fase 1 (mapeamento) × fase 2 (estoque) precisam ser iguais`;
+  cab=['Filial','Cód. Danfe','Descrição','Marca','Mapeado em (fase 1)','Estoque em (fase 2)','Qtde WMS','Resultado','O que fazer'];
+  linhas=rows.map(p=>{const fe=p.rows.filter(o=>o.hasE),fm=p.rows.filter(o=>o.hasM);const fora=fe.filter(o=>!o.hasM),vaz=fm.filter(o=>!o.hasE);
+   const acao=p.conf==='Sem mapeamento'?'Mapear o produto na posição onde está o estoque':fora.length&&fm.length?`Mover o estoque de ${fora.map(o=>o.p.e).join(', ')} para ${fm.map(o=>o.p.e).join(', ')} — ou mapear a nova posição`:vaz.length?`Conferir posição mapeada vazia: ${vaz.map(o=>o.p.e).join(', ')}`:'—';
+   return `<tr><td>${esc(p.lj)}</td><td><b>${esc(p.ref)}</b></td><td>${esc(p.d)}</td><td>${esc(p.m||'—')}</td><td>${fm.map(o=>posLink(o.p)+(o.hasE?'':' <small style="color:var(--y)">(vazia)</small>')).join('<br>')||'<span style="color:var(--bad)">não mapeado</span>'}</td><td>${fe.map(o=>posLink(o.p)+` <small>(${N0(o.q)})</small>`+(o.hasM?'':' <small style="color:var(--bad)">fora do mapa</small>')).join('<br>')||'<span style="color:var(--y)">sem estoque</span>'}</td><td style="text-align:right"><b>${N0(p.q)}</b></td><td>${sitBd(p.conf)}</td><td style="font-size:.76rem">${esc(acao)}</td></tr>`});
+  csvCab=['Filial','Cód. Danfe','Cód. WMS','Descrição','Marca','Mapeado em (fase 1)','Estoque em (fase 2)','Qtde WMS','Resultado'];
+  csvLin=rows.map(p=>[p.lj,p.ref,p.cw,p.d,p.m,p.rows.filter(o=>o.hasM).map(o=>o.p.e).join(' / '),p.rows.filter(o=>o.hasE).map(o=>o.p.e+' ('+o.q+')').join(' / '),N0(p.q),p.conf]);
+ }else{
+  const rows=RF.slice().sort((a,b)=>String(a.ref).localeCompare(String(b.ref),'pt-BR',{numeric:true})||String(a.p.e).localeCompare(String(b.p.e),'pt-BR',{numeric:true}));
+  titulo=`${N(rows.length)} linhas produto × posição · ${N(new Set(rows.map(o=>o.lj+'|'+o.ref)).size)} produtos`;
+  cab=['Filial','Cód. WMS','Cód. Danfe','Cód. produto','Descrição','Marca','Posição','Código posição','Rua','Prédio','Nível','Apto','Setor','Qtde WMS','Mín.','Máx.','Mín./máx.','Valor','Mapeado por','Data do mapeamento','Situação'];
+  linhas=rows.map(o=>`<tr><td>${esc(o.lj)}</td><td>${esc(o.cw)}</td><td><b>${esc(o.ref)}</b></td><td>${esc(o.cp||'—')}</td><td>${esc(o.d)}</td><td>${esc(o.m||'—')}</td><td>${posLink(o.p)}</td><td>${esc(o.p.cod||'—')}</td><td style="text-align:center">${esc(o.p.ru)}</td><td style="text-align:center">${esc(o.p.pr)}</td><td style="text-align:center">${esc(o.p.ni)}</td><td style="text-align:center">${esc(o.p.ap)}</td><td>${esc(o.setor||'—')}</td><td style="text-align:right"><b>${o.hasE?N0(o.q):'—'}</b></td><td style="text-align:right">${o.min??'—'}</td><td style="text-align:right">${o.max??'—'}</td><td>${o.mm?`<span class="bd ${o.mm===PW_MM[1]?'ok':'wn'}" style="white-space:nowrap">${esc(o.mm)}</span>`:'—'}</td><td style="text-align:right;white-space:nowrap">${o.hasE?BRL(o.q*(o.cu||0)):'—'}</td><td>${esc(o.usr||'—')}</td><td style="white-space:nowrap">${fdh(o.dh)}</td><td>${sitBd(o.sit)}</td></tr>`);
+  csvCab=cab.slice(0,7).concat(['Código posição','Rua','Prédio','Nível','Apto','Setor','Qtde WMS','Mín.','Máx.','Mín./máx.','Custo un. ERP','Mapeado por','Data do mapeamento','Situação']);
+  csvLin=rows.map(o=>[o.lj,o.cw,o.ref,o.cp,o.d,o.m,o.p.e,o.p.cod,o.p.ru,o.p.pr,o.p.ni,o.p.ap,o.setor,o.hasE?N0(o.q):'',o.min??'',o.max??'',o.mm,String(o.cu||0).replace('.',','),o.usr,fdh(o.dh),o.sit]);
+ }
+ const nPg=Math.max(1,Math.ceil(linhas.length/PG)); if(PWF.pg>=nPg) PWF.pg=nPg-1;
+ const pager=nPg>1?`<span style="display:inline-flex;gap:.3rem;align-items:center;font-size:.78rem"><button type="button" class="bt" data-pwpg="${PWF.pg-1}" ${PWF.pg<=0?'disabled':''}>◀</button>página ${PWF.pg+1} de ${nPg}<button type="button" class="bt" data-pwpg="${PWF.pg+1}" ${PWF.pg>=nPg-1?'disabled':''}>▶</button></span>`:'';
+ const visTab=`<article class="pn w2"><div style="display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-bottom:.5rem">${VIS.map(([k,l])=>`<button type="button" class="bt${PWF.vis===k?' on':''}" data-pwvis="${k}">${l}</button>`).join('')}<span style="flex:1"></span>${pager}<button type="button" class="bt" id="pw-csv" style="font-size:.75rem;padding:.2rem .6rem">Exportar CSV</button></div>`+
+   `<div style="font-size:.76rem;color:var(--mu);margin-bottom:.3rem">${titulo}${ult?` · importado em ${new Date(ult).toLocaleString('pt-BR')}`:''}</div>`+
+   `<div class="tw" style="max-height:620px;overflow:auto"><table class="ped-tb"><thead><tr>${cab.map(c=>`<th style="position:sticky;top:0;z-index:1;background:var(--s1,#151515);white-space:nowrap">${c}</th>`).join('')}</tr></thead><tbody>${linhas.slice(PWF.pg*PG,(PWF.pg+1)*PG).join('')||`<tr><td colspan="${cab.length}" style="color:var(--mu)">Nada encontrado com esses filtros.</td></tr>`}</tbody></table></div></article>`;
+ ch.innerHTML=painel+
+  `<article class="pn w2"><h3>🗺️ Mapa de ocupação (rua × prédio) <small style="font-weight:400;color:var(--mu)">— clique para filtrar</small></h3>${mapa}</article>`+
+  `<article class="pn"><h3>🛣️ Posições por rua <small style="font-weight:400;color:var(--mu)">— cheio = ocupadas · claro = vazias</small></h3>${barras(posRua,'rua',PWF.rua,'var(--ok)',x=>`${N(x.v2)} de ${N(x.v)} ocupadas`)}</article>`+
+  `<article class="pn"><h3>🔎 Mapeamento × estoque <small style="font-weight:400;color:var(--mu)">— linhas produto × posição</small></h3>${barras(sitC,'sit',PWF.sit,'var(--bl)',x=>`${N(x.v)} linhas`)}</article>`+
+  `<article class="pn"><h3>🪜 Posições por nível</h3>${barras(posNiv,'ni',PWF.ni,'#b48cf2',x=>`${N(x.v2)} de ${N(x.v)} ocupadas`)}</article>`+
+  `<article class="pn"><h3>⚖️ WMS × ERP (saldo por produto)</h3>${barras(erpC,'erp',PWF.erp,'var(--bl)',x=>`${N(x.v)} produtos`)}</article>`+
+  `<article class="pn"><h3>📦 Faixa de estoque por posição</h3>${barras(fxC,'fx',PWF.fx,'var(--y)',x=>`${N(x.v)} linhas`)}</article>`+
+  `<article class="pn"><h3>📏 Estoque × mínimo / máximo do mapa</h3>${barras(mmC,'mm',PWF.mm,'#e8762c',x=>`${N(x.v)} linhas`)}</article>`+
+  `<article class="pn w2"><h3>👤 Mapeamentos por usuário <small style="font-weight:400;color:var(--mu)">— cheio = posição mapeada com estoque</small></h3>${barras(usrC.map(x=>({...x,v2:x.ok})),'usr',PWF.usr,'var(--ok)',x=>`${N(x.v)} mapeamentos · ${x.v?Math.round(x.ok/x.v*100):0}% com estoque`)}</article>`+
+  visTab+
+  `<p style="font-size:.74rem;color:var(--mu);grid-column:1/-1">Fontes: <b>Estoque Posição</b> (saldo atual do WMS por posição), <b>Mapeamento de Produto</b> (fase 1 — onde o produto foi mapeado; a posição vem como rua+prédio+nível+apto juntos) e <b>Posições de Estoque</b> (cadastro com rua, prédio, nível e apto; código = 002 + nº da posição). Marca, Cód. produto, custo e saldo do ERP vêm do ESTOQUELT/LL pelo Cód. Danfe (= Referência do WMS). Posição escrita como rua-prédio-nível-apto.</p>`;
+ const csv=(nome,c,l)=>{const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+[c.map(q).join(';'),...l.map(x=>x.map(q).join(';'))].join('\n')],{type:'text/csv;charset=utf-8'}));a.download=nome;a.click();URL.revokeObjectURL(a.href)};
+ const bc=document.getElementById('pw-csv'); if(bc) bc.onclick=()=>csv('posicoes-wms-'+PWF.vis+'.csv',csvCab,csvLin);
+}
+let _pwT=null;
+document.addEventListener('change',e=>{const el=e.target.closest('.pwsel');if(el){PWF[el.dataset.k]=el.value;PWF.pg=0;renderGeral()}});
+document.addEventListener('input',e=>{const el=e.target.closest('.pwin');if(el){clearTimeout(_pwT);_pwT=setTimeout(()=>{PWF[el.dataset.k]=el.value.trim();PWF.pg=0;renderGeral()},400)}});
+document.addEventListener('click',e=>{
+ if(cur!=='pwms') return;
+ if(e.target.closest('#pw-clr')){['rua','pr','ni','ap','setor','sit','ocup','fx','mm','erp','usr','q','pos'].forEach(k=>PWF[k]='');PWF.pg=0;return renderGeral()}
+ const v=e.target.closest('[data-pwvis]'); if(v){PWF.vis=v.dataset.pwvis;PWF.pg=0;return renderGeral()}
+ const g=e.target.closest('[data-pwpg]'); if(g){if(g.disabled)return;PWF.pg=Math.max(0,Number(g.dataset.pwpg));return renderGeral()}
+ const h=e.target.closest('[data-pwhm]'); if(h){const [ru,pr]=h.dataset.pwhm.split('|');const on=PWF.rua===ru&&PWF.pr===pr;PWF.rua=on?'':ru;PWF.pr=on?'':pr;PWF.pg=0;return renderGeral()}
+ const b=e.target.closest('[data-pwk]'); if(!b) return;
+ const k=b.dataset.pwk,val=b.dataset.pwv;
+ if(k==='erp'&&!val){PWF.vis='item';PWF.pg=0;return renderGeral()}
+ PWF[k]=PWF[k]===val?'':val; PWF.pg=0; if(k==='pos') window.scrollTo({top:0,behavior:'smooth'});
+ renderGeral();
+});
+
+// ═══════════════════════════════════════════════════════
 // CONTROLE DE ESTOQUE — dashboard analítico completo
 // ═══════════════════════════════════════════════════════
 function bootCE(){
@@ -2930,9 +3183,9 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{if(e.target.id=='q'){S[cur].q=e.target.value;S[cur].pg=0;render()}});
 document.addEventListener('change',e=>{const el=e.target.closest('.fsel');if(el){S[cur].sel[el.dataset.k]=el.value;S[cur].pg=0;render()}});
 const themeBtn=()=>{$('#th').textContent=document.documentElement.dataset.t=='dark'?'Tema claro':'Tema escuro'};
-window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if((h=='ov'||h=='ce'||h=='end'||h=='wms'||TB[h])&&h!=cur)go(h)});
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if((h=='ov'||h=='ce'||h=='end'||h=='wms'||h=='pwms'||TB[h])&&h!=cur)go(h)});
 themeBtn();
-const _okT=h=>h=='ov'||h=='ce'||h=='end'||h=='wms'||TB[h];let h0=location.hash.slice(1);if(!_okT(h0)){try{h0=localStorage.getItem('lt-tab-e')||''}catch(e){h0=''}}go(_okT(h0)?h0:'ov');
+const _okT=h=>h=='ov'||h=='ce'||h=='end'||h=='wms'||h=='pwms'||TB[h];let h0=location.hash.slice(1);if(!_okT(h0)){try{h0=localStorage.getItem('lt-tab-e')||''}catch(e){h0=''}}go(_okT(h0)?h0:'ov');
 }
 // ══════════════════════════════════════════════════════════════
 // ESTOQUE — importação, carga Supabase, renderização
@@ -3250,6 +3503,107 @@ async function lerEstoqueWms(file){
   });
   return {rows:out,headers,map,linhaCab:hi+1};
 }
+// ═══════════════════════════════════════════════════════
+// POSIÇÕES WMS — importação dos 3 arquivos da pasta "Estoque WMS"
+//  • Estoque Posição (saldo atual por posição: Código, Referência, Descrição, Estoque, Posicao, Setor…)
+//  • Mapeamento de Produto (fase 1: onde o produto foi mapeado — Posição = R+P+N+A juntos)
+//  • Posições de Estoque com código de barras (cadastro: R, P, N, A, Código 002 + nº da posição)
+// Cada arquivo substitui a carga anterior da mesma filial na sua tabela.
+// ═══════════════════════════════════════════════════════
+const _pwkNz=v=>String(v??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const _pwkNum=v=>{ if(v==null||v==='') return null; if(typeof v==='number') return v; v=String(v).trim(); if(!v) return null; const n=Number(v.includes(',')?v.replace(/\./g,'').replace(',','.'):v); return isNaN(n)?null:n; };
+const _pwkEsc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const _pwkTxt=v=>v==null?'':String(v).trim();
+function _pwkDataHora(v){ // 'dd/mm/aaaa hh:mm:ss' → ISO local
+  if(v==null||v==='') return null; if(typeof v==='number'){ const d=new Date(Math.round((v-25569)*86400000)); return d.toISOString().slice(0,19); }
+  const m=String(v).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/); if(!m) return null;
+  const a=m[3].length===2?'20'+m[3]:m[3]; return `${a}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${(m[4]||'00').padStart(2,'0')}:${m[5]||'00'}:${m[6]||'00'}`;
+}
+function _pwkLerPlanilha(rows, nome){
+  // procura a linha de cabeçalho nas 40 primeiras e identifica o tipo do arquivo pelas colunas
+  for(let i=0;i<Math.min(40,rows.length);i++){
+    const h=rows[i].map(_pwkNz), idx=k=>h.findIndex(x=>x===k), has=k=>idx(k)>=0;
+    if(has('posicao')&&has('referencia')&&has('estoque')){
+      const c={cod:idx('codigo'),ref:idx('referencia'),desc:idx('descricao'),q:idx('estoque'),eti:idx('etiqueta'),pos:idx('posicao'),setor:idx('setor'),fab:h.findIndex(x=>x.startsWith('dtfab')),val:h.findIndex(x=>x.startsWith('dtval')),dv:h.findIndex(x=>x.startsWith('diasvenc')),lote:idx('lote')};
+      const out=[]; rows.slice(i+1).forEach(r=>{ const ref=_pwkTxt(r[c.ref]), pid=_pwkNum(r[c.pos]); if(!ref||pid==null) return;
+        out.push({cod_wms:_pwkTxt(r[c.cod]),referencia:ref.toUpperCase(),descricao:_pwkTxt(r[c.desc]),qtde:_pwkNum(r[c.q])||0,pos_id:Math.round(pid),setor:c.setor>=0?_pwkTxt(r[c.setor]):'',
+          etiqueta:c.eti>=0?_pwkTxt(r[c.eti]):'',dt_fabricacao:c.fab>=0?_pwkTxt(r[c.fab]):'',dt_validade:c.val>=0?_pwkTxt(r[c.val]):'',dias_venc:c.dv>=0?_pwkTxt(r[c.dv]):'',lote:c.lote>=0?_pwkTxt(r[c.lote]):'',arquivo:nome}); });
+      return {tipo:'est',rows:out};
+    }
+    if(has('posicao')&&(has('minimo')||has('maxino')||has('maximo'))&&has('referencia')){
+      const c={cod:idx('codigo'),ref:idx('referencia'),prod:idx('produto'),setor:idx('setor'),pos:idx('posicao'),min:idx('minimo'),max:has('maxino')?idx('maxino'):idx('maximo'),usr:idx('usuario'),dh:h.findIndex(x=>x.startsWith('datahora')||x==='data')};
+      const out=[]; rows.slice(i+1).forEach(r=>{ const ref=_pwkTxt(r[c.ref]), pos=_pwkTxt(r[c.pos]); if(!ref||!pos||!/^\d+$/.test(pos.replace(/\.0+$/,''))) return;
+        out.push({cod_wms:_pwkTxt(r[c.cod]).replace(/\.0+$/,''),referencia:ref.toUpperCase(),produto:_pwkTxt(r[c.prod]),setor:c.setor>=0?_pwkTxt(r[c.setor]):'',posicao:pos.replace(/\.0+$/,''),
+          minimo:c.min>=0?_pwkNum(r[c.min]):null,maximo:c.max>=0?_pwkNum(r[c.max]):null,usuario:c.usr>=0?_pwkTxt(r[c.usr]):'',data_hora:c.dh>=0?_pwkDataHora(r[c.dh]):null,arquivo:nome}); });
+      return {tipo:'map',rows:out};
+    }
+    if(has('r')&&has('p')&&has('n')&&has('a')&&has('codigo')){
+      const c={r:idx('r'),p:idx('p'),n:idx('n'),a:idx('a'),cod:idx('codigo'),cb:h.findIndex(x=>x.startsWith('codigodebarras')||x==='codbarras')};
+      const out=[]; rows.slice(i+1).forEach(r=>{ const cod=_pwkTxt(r[c.cod]).replace(/\.0+$/,''); if(!/^\d+$/.test(cod)) return;
+        const R=Math.round(_pwkNum(r[c.r])??-1),P=Math.round(_pwkNum(r[c.p])??-1),N=Math.round(_pwkNum(r[c.n])??-1),A=Math.round(_pwkNum(r[c.a])??-1);
+        out.push({pos_id:parseInt(cod.slice(-7),10),codigo:cod.padStart(10,'0'),rua:R<0?null:R,predio:P<0?null:P,nivel:N<0?null:N,apto:A<0?null:A,conc:[R,P,N,A].map(x=>x<0?'':x).join(''),cod_barras:c.cb>=0?_pwkTxt(r[c.cb]):'',arquivo:nome}); });
+      return {tipo:'cad',rows:out};
+    }
+  }
+  return null;
+}
+async function importarPosicoesWms(input){
+  const st=document.getElementById('imp-pwms-status'), lbl=document.getElementById('lbl-pwms'), nm=document.getElementById('nm-pwms');
+  const msg=(t,cls)=>{ if(st){ st.style.display='block'; st.className='imp-status'+(cls?' '+cls:''); st.innerHTML=t; } };
+  const files=[...(input.files||[])].filter(f=>/\.(xlsx|xls|csv)$/i.test(f.name)&&!f.name.startsWith('~$'));
+  if(!files.length){ msg('Nenhuma planilha (.xls, .xlsx ou .csv) encontrada.','err'); return; }
+  if(nm) nm.textContent=files.length+' arquivo(s): '+files.map(f=>f.name).join(', ');
+  if(lbl) lbl.className='imp-card loading';
+  try{
+    msg('⏳ Lendo '+files.length+' arquivo(s)…');
+    if(typeof loadXLSX==='function') await loadXLSX();
+    const lidos={}, ignorados=[];
+    for(const f of files){
+      const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+      let ok=null;
+      for(const sn of wb.SheetNames){ const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:''}); ok=_pwkLerPlanilha(rows,f.name); if(ok) break; }
+      if(!ok){ ignorados.push(f.name); continue; }
+      if(lidos[ok.tipo]) lidos[ok.tipo].rows.push(...ok.rows); else lidos[ok.tipo]={rows:ok.rows,arq:[]};
+      lidos[ok.tipo].arq.push(f.name);
+    }
+    if(!Object.keys(lidos).length) throw new Error('Não reconheci nenhum dos arquivos. Esperado: Estoque Posição, Mapeamento de Produto e Posições de Estoque (código de barras).'+(ignorados.length?' Ignorados: '+ignorados.join(', '):''));
+    // filial: escolhida no seletor ou pelo prefixo da Referência (LL… / LT…)
+    let loja=(document.getElementById('imp-pwms-loja')||{}).value||'';
+    if(!loja){ const cnt={}; ['est','map'].forEach(t=>(lidos[t]?.rows||[]).forEach(r=>{ const p=String(r.referencia).slice(0,2); if(p==='LL'||p==='LT') cnt[p]=(cnt[p]||0)+1; }));
+      loja=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0]?.[0]||''; }
+    if(!loja) throw new Error('Não consegui identificar a filial pelas referências. Escolha a filial no seletor e importe de novo.');
+    const TAB={cad:'wms_pos_cad',est:'wms_pos_estoque',map:'wms_pos_mapa'}, NOME={cad:'Posições (cadastro)',est:'Estoque Posição',map:'Mapeamento de Produto'};
+    const res=[];
+    for(const t of ['cad','est','map']){ if(!lidos[t]) continue;
+      const rows=lidos[t].rows.map(r=>({...r,loja}));
+      msg(`📤 ${NOME[t]}: substituindo a carga anterior da ${loja}…`);
+      const {error:eDel}=await _sb.from(TAB[t]).delete().eq('loja',loja); if(eDel) throw new Error((eDel.code==='42501'||/policy|permission/i.test(eDel.message)?'Apenas administradores podem importar. ':'')+NOME[t]+': '+eDel.message);
+      for(let i=0;i<rows.length;i+=1000){ msg(`📤 ${NOME[t]}: ${Math.min(i+1000,rows.length).toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} linhas…`);
+        const {error}=await _sb.from(TAB[t]).insert(rows.slice(i,i+1000)); if(error) throw new Error(NOME[t]+': '+error.message); }
+      res.push(`${NOME[t]}: <b>${rows.length.toLocaleString('pt-BR')}</b> linhas`);
+    }
+    window._PWMS=null; window._pwmsLoad=null;
+    if(lbl) lbl.className='imp-card done';
+    msg(`✅ Posições WMS da ${loja} atualizadas — ${res.join(' · ')}${ignorados.length?` · ignorados: ${ignorados.map(_pwkEsc).join(', ')}`:''}. Abra <b>Estoque → Posições WMS</b>.`,'ok');
+    if(typeof window._rerenderE==='function'&&document.querySelector('#e-tabs [data-tab="pwms"][aria-selected="true"]')) window._rerenderE();
+  }catch(e){
+    console.error('[posições WMS]',e); if(lbl) lbl.className='imp-card';
+    msg('❌ '+_pwkEsc(e.message||String(e))+(/xls/i.test(String(e.message))?'':' — se o .xls antigo não abrir, salve-o como .xlsx no Excel e importe de novo.'),'err');
+  }finally{ input.value=''; }
+}
+// carrega as 3 tabelas (paginado) — cache por sessão
+function carregarPosWms(){
+  if(window._PWMS) return Promise.resolve(window._PWMS);
+  if(window._pwmsLoad) return window._pwmsLoad;
+  const pega=async(t,cols)=>{ const all=[]; for(let from=0;;from+=1000){ const {data,error}=await _sb.from(t).select(cols).order('id').range(from,from+999); if(error) throw error; all.push(...(data||[])); if(!data||data.length<1000) break; } return all; };
+  window._pwmsLoad=Promise.all([
+    pega('wms_pos_cad','loja,pos_id,codigo,rua,predio,nivel,apto,conc,cod_barras,importado_em'),
+    pega('wms_pos_estoque','loja,cod_wms,referencia,descricao,qtde,pos_id,setor,etiqueta,dt_fabricacao,dt_validade,dias_venc,lote,importado_em'),
+    pega('wms_pos_mapa','loja,cod_wms,referencia,produto,setor,posicao,minimo,maximo,usuario,data_hora,importado_em')
+  ]).then(([cad,est,map])=>{ window._PWMS={cad,est,map}; window._pwmsLoad=null; return window._PWMS; }).catch(e=>{ window._pwmsLoad=null; throw e; });
+  return window._pwmsLoad;
+}
+
 async function importarEstoqueWms(input, loja){
   const file=input.files[0]; if(!file) return;
   const st=document.getElementById('imp-ewms-status'), lbl=document.getElementById('lbl-ewms-'+loja.toLowerCase()), nm=document.getElementById('nm-ewms-'+loja.toLowerCase());
