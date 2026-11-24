@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1350">
+<meta name="version" content="20261124-1412">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -965,6 +965,8 @@ async function prepararEstoqueE(D){
     if(!_estoque){ try{ _estoque = await carregarEstoqueSupa(); }catch(e1){ console.warn('[estoque] nova tentativa',e1); _estoque = await carregarEstoqueSupa(); } }
     if(!_estoque.length) return;
     if(!D.sp_erica){ D.sp_erica=D.sp; D.sl_erica=D.sl; }
+    // data/hora da última importação de cada filial (lote_import = 'L' + horário da importação)
+    window._estQuando={}; _estoque.forEach(r=>{ const t=Number(String(r.lote_import||'').slice(1))||0; if(t>(window._estQuando[r.loja]||0)) window._estQuando[r.loja]=t; });
     const rows=_estoque.map(r=>({
       c: r.cod_marca||r.cod, r: r.cod, lj: r.loja,
       d: r.descricao||'', m: r.marca||'', l: r.locacao||'',
@@ -2485,7 +2487,24 @@ function render(){
 }
 function overview(){
  const i=D.inv,sku=new Set(i.map(r=>r.c)).size,pcs=sum(i,'e');
- $('#e-kp').innerHTML=kpiHtml([['Produtos (SKU)',N(sku),N(i.length)+' endereços'],['Peças em estoque',N(pcs)],['Itens sem preço',N(D.sp.filter(r=>!(r.cu>0)).length),'custo zerado (estoques)'],['Valor em divergência',BRL(sum(D.dv,'v')),N(D.dv.length)+' itens'],['Saldo sem locação',N(D.sl.length),'itens']]);
+ // ── Números atuais dos 2 estoques: ERP (ESTOQUELL + ESTOQUELT) e WMS (Estoque Posição) ──
+ const E=D.sp||[], SW=window._SW, soW=(D.wmsOnly||[]).filter(r=>gfPass(r,'est'));
+ const dtI=t=>t?new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',''):'—';
+ const sgn=(v,f)=>(v>0?'+':'')+f(v), vl=r=>(r.s||0)*(r.cu||0);
+ const lojasE=[...new Set(E.map(r=>r.lj))].sort(), qE=window._estQuando||{};
+ const eP=sum(E,'s'), eV=E.reduce((x,r)=>x+vl(r),0), eSemCu=E.filter(r=>!(r.cu>0)).length;
+ const lojasW=SW?[...SW.lojas].filter(l=>!GF.lj||l===GF.lj).sort():[];
+ const comW=E.filter(r=>lojasW.includes(r.lj));
+ const wP=comW.reduce((x,r)=>x+(r.wq||0),0)+soW.reduce((x,r)=>x+(r.wq||0),0), wV=comW.reduce((x,r)=>x+(r.wq||0)*(r.cu||0),0);
+ const wItens=comW.filter(r=>r.wq>0).length+soW.length, ePw=sum(comW,'s'), eVw=comW.reduce((x,r)=>x+vl(r),0);
+ const nDif=comW.filter(r=>r.wx!==WX[0]).length+soW.length, lw=lojasW.join(' + ');
+ const kE=[['Peças no ERP'+(lojasE.length?' · '+lojasE.join(' + '):''),N(eP),N(E.length)+' itens'+(lojasE.some(l=>qE[l])?' · importado '+lojasE.filter(l=>qE[l]).map(l=>l+' '+dtI(qE[l])).join(' · '):'')],
+  ['Valor no ERP',BRL(eV),'saldo × custo · '+N(eSemCu)+' itens sem custo']];
+ const kW=lojasW.length?[['Peças no WMS · '+lw,N(wP),N(wItens)+' itens · '+lojasW.map(l=>(SW.fonte[l]||'WMS')+((SW.quando||{})[l]?' '+dtI(SW.quando[l]):'')).join(' · ')],
+  ['Valor no WMS · '+lw,BRL(wV),'saldo WMS × custo do ERP'+(soW.length?' · '+N(soW.length)+' itens só no WMS sem custo':'')],
+  ['Diferença WMS − ERP · '+lw,sgn(wV-eVw,BRL),sgn(wP-ePw,N)+' peças · '+N(nDif)+' itens diferentes']]
+  :[['Estoque WMS','—',GF.lj?'a filial '+GF.lj+' não tem WMS':'sem dados do WMS importados']];
+ $('#e-kp').innerHTML=kpiHtml([...kE,...kW,['Itens sem preço',N(eSemCu),'custo zerado (estoques)'],['Saldo sem locação',N(D.sl.length),'itens (estoques)'],['Valor em divergência',BRL(sum(D.dv,'v')),N(D.dv.length)+' itens · relatório ERICA']]);
  // ── Dashboard Itens sem preço ───────────────────────────────
  const sp=D.sp;
  const spSaldo=sum(sp,'s'),spSemLoc=sp.filter(r=>!r.l).length,spSemCv=sp.filter(r=>!r.cv).length;
@@ -2502,7 +2521,7 @@ function overview(){
  // Gauge-style donut inline para % sem locação
  const gauLoc=Math.round(spPctLoc),gauCv=Math.round(spPctCv);
  const gaugeSvg=(pct,color,label)=>{const r=15.9155,c=2*Math.PI*r,dash=pct/100*c,gap=c-dash;return`<div style="display:flex;flex-direction:column;align-items:center;gap:.3rem"><svg viewBox="0 0 42 42" width="80" height="80" style="transform:rotate(-90deg)"><circle cx="21" cy="21" r="${r}" fill="none" stroke="var(--s2)" stroke-width="4"/><circle cx="21" cy="21" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-dasharray="${dash.toFixed(1)} ${gap.toFixed(1)}" stroke-linecap="round"/></svg><div style="margin-top:-4rem;font-size:1.1rem;font-weight:800;color:${color}">${pct}%</div><small style="font-size:.72rem;color:var(--mu);text-align:center;margin-top:1.6rem">${label}</small></div>`};
- const L=[['Itens positivos sem preço (custo zerado)',N(D.sp.filter(r=>!(r.cu>0)).length)+' itens','sp'],['Saldo positivo sem locação (estoques)',N(D.sl.length)+' itens','sl'],['Divergências',N(D.dv.length)+' itens · '+BRL(sum(D.dv,'v')),'dv'],['Baixas e entradas especiais','Não está na planilha',''],['Inventário completo',N(i.length)+' endereços','inv'],['Quantidade de SKU geral',N(sku)+' SKUs','inv'],['Quantidade de itens e peças',N(pcs)+' peças','inv']];
+ const L=[['Itens positivos sem preço (custo zerado)',N(D.sp.filter(r=>!(r.cu>0)).length)+' itens','sp'],['Saldo positivo sem locação (estoques)',N(D.sl.length)+' itens','sl'],['Divergências',N(D.dv.length)+' itens · '+BRL(sum(D.dv,'v')),'dv'],['Baixas e entradas especiais','Não está na planilha',''],['Inventário completo',N(i.length)+' endereços','inv'],['Quantidade de SKU geral',N(new Set(E.map(r=>r.c)).size)+' SKUs no ERP','sp'],['Quantidade de itens e peças',N(E.length)+' itens · '+N(eP)+' peças no ERP'+(lojasW.length?' · '+N(wP)+' no WMS ('+lw+')':''),'sp']];
  $('#ch').innerHTML=
   // ── Bloco "Estoques" destacado ──
   `<article class="pn" style="grid-column:1/-1;border-left:4px solid var(--ok)">
@@ -3673,18 +3692,19 @@ window._SW=null;
 function _swKey(lj,ref){ return lj+'|'+String(ref||'').trim().toUpperCase(); }
 async function carregarSaldoWms(){
   if(window._SW) return window._SW;
-  const map=new Map(), lojas=new Set(), fonte={};
+  const map=new Map(), lojas=new Set(), fonte={}, quando={};
+  const _qd=(lj,t)=>{ const v=t?Date.parse(t):0; if(v>(quando[lj]||0)) quando[lj]=v; };
   try{ const P=await carregarPosWms();
     const end=new Map(P.cad.map(c=>[c.loja+'|'+c.pos_id,[c.rua,c.predio,c.nivel,c.apto].join('-')]));
     P.est.forEach(r=>{ const k=_swKey(r.loja,r.referencia); const o=map.get(k)||{q:0,pos:new Set(),cw:r.cod_wms||'',d:r.descricao||'',lj:r.loja,ref:String(r.referencia||'').trim().toUpperCase()};
-      o.q+=Number(r.qtde)||0; o.pos.add(end.get(r.loja+'|'+r.pos_id)||('pos. '+r.pos_id)); map.set(k,o); lojas.add(r.loja); fonte[r.loja]='Estoque Posição'; });
+      o.q+=Number(r.qtde)||0; o.pos.add(end.get(r.loja+'|'+r.pos_id)||('pos. '+r.pos_id)); map.set(k,o); lojas.add(r.loja); fonte[r.loja]='Estoque Posição'; _qd(r.loja,r.importado_em); });
   }catch(e){ console.warn('[saldo WMS: posições]',e); }
   try{ const E=await carregarEstoqueWms();
     E.forEach(r=>{ if(lojas.has(r.loja)&&fonte[r.loja]==='Estoque Posição') return; const k=_swKey(r.loja,r.referencia); const o=map.get(k)||{q:0,pos:new Set(),cw:r.cod_produto||'',d:r.descricao||'',lj:r.loja,ref:String(r.referencia||'').trim().toUpperCase()};
-      o.q+=Number(r.qtde)||0; if(r.endereco) o.pos.add(r.endereco); map.set(k,o); fonte[r.loja]=fonte[r.loja]||'Estoque WMS'; });
+      o.q+=Number(r.qtde)||0; if(r.endereco) o.pos.add(r.endereco); map.set(k,o); fonte[r.loja]=fonte[r.loja]||'Estoque WMS'; _qd(r.loja,r.importado_em); });
     E.forEach(r=>lojas.add(r.loja));
   }catch(e){ console.warn('[saldo WMS: estoque WMS]',e); }
-  window._SW={map,lojas,fonte}; return window._SW;
+  window._SW={map,lojas,fonte,quando}; return window._SW;
 }
 // situação de um item: lj, ref (Cód. Danfe), saldo do ERP
 function wmsDe(lj,ref,erpS){
@@ -3816,7 +3836,7 @@ async function carregarEstoqueSupa(lojaFilter){
   const PAGE=1000;
   let all=[], from=0, done=false;
   while(!done){
-    let q=_sb.from('estoque').select('cod,loja,descricao,marca,cod_marca,locacao,qtde,saldo,conversao,peso,custo').order('loja').order('cod').range(from,from+PAGE-1);
+    let q=_sb.from('estoque').select('cod,loja,descricao,marca,cod_marca,locacao,qtde,saldo,conversao,peso,custo,lote_import').order('loja').order('cod').range(from,from+PAGE-1);
     if(lojaFilter) q=q.eq('loja',lojaFilter);
     const {data,error}=await q;
     if(error) throw error;
