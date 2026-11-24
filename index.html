@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1444">
+<meta name="version" content="20261124-1550">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -459,6 +459,13 @@ table:not(.hd-tb):not(.wms-map) th:has(> button){padding:0}
 table:not(.hd-tb):not(.wms-map) th > button{padding:.4rem .6rem}
 table:not(.hd-tb):not(.wms-map) td.wrap,table.wrap td{white-space:normal;max-width:none}
 @media(max-width:600px){table:not(.hd-tb):not(.wms-map) td{padding:.26rem .42rem;max-width:14rem}table:not(.hd-tb):not(.wms-map) th > button{padding:.3rem .42rem}}
+#ac-pop{position:fixed;z-index:9999;display:none;overflow:auto;background:var(--sf);border:1px solid var(--y);border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:.82rem;max-width:min(560px,96vw)}
+#ac-pop .ac-hd{position:sticky;top:0;display:flex;justify-content:space-between;gap:.8rem;padding:.35rem .6rem;background:var(--s2);color:var(--mu);font-size:.7rem;border-bottom:1px solid var(--ln)}
+#ac-pop .ac-hd span{opacity:.8;white-space:nowrap}
+#ac-pop .ac-it{padding:.32rem .6rem;cursor:pointer;display:flex;gap:.6rem;align-items:baseline;border-bottom:1px solid color-mix(in srgb,var(--ln) 55%,transparent);white-space:nowrap}
+#ac-pop .ac-it b{font-weight:600;color:var(--tx)}#ac-pop .ac-it small{color:var(--mu);overflow:hidden;text-overflow:ellipsis}
+#ac-pop .ac-it:hover,#ac-pop .ac-it.on{background:color-mix(in srgb,var(--y) 18%,transparent)}
+#ac-pop mark{background:none;color:var(--y);font-weight:800}
 </style>
 <script>
 // ── Versão do painel: mostra no rodapé e avisa quando há versão nova publicada (cada navegador guarda a página em cache) ──
@@ -1017,6 +1024,60 @@ document.addEventListener('change',e=>{ const id=e.target&&e.target.id; if(id===
 document.addEventListener('click',e=>{ if(!e.target.closest) return; const o=e.target.closest('[data-itord]'); if(o){ window._itOrd=o.dataset.itord; if(_itensDash) renderItensTab(_itensDash); return; }
   const l=e.target.closest('[data-itlin]'); if(l){ const v=l.dataset.itlin; window._itLin=(window._itLin&&window._itLin.t==='L'&&window._itLin.v===v)?null:{t:'L',v}; window._rerenderP&&window._rerenderP(); return; }
   if(e.target.closest('#it-lin-clr')){ window._itLin=null; window._rerenderP&&window._rerenderP(); } });
+// ═══════════════════════════════════════════════════════
+// AUTOCOMPLETAR DOS FILTROS DE TEXTO — ao digitar, a lista de opções vai se filtrando e dá para escolher;
+// o filtro do painel continua sendo aplicado a cada letra. Fonte: data-ac (provedor) ou data-ac-list (datalist).
+// ═══════════════════════════════════════════════════════
+window._acProv=window._acProv||{};
+const _acNorm=x=>String(x??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+const _acEsc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const _AC={inp:null,L:[],vis:[],i:-1,pop:null,last:null};
+function _acEl(){ if(_AC.pop) return _AC.pop; const d=document.createElement('div'); d.id='ac-pop'; d.setAttribute('role','listbox');
+  d.addEventListener('mousedown',e=>{ e.preventDefault(); const it=e.target.closest('[data-aci]'); if(it) _acPick(+it.dataset.aci); });
+  document.body.appendChild(d); return _AC.pop=d; }
+function _acSig(el){ if(el.id) return 'input#'+CSS.escape(el.id); const c=[...el.classList][0]; return 'input'+(c?'.'+CSS.escape(c):'')+(el.dataset.k?`[data-k="${el.dataset.k}"]`:'')+(el.dataset.ac?`[data-ac="${el.dataset.ac}"]`:''); }
+function _acFonte(inp){
+  const nm=inp.dataset.ac; let L=[];
+  if(nm&&window._acProv[nm]){ try{ L=window._acProv[nm]()||[]; }catch(e){ console.warn('[autocompletar]',nm,e); } }
+  else{ const id=inp.dataset.acList, dl=id&&document.getElementById(id); if(dl) L=[...dl.options].map(o=>({v:o.value,s:(o.label&&o.label!==o.value)?o.label:''})); }
+  const vis=new Set(), out=[]; L.forEach(o=>{ if(typeof o!=='object') o={v:o}; const v=String(o.v??'').trim(); if(!v) return; const k=v+'¦'+(o.s||''); if(vis.has(k)) return; vis.add(k); out.push({v,s:o.s||'',n:_acNorm(v),ns:_acNorm(o.s||'')}); });
+  return out;
+}
+function _acPos(){ const p=_AC.pop, inp=_AC.inp; if(!p||!inp||!inp.isConnected){ _acHide(); return; } const r=inp.getBoundingClientRect();
+  if(r.width===0){ _acHide(); return; }
+  const below=window.innerHeight-r.bottom, h=Math.min(330,Math.max(below-12,r.top-12));
+  p.style.left=Math.max(4,Math.min(r.left,window.innerWidth-Math.max(r.width,280)-4))+'px'; p.style.minWidth=Math.max(r.width,280)+'px'; p.style.maxHeight=h+'px';
+  if(below<180&&r.top>below){ p.style.top=''; p.style.bottom=(window.innerHeight-r.top+3)+'px'; } else { p.style.bottom=''; p.style.top=(r.bottom+3)+'px'; } }
+function _acShow(){
+  const inp=_AC.inp; if(!inp) return; const p=_acEl(), q=_acNorm(inp.value), tk=q.split(/\s+/).filter(Boolean);
+  let vis=_AC.L;
+  if(tk.length){ vis=[]; for(const o of _AC.L){ const t=o.n+' '+o.ns; if(tk.every(w=>t.includes(w))){ const r=o.n.startsWith(q)?0:(' '+o.n).includes(' '+tk[0])?1:o.n.includes(tk[0])?2:3; vis.push([r,o]); } }
+    vis.sort((a,b)=>a[0]-b[0]||a[1].v.length-b[1].v.length||a[1].v.localeCompare(b[1].v,'pt-BR',{numeric:true})); vis=vis.map(x=>x[1]); }
+  const tot=vis.length; _AC.vis=vis.slice(0,60); _AC.i=Math.min(_AC.i,_AC.vis.length-1);
+  if(!_AC.L.length){ _acHide(); return; }
+  const hl=t=>{ let h=_acEsc(t); if(!tk.length) return h; const n=_acNorm(t); const w=tk[0], i=n.indexOf(w); if(i<0) return h; return _acEsc(t.slice(0,i))+'<mark>'+_acEsc(t.slice(i,i+w.length))+'</mark>'+_acEsc(t.slice(i+w.length)); };
+  p.innerHTML=`<div class="ac-hd">${tot?`${tot.toLocaleString('pt-BR')} opç${tot>1?'ões':'ão'}${tot>_AC.vis.length?` · mostrando ${_AC.vis.length} — continue digitando`:''}`:'Nenhuma opção com esse texto'}<span>↑↓ e Enter para escolher · Esc fecha</span></div>`+
+    _AC.vis.map((o,i)=>`<div class="ac-it${i===_AC.i?' on':''}" data-aci="${i}" role="option"><b>${hl(o.v)}</b>${o.s?`<small>${hl(o.s)}</small>`:''}</div>`).join('');
+  p.style.display='block'; _acPos();
+}
+function _acHide(){ if(_AC.pop) _AC.pop.style.display='none'; _AC.i=-1; }
+function _acPick(i){ const o=_AC.vis[i], inp=_AC.inp; if(!o||!inp) return; inp.value=o.v; _AC.last={sig:_acSig(inp),pos:o.v.length,t:Date.now()};
+  inp.dispatchEvent(new Event('input',{bubbles:true})); inp.dispatchEvent(new Event('change',{bubbles:true})); _acHide(); }
+function _acAbrir(inp){ if(inp.getAttribute('list')){ inp.dataset.acList=inp.dataset.acList||inp.getAttribute('list'); inp.removeAttribute('list'); }
+  if(_AC.inp!==inp||!_AC.L.length){ _AC.inp=inp; _AC.L=_acFonte(inp); } _AC.i=-1; _acShow(); }
+const _acOk=el=>el&&el.tagName==='INPUT'&&(el.dataset.ac||el.dataset.acList);
+document.addEventListener('focusin',e=>{ if(_acOk(e.target)){ _AC.L=[]; _acAbrir(e.target); } });
+document.addEventListener('input',e=>{ if(!_acOk(e.target)) return; _AC.last={sig:_acSig(e.target),pos:e.target.selectionStart,t:Date.now()}; if(_AC.inp!==e.target) _acAbrir(e.target); else _acShow(); });
+document.addEventListener('focusout',e=>{ if(e.target===_AC.inp) setTimeout(()=>{ if(document.activeElement!==_AC.inp) _acHide(); },120); });
+document.addEventListener('keydown',e=>{ if(e.target!==_AC.inp||!_AC.pop||_AC.pop.style.display==='none') return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); const n=_AC.vis.length; if(!n) return; _AC.i=e.key==='ArrowDown'?(_AC.i+1)%n:(_AC.i-1+n)%n; _AC.pop.querySelectorAll('.ac-it').forEach((x,i)=>x.classList.toggle('on',i===_AC.i)); const on=_AC.pop.querySelector('.ac-it.on'); if(on) on.scrollIntoView({block:'nearest'}); }
+  else if(e.key==='Enter'){ if(_AC.i>=0){ e.preventDefault(); _acPick(_AC.i); } else _acHide(); }
+  else if(e.key==='Escape'){ e.preventDefault(); _acHide(); } });
+window.addEventListener('resize',()=>{ if(_AC.pop&&_AC.pop.style.display!=='none') _acPos(); });
+document.addEventListener('scroll',()=>{ if(_AC.pop&&_AC.pop.style.display!=='none') _acPos(); },{capture:true,passive:true});
+// Quando o painel redesenha a barra de filtros enquanto se digita, o campo volta a ter o foco (com o cursor no lugar) e a lista continua aberta
+new MutationObserver(()=>{ const L=_AC.last; if(!L||Date.now()-L.t>4000) return; const a=document.activeElement; if(a&&a!==document.body&&a.tagName==='INPUT') return;
+  const el=document.querySelector(L.sig); if(!el||el===a) return; el.focus({preventScroll:true}); try{ const pz=Math.min(L.pos??el.value.length,el.value.length); el.setSelectionRange(pz,pz); }catch(e){} }).observe(document.documentElement,{childList:true,subtree:true});
 // Célula cortada com … → mostra o texto completo ao passar o mouse
 document.addEventListener('mouseover',e=>{ const td=e.target&&e.target.closest?e.target.closest('td'):null; if(td&&!td.title&&td.scrollWidth>td.clientWidth+1) td.title=td.innerText.trim(); },{passive:true});
 // Horário das rotas (manhã/tarde) — compartilhado no banco (app_config.rotas); usado no filtro "Rota"
@@ -2431,10 +2492,10 @@ function buildFiltrosGerais(){
  const el=$('#e-gf'); if(!el) return;
  el.innerHTML=
   `<label class="fl">Filial<select class="gsel" data-k="lj">${op('','Todas',GF.lj)}${op('LT','LT',GF.lj)}${op('LL','LL',GF.lj)}</select></label>`+
-  `<label class="fl">Cód. do produto<input class="gin" data-k="cod" type="search" placeholder="Ex.: 6I6602" value="${esc(GF.cod)}"></label>`+
-  `<label class="fl grow">Descrição do produto<input class="gin" data-k="desc" type="search" placeholder="Ex.: retentor" value="${esc(GF.desc)}"></label>`+
+  `<label class="fl">Cód. do produto<input class="gin" data-k="cod" data-ac="gf-cod" type="search" placeholder="Ex.: 6I6602" value="${esc(GF.cod)}"></label>`+
+  `<label class="fl grow">Descrição do produto<input class="gin" data-k="desc" data-ac="gf-desc" type="search" placeholder="Ex.: retentor" value="${esc(GF.desc)}"></label>`+
   `<label class="fl">Marca<select class="gsel" data-k="m">${op('','Todas',GF.m)}${marcas.map(m=>op(m,m,GF.m)).join('')}</select></label>`+
-  `<label class="fl">Locação<input class="gin" data-k="loc" type="search" list="gf-locs" placeholder="Ex.: LT1E" value="${esc(GF.loc)}"><datalist id="gf-locs">${locs.map(l=>`<option value="${esc(l)}">`).join('')}</datalist></label>`+
+  `<label class="fl">Locação<input class="gin" data-k="loc" data-ac="gf-loc" type="search" placeholder="Ex.: LT1E" value="${esc(GF.loc)}"><datalist id="gf-locs">${locs.map(l=>`<option value="${esc(l)}">`).join('')}</datalist></label>`+
   `<label class="fl">Com/sem locação<select class="gsel" data-k="lc">${op('','Todas',GF.lc)}${op('Com locação','Com locação',GF.lc)}${op('Sem locação','Sem locação',GF.lc)}</select></label>`+
   `<label class="fl">Preço<select class="gsel" data-k="pr">${op('','Todos',GF.pr)}${op('Com preço','Com preço',GF.pr)}${op('Sem preço','Sem preço',GF.pr)}</select></label>`+
   `<div class="fa"><button id="gclr" class="bt" type="button"></button></div>`;
@@ -2536,7 +2597,7 @@ function tableHtml(rs){
 }
 function buildFilters(){
  const t=TB[cur],s=S[cur];
- $('#e-fb').innerHTML=`<label class="fl grow">Buscar<input id="q" type="search" placeholder="${t.ph}" value="${esc(s.q)}"></label>`+
+ $('#e-fb').innerHTML=`<label class="fl grow">Buscar<input id="q" data-ac="tb-q" type="search" placeholder="${t.ph}" value="${esc(s.q)}"></label>`+
   t.f.map(([k,l,ty])=>{const v=[...new Set(t.rows.map(r=>String(r[k])))].sort(ty=='n'?(a,b)=>a-b:ty=='o'?(a,b)=>FX.indexOf(a)-FX.indexOf(b):(a,b)=>a.localeCompare(b,'pt-BR'));
    return`<label class="fl">${l}<select class="fsel" data-k="${k}"><option value="">Todos</option>${v.map(x=>`<option${s.sel[k]===x?' selected':''}>${esc(x)}</option>`).join('')}</select></label>`}).join('')+
   '<div class="fa"><button id="clr" class="bt" type="button">Limpar filtros</button><button id="exp" class="bt" type="button">Exportar CSV</button></div>';
@@ -2627,6 +2688,14 @@ function overview(){
  draw('sp',{k:'m',v:'s',pr:0,top:10,fmt:N},$('#o0'));draw('dv',{...TB.dv.ch[0],pr:0,top:10},$('#o1'));draw('inv',TB.inv.ch[1],$('#o2'));draw('dv',TB.dv.ch[1],$('#o3'));
 }
 window._rerenderE=()=>go(cur);
+// opções do autocompletar (Estoque): respeitam a filial escolhida
+{ const _base=()=>((window._DFULL&&(window._DFULL.sp_all||window._DFULL.sp))||D.sp_all||D.sp||[]).filter(r=>!GF.lj||r.lj===GF.lj);
+  window._acProv['gf-cod']=()=>{ const o=[]; _base().forEach(r=>{ o.push({v:r.c,s:(r.d||'')+(r.m?' · '+r.m:'')}); if(r.r&&r.r!==r.c) o.push({v:r.r,s:'Cód. Danfe · '+(r.d||'')}); }); (D.wmsOnly||[]).forEach(r=>{ if(!GF.lj||r.lj===GF.lj) o.push({v:r.r,s:'só no WMS · '+(r.d||'')}); }); return o; };
+  window._acProv['gf-desc']=()=>{ const m=new Map(); _base().forEach(r=>{ if(r.d) m.set(r.d,(m.get(r.d)||0)+1); }); return [...m].map(([d,n])=>({v:d,s:n>1?n+' itens':''})); };
+  window._acProv['gf-loc']=()=>{ const m=new Map(); _base().forEach(r=>{ if(r.l) m.set(r.l,(m.get(r.l)||0)+1); }); return [...m].map(([l,n])=>({v:l,s:n+' item(ns)'})); };
+  window._acProv['tb-q']=()=>{ const t=TB[cur]; if(!t) return []; const o=[], ds=new Map(), ms=new Map(); t.rows.forEach(r=>{ if(r.c) o.push({v:String(r.c).replace('(WMS) ',''),s:(r.d||r.p||'')+(r.m?' · '+r.m:'')}); if(r.r&&r.r!==r.c) o.push({v:r.r,s:'Cód. Danfe · '+(r.d||'')}); if(r.d) ds.set(r.d,(ds.get(r.d)||0)+1); if(r.m) ms.set(r.m,(ms.get(r.m)||0)+1); });
+    ds.forEach((n,d)=>o.push({v:d,s:'descrição · '+n+' ite'+(n>1?'ns':'m')})); ms.forEach((n,m)=>o.push({v:m,s:'marca · '+n+' ite'+(n>1?'ns':'m')})); return o; };
+}
 function go(tab){
  cur=tab;try{history.replaceState(null,'','#'+tab);localStorage.setItem('lt-tab-e',tab)}catch(e){}
  const extraTabs=[['ov','Visão geral'],...Object.entries(TB).flatMap(([k,t])=>k==='inv'?[[k,t.n],['wms','Estoque WMS'],['pwms','Posições WMS']]:[[k,t.n]]),['end','Endereços'],['ce','Controle de Estoque']];
@@ -2696,7 +2765,7 @@ function bootEnd(){
   `<label class="fl">Prateleira<select class="endsel" data-k="prat">${op('','Todas',EF.prat)}${prats.map(r=>op(r,r,EF.prat)).join('')}</select></label>`+
   `<label class="fl">Itens no endereço<select class="endsel" data-k="fx">${op('','Todos',EF.fx)}${END_FX.map(f=>op(f[0],f[1],EF.fx)).join('')}</select></label>`+
   `<label class="fl">Venda no ano<select class="endsel" data-k="giro"${temGiro?'':' disabled'}>${op('','Todos',EF.giro)}${op('Com venda','Com venda',EF.giro)}${op('Sem venda','Sem venda (parado)',EF.giro)}</select></label>`+
-  `<label class="fl">Endereço<input class="endin" data-k="sel" type="search" list="end-list" placeholder="Ex.: P8-B44" value="${esc(EF.sel)}"><datalist id="end-list">${ends.slice(0,4000).map(a=>`<option value="${esc(a.e)}">`).join('')}</datalist></label>`+
+  `<label class="fl">Endereço<input class="endin" data-k="sel" data-ac-list="end-list" type="search" placeholder="Ex.: P8-B44" value="${esc(EF.sel)}"><datalist id="end-list">${ends.slice(0,4000).map(a=>`<option value="${esc(a.e)}">`).join('')}</datalist></label>`+
   `<div class="fa"><button id="end-clr" class="bt" type="button"${nEF?'':' disabled'}>${nEF?`Limpar (${nEF})`:'Limpar'}</button></div>`;
  // ── KPIs ──
  const nIt=itensF.length, pcs=itensF.reduce((s,r)=>s+(r.s||0),0), val=itensF.reduce((s,r)=>s+(r.cu||0)*(r.s||0),0);
@@ -2842,6 +2911,7 @@ function bootWmsE(){
  const W=window._EWMS.map(r=>{const c=_ck(r.referencia||r.cod_produto),e=erp.get(r.loja+'|'+c);return{lj:r.loja,e:r.endereco||'—',ru:r.rua||'—',pr:r.predio||'—',ni:r.nivel||'—',ap:r.apto||'',c,cw:r.cod_produto||'',cp:e?e.cp:'',d:(e&&e.d)||r.descricao||'',m:(e&&e.m)||r.marca||'',q:Number(r.qtde)||0,cu:e?e.cu:0,arq:r.arquivo,dt:r.importado_em}});
  const passG=r=>(!GF.lj||r.lj===GF.lj)&&(!GF.cod||[r.c,r.cp,r.cw].some(x=>low(x).includes(low(GF.cod).trim())))&&(!GF.desc||low(r.d).includes(low(GF.desc).trim()))&&(!GF.m||r.m===GF.m)&&(!GF.loc||_ck(r.e).startsWith(_ck(GF.loc)));
  const WG=W.filter(passG);
+ window._acProv['wms-pos']=()=>{ const m=new Map(); WG.forEach(r=>{ const o=m.get(r.e)||{n:0,d:r.d}; o.n++; m.set(r.e,o); }); return [...m].map(([e,o])=>({v:e,s:o.n>1?o.n+' produtos':o.d})); };
  // por produto (soma das posições) × ERP
  const prodM=new Map();WG.forEach(r=>{const k=r.lj+'|'+r.c;const o=prodM.get(k)||{lj:r.lj,c:r.c,cp:r.cp,cw:r.cw,d:r.d,m:r.m,q:0,pos:new Set(),cu:r.cu};o.q+=r.q;o.pos.add(r.e);prodM.set(k,o)});
  const prods=[...prodM.values()];
@@ -2863,7 +2933,7 @@ function bootWmsE(){
   `<label class="fl">Nível<select class="wmsel" data-k="ni">${op('','Todos',WF.ni)}${srt(WG.filter(r=>passW(r,'ni')).map(r=>r.ni)).map(v=>op(v,v,WF.ni)).join('')}</select></label>`+
   `<label class="fl">Faixa de estoque<select class="wmsel" data-k="fx">${op('','Todas',WF.fx)}${WFX.map(f=>op(f[0],f[1],WF.fx)).join('')}</select></label>`+
   `<label class="fl">WMS × ERP<select class="wmsel" data-k="st">${op('','Todos',WF.st)}${WST.slice(0,4).map(s=>op(s,s,WF.st)).join('')}</select></label>`+
-  `<label class="fl">Posição<input class="wmsin" data-k="pos" type="search" placeholder="Ex.: 01-02" value="${esc(WF.pos)}"></label>`+
+  `<label class="fl">Posição<input class="wmsin" data-k="pos" data-ac="wms-pos" type="search" placeholder="Ex.: 01-02" value="${esc(WF.pos)}"></label>`+
   `<div class="fa"><button id="wms-clr" class="bt" type="button"${nWF?'':' disabled'}>${nWF?`Limpar (${nWF})`:'Limpar'}</button></div>`;
  if(!window._EWMS.length){kp.innerHTML='';ch.innerHTML=`<article class="pn w2"><h3>🏬 Estoque WMS</h3><p style="color:var(--mu)">Nenhuma planilha do Estoque WMS importada ainda. Importe na <b>tela inicial</b> (bloco de planilhas → <b>Estoque WMS (posições)</b>), escolhendo a filial.</p></article>`;return}
  // ── KPIs ──
@@ -2994,6 +3064,8 @@ function bootPosW(){
   p.st=p.posE.size===0?'':!e?PW_ERP[3]:p.q===e.s?PW_ERP[0]:p.q>e.s?PW_ERP[1]:PW_ERP[2];
   p.conf=!p.posM.size?'Sem mapeamento':[...p.posE].every(x=>p.posM.has(x))?([...p.posM].every(x=>p.posE.has(x))?'Conforme':'Conforme (há posição mapeada vazia)'):'Divergente'});
  R.forEach(o=>{o.prod=prodM.get(o.lj+'|'+o.ref)});
+ window._acProv['pw-q']=()=>{ const out=[], ds=new Map(); prodM.forEach(p=>{ if(!GF.lj||p.lj===GF.lj){ const sd=[p.d,p.m].filter(Boolean).join(' · '); out.push({v:p.ref,s:sd}); if(p.cw&&p.cw!==p.ref) out.push({v:p.cw,s:'cód. WMS · '+(p.d||'')}); if(p.d) ds.set(p.d,(ds.get(p.d)||0)+1); } }); ds.forEach((n,d)=>out.push({v:d,s:'descrição · '+n+' produto'+(n>1?'s':'')})); return out; };
+ window._acProv['pw-pos']=()=>{ const m=new Map(); R.forEach(o=>{ if(GF.lj&&o.lj!==GF.lj) return; const k=o.p.e; const x=m.get(k)||{n:0,d:o.d,cod:o.p.cod}; if(o.q>0) x.n++; m.set(k,x); }); return [...m].map(([e,x])=>({v:e,s:(x.cod?x.cod+' · ':'')+(x.n?x.n+' produto(s)':'vazia')})); };
  // ── filtros ──
  const posTxt=o=>[o.p.e,o.p.cod,String(o.p.pid),o.p.conc].map(_ck);
  const passG=o=>(!GF.lj||o.lj===GF.lj)&&(!GF.cod||[o.ref,o.cp,o.cw].some(x=>low(x).includes(low(GF.cod).trim())))&&(!GF.desc||low(o.d).includes(low(GF.desc).trim()))&&(!GF.m||o.m===GF.m);
@@ -3030,8 +3102,8 @@ function bootPosW(){
   sel('fx','Faixa de estoque','Todas',PW_FX.map(f=>f[0]),v=>PW_FX.find(f=>f[0]===v)[1])+
   sel('setor','Setor','Todos',srt(R.filter(o=>passR(o,'setor')).map(o=>o.setor)))+
   sel('usr','Mapeado por','Todos',srt(R.filter(o=>passR(o,'usr')).map(o=>o.usr)))+
-  `<label class="fl">Produto<input class="pwin" data-k="q" type="search" placeholder="Cód., Danfe, descrição, marca" value="${esc(PWF.q)}"></label>`+
-  `<label class="fl">Posição<input class="pwin" data-k="pos" type="search" placeholder="Ex.: 1-2-0 ou 0020000045" value="${esc(PWF.pos)}"></label>`+
+  `<label class="fl">Produto<input class="pwin" data-k="q" data-ac="pw-q" type="search" placeholder="Cód., Danfe, descrição, marca" value="${esc(PWF.q)}"></label>`+
+  `<label class="fl">Posição<input class="pwin" data-k="pos" data-ac="pw-pos" type="search" placeholder="Ex.: 1-2-0 ou 0020000045" value="${esc(PWF.pos)}"></label>`+
   `<div class="fa"><button id="pw-clr" class="bt" type="button"${nPF?'':' disabled'}>${nPF?`Limpar (${nPF})`:'Limpar'}</button></div>`;
  // ── KPIs ──
  const ocup=POSF.filter(p=>p.oc==='Ocupada').length, vaz=POSF.length-ocup;
@@ -4155,7 +4227,7 @@ function buildSidebarFilters(){
   const mesFechadoSB=idxAtualSB>0?meses[idxAtualSB-1]:(meses.length>0?meses[meses.length-2]||meses[meses.length-1]:'');
   const isMesFechado=mesFechadoSB&&F.mes1===mesFechadoSB&&F.mes2===mesFechadoSB;
   $('#sb-body').innerHTML=
-    `<label class="fl">Buscar<input id="fq" type="search" placeholder="Cliente / pedido / vendedor" value="${esc(F.q)}"></label>`+
+    `<label class="fl">Buscar<input id="fq" data-ac="p-q" type="search" placeholder="Cliente / pedido / vendedor" value="${esc(F.q)}"></label>`+
     `<label class="fl">Loja<select id="floja"><option value="">Ambas</option><option value="LT"${F.loja==='LT'?' selected':''}>LT — Lojão dos Tratores</option><option value="LL"${F.loja==='LL'?' selected':''}>LL — LL Tratores</option></select></label>`+
     `<div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"><button id="sb-fechado" class="bt" style="flex:1;font-size:.78rem;padding:.3rem .6rem;background:${isMesFechado?'var(--y)':'var(--s2)'};color:${isMesFechado?'#000':'var(--tx)'};border:1px solid ${isMesFechado?'var(--y)':'var(--bd)'};border-radius:6px;cursor:pointer;white-space:nowrap" type="button">📅 Mês fechado${mesFechadoSB?' ('+fmtMes(mesFechadoSB)+')':''}</button></div>`+
     renderMesPicker(meses)+
@@ -4351,11 +4423,11 @@ function buildTmFilters(){
   el.classList.toggle('open',!!window._fbOpen);
   el.innerHTML=
     `<button type="button" class="fb-tog" data-fbtog>🔎 Filtros${_nfb?` <b>(${_nfb})</b>`:''}<span>${window._fbOpen?'▲ recolher':'▼ abrir'}</span></button><div class="fb-body">`+
-    `<label class="fl grow">Buscar<input class="tmf" data-k="q" type="search" placeholder="Cliente, pedido ou vendedor" value="${esc(F.q)}"></label>`+
-    `<label class="fl grow">Cliente<input class="tmf" data-k="cli" type="search" list="dl-cli" placeholder="Nome do cliente" value="${esc(F.cli)}"><datalist id="dl-cli">${uniq('cli').slice(0,3000).map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>`+
-    `<label class="fl">Nº do pedido<input class="tmf" data-k="pid" type="search" inputmode="numeric" placeholder="Ex.: 30639" value="${esc(F.pid)}"></label>`+
-    `<label class="fl">Cód. do item<input class="tmf" data-k="icod" type="search" placeholder="Ex.: 6I6602" value="${esc(F.icod)}"></label>`+
-    `<label class="fl grow">Descrição do item<input class="tmf" data-k="idesc" type="search" placeholder="Ex.: retentor" value="${esc(F.idesc)}"></label>`+
+    `<label class="fl grow">Buscar<input class="tmf" data-k="q" data-ac="p-q" type="search" placeholder="Cliente, pedido ou vendedor" value="${esc(F.q)}"></label>`+
+    `<label class="fl grow">Cliente<input class="tmf" data-k="cli" data-ac="p-cli" type="search" placeholder="Nome do cliente" value="${esc(F.cli)}"><datalist id="dl-cli">${uniq('cli').slice(0,3000).map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>`+
+    `<label class="fl">Nº do pedido<input class="tmf" data-k="pid" data-ac="p-pid" type="search" inputmode="numeric" placeholder="Ex.: 30639" value="${esc(F.pid)}"></label>`+
+    `<label class="fl">Cód. do item<input class="tmf" data-k="icod" data-ac="p-icod" type="search" placeholder="Ex.: 6I6602" value="${esc(F.icod)}"></label>`+
+    `<label class="fl grow">Descrição do item<input class="tmf" data-k="idesc" data-ac="p-idesc" type="search" placeholder="Ex.: retentor" value="${esc(F.idesc)}"></label>`+
     sel('loja','Loja',[['LT','LT'],['LL','LL']],'Ambas')+
     `<label class="fl">De<input class="tmf" data-k="dt1" type="date" value="${esc(F.dt1)}"></label>`+
     `<label class="fl">Até<input class="tmf" data-k="dt2" type="date" value="${esc(F.dt2)}"></label>`+
@@ -4555,6 +4627,13 @@ window._diasNav=()=>{ const sv={dt1:F.dt1,dt2:F.dt2,mes1:F.mes1,mes2:F.mes2}; F.
 // ── Lista única de tarefas de separação/conferência (base de TODOS os quadros por operador) ──
 // Regra: tarefa entra pelo DIA EM QUE FOI FEITA (início), dentro do período do filtro; os demais filtros (loja, cliente, rota, hora…) valem pelo pedido.
 // Origem por etapa: separação/conferência do WMS quando o pedido tem; senão, separação do ERP (separador, início e fim).
+// opções do autocompletar (Pedidos)
+window._acProv['p-cli']=()=>{ const m=new Map(); rows.forEach(r=>{ if(r.cli) m.set(r.cli,(m.get(r.cli)||0)+1); }); return [...m].map(([c,n])=>({v:c,s:n+' pedido'+(n>1?'s':'')})); };
+window._acProv['p-pid']=()=>rows.map(r=>({v:String(r.id),s:r.loja+' · '+(r.cli||'')+(r.dia?' · '+r.dia.split('-').reverse().join('/'):'')}));
+window._acProv['p-q']=()=>{ const o=window._acProv['p-cli']().map(x=>({v:x.v,s:'cliente · '+x.s})); const vd=new Map(); rows.forEach(r=>{ if(r.vend) vd.set(r.vend,(vd.get(r.vend)||0)+1); }); vd.forEach((n,v)=>o.push({v,s:'vendedor · '+n+' pedidos'})); return o.concat(window._acProv['p-pid']().map(x=>({v:x.v,s:'pedido · '+x.s}))); };
+const _acProd=()=>{ if(!_estoque){ if(!window._acEstLoad){ window._acEstLoad=carregarEstoqueSupa().then(e=>{ _estoque=_estoque||e; if(_AC.inp&&/p-i/.test(_AC.inp.dataset.ac||'')){ _AC.L=_acFonte(_AC.inp); _acShow(); } }).catch(()=>{ window._acEstLoad=null; }); } return []; } return _estoque; };
+window._acProv['p-icod']=()=>{ const o=[]; _acProd().forEach(r=>{ o.push({v:r.cod_marca||r.cod,s:(r.descricao||'')+' · '+r.loja}); if(r.cod_marca&&r.cod!==r.cod_marca) o.push({v:r.cod,s:'Cód. Danfe · '+(r.descricao||'')}); }); return o; };
+window._acProv['p-idesc']=()=>{ const m=new Map(); _acProd().forEach(r=>{ if(r.descricao) m.set(r.descricao,(m.get(r.descricao)||0)+1); }); return [...m].map(([d,n])=>({v:d,s:n>1?n+' cadastros':''})); };
 window._tarefasOp=()=>{ const sv={dt1:F.dt1,dt2:F.dt2,mes1:F.mes1,mes2:F.mes2}; F.dt1=F.dt2=F.mes1=F.mes2=''; let base=[]; try{ base=filtered(); }finally{ Object.assign(F,sv); }
   const okD=d=>(!F.mes1||d.slice(0,7)>=F.mes1)&&(!F.mes2||d.slice(0,7)<=F.mes2)&&(!F.dt1||d>=F.dt1)&&(!F.dt2||d<=F.dt2);
   const dI=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -5281,7 +5360,7 @@ function renderTable(rs){
 function buildFilters_unused(){
   const meses=D.meses;
   $('#p-fb').innerHTML=
-    `<label class="fl gw">Buscar cliente / pedido / vendedor<input id="fq" type="search" placeholder="Digite aqui…" value="${esc(F.q)}"></label>`+
+    `<label class="fl gw">Buscar cliente / pedido / vendedor<input id="fq" data-ac="p-q" type="search" placeholder="Digite aqui…" value="${esc(F.q)}"></label>`+
     `<label class="fl">Loja<select id="floja"><option value="">Ambas</option><option value="LT"${F.loja==='LT'?' selected':''}>LT</option><option value="LL"${F.loja==='LL'?' selected':''}>LL</option></select></label>`+
     `<label class="fl">Período — de<select id="fmes1">${meses.map(m=>`<option value="${m}"${F.mes1===m?' selected':''}>${fmtMes(m)}</option>`).join('')}</select></label>`+
     `<label class="fl">Até<select id="fmes2">${meses.map(m=>`<option value="${m}"${F.mes2===m?' selected':''}>${fmtMes(m)}</option>`).join('')}</select></label>`+
