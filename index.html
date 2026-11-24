@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1607">
+<meta name="version" content="20261124-1707">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1081,6 +1081,26 @@ document.addEventListener('scroll',()=>{ if(_AC.pop&&_AC.pop.style.display!=='no
 // Quando o painel redesenha a barra de filtros enquanto se digita, o campo volta a ter o foco (com o cursor no lugar) e a lista continua aberta
 new MutationObserver(()=>{ const L=_AC.last; if(!L||Date.now()-L.t>4000) return; const a=document.activeElement; if(a&&a!==document.body&&a.tagName==='INPUT') return;
   const el=document.querySelector(L.sig); if(!el||el===a) return; el.focus({preventScroll:true}); try{ const pz=Math.min(L.pos??el.value.length,el.value.length); el.setSelectionRange(pz,pz); }catch(e){} }).observe(document.documentElement,{childList:true,subtree:true});
+// ═══════════════════════════════════════════════════════
+// GRADES DE GRÁFICOS SEM ESPAÇO VAZIO — quando a última linha de painéis não completa as colunas da tela
+// (ex.: 3 gráficos em 4 colunas), eles passam a dividir a linha inteira em partes iguais. Nenhum gráfico é removido.
+// ═══════════════════════════════════════════════════════
+const _fill={busy:false,t:null,set:new Set()};
+function _fillUm(g){
+  g.querySelectorAll(':scope > .fillrow').forEach(w=>{ while(w.firstChild) g.insertBefore(w.firstChild,w); w.remove(); });
+  if(!g.offsetWidth) return;
+  const n=getComputedStyle(g).gridTemplateColumns.split(' ').filter(x=>x&&x!=='none').length; if(n<2) return;
+  const gap=getComputedStyle(g).columnGap||'0.75rem';
+  const kids=[...g.children].filter(k=>k.offsetWidth>0&&k.offsetHeight>0&&!k.hidden);
+  const cheio=k=>k.classList.contains('w2')||/-1|span/.test(getComputedStyle(k).gridColumnEnd)||k.classList.contains('fillrow');
+  let run=[]; const fecha=()=>{ const r=run.length%n; if(r>0){ const ult=run.slice(run.length-r), w=document.createElement('div'); w.className='fillrow';
+      w.style.cssText='grid-column:1/-1;display:grid;grid-template-columns:repeat('+r+',minmax(0,1fr));gap:'+gap+';align-items:stretch'; g.insertBefore(w,ult[0]); ult.forEach(x=>w.appendChild(x)); } run=[]; };
+  kids.forEach(k=>{ if(cheio(k)) fecha(); else run.push(k); }); fecha();
+}
+function _fillTudo(){ _fill.busy=true; try{ document.querySelectorAll('.cg,.ch').forEach(_fillUm); }catch(e){ console.warn('[grade]',e); } _fillObs.takeRecords(); _fill.busy=false; }
+const _fillObs=new MutationObserver(recs=>{ if(_fill.busy) return; if(!recs.some(r=>r.target.closest&&r.target.closest('.cg,.ch'))) return; clearTimeout(_fill.t); _fill.t=setTimeout(()=>requestAnimationFrame(_fillTudo),60); });
+_fillObs.observe(document.documentElement,{childList:true,subtree:true});
+window.addEventListener('resize',()=>{ clearTimeout(_fill.t); _fill.t=setTimeout(_fillTudo,150); });
 // Célula cortada com … → mostra o texto completo ao passar o mouse
 document.addEventListener('mouseover',e=>{ const td=e.target&&e.target.closest?e.target.closest('td'):null; if(td&&!td.title&&td.scrollWidth>td.clientWidth+1) td.title=td.innerText.trim(); },{passive:true});
 // Horário das rotas (manhã/tarde) — compartilhado no banco (app_config.rotas); usado no filtro "Rota"
