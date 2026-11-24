@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1421">
+<meta name="version" content="20261124-1439">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1012,6 +1012,11 @@ function toggleFiltros(forcar){
   try{ localStorage.setItem('lt-fhide',esc?'1':'0'); }catch(e){}
 }
 document.addEventListener('DOMContentLoaded',()=>{ let v=null; try{ v=localStorage.getItem('lt-fhide'); }catch(e){} if(v==='1') toggleFiltros(true); });
+// Aba Itens (Pedidos): filtro de família/linha e ordenação dos mais vendidos
+document.addEventListener('change',e=>{ const id=e.target&&e.target.id; if(id==='it-fam'){ window._itLin=e.target.value?{t:'F',v:e.target.value}:null; window._rerenderP&&window._rerenderP(); } else if(id==='it-lin'){ const f=(document.getElementById('it-fam')||{}).value; window._itLin=e.target.value?{t:'L',v:e.target.value}:(f?{t:'F',v:f}:null); window._rerenderP&&window._rerenderP(); } });
+document.addEventListener('click',e=>{ if(!e.target.closest) return; const o=e.target.closest('[data-itord]'); if(o){ window._itOrd=o.dataset.itord; if(_itensDash) renderItensTab(_itensDash); return; }
+  const l=e.target.closest('[data-itlin]'); if(l){ const v=l.dataset.itlin; window._itLin=(window._itLin&&window._itLin.t==='L'&&window._itLin.v===v)?null:{t:'L',v}; window._rerenderP&&window._rerenderP(); return; }
+  if(e.target.closest('#it-lin-clr')){ window._itLin=null; window._rerenderP&&window._rerenderP(); } });
 // Célula cortada com … → mostra o texto completo ao passar o mouse
 document.addEventListener('mouseover',e=>{ const td=e.target&&e.target.closest?e.target.closest('td'):null; if(td&&!td.title&&td.scrollWidth>td.clientWidth+1) td.title=td.innerText.trim(); },{passive:true});
 // Horário das rotas (manhã/tarde) — compartilhado no banco (app_config.rotas); usado no filtro "Rota"
@@ -1565,6 +1570,10 @@ let _itensDash=null;
 let _itensDashLoja=undefined; // loja do último fetch
 let _itensDashMes1=null;
 let _itensDashMes2=null;
+// Filtro de linha de produto da aba Itens: {t:'F'|'L', v:'PORCA'} — F = família (1ª palavra), L = linha (nome simples ou composto)
+window._itLin=null; window._itOrd='q';
+let _itensDashLin='';
+const _itLinKey=()=>window._itLin?window._itLin.t+':'+window._itLin.v:'';
 let _itensMes1=''; // filtro de período ativo na aba itens
 let _itensMes2='';
 
@@ -1575,14 +1584,15 @@ async function carregarItensSupa(lojaFilter, mes1Filter, mes2Filter){
     const m1 = mes1Filter || null;
     const m2 = mes2Filter || null;
     // Usa fetch direto para evitar problemas com session/RLS do cliente JS
-    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard_v5',{
+    const lin = window._itLin;
+    const resp = await fetch(SUPA_URL+'/rest/v1/rpc/get_itens_dashboard_v6',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
         'apikey': SUPA_ANON_KEY,
         'Authorization':'Bearer '+(((await _sb.auth.getSession()).data.session||{}).access_token||SUPA_ANON_KEY)
       },
-      body: JSON.stringify({p_loja: p, p_mes1: m1, p_mes2: m2})
+      body: JSON.stringify({p_loja: p, p_mes1: m1, p_mes2: m2, p_linha: lin&&lin.t==='L'?lin.v:null, p_familia: lin&&lin.t==='F'?lin.v:null})
     });
     if(!resp.ok){ const t=await resp.text(); throw new Error(resp.status+' '+t); }
     const data = await resp.json();
@@ -1590,13 +1600,14 @@ async function carregarItensSupa(lojaFilter, mes1Filter, mes2Filter){
     _itensDashLoja = lojaFilter;
     _itensDashMes1 = mes1Filter||null;
     _itensDashMes2 = mes2Filter||null;
+    _itensDashLin = lin?lin.t+':'+lin.v:'';
     console.log('[itens] dashboard carregado via RPC fetch', _itensDash);
   }catch(e){
     console.error('[carregarItensSupa] ERRO:', e.message, e);
     _itensDash = null;
     // Mostra erro nos painéis em vez de spinner infinito
     const errHtml=`<p style="color:var(--er,#f87171);text-align:center;padding:1.5rem;font-size:.9rem">⚠️ Erro ao carregar: ${e.message}</p>`;
-    ['c-itens-mais','c-itens-menos','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'].forEach(id=>{
+    ['c-itens-mais','c-itens-linha','c-itens-menos','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'].forEach(id=>{
       const el=document.getElementById(id); if(el) el.innerHTML=errHtml;
     });
     const kp=document.getElementById('itens-kp');
@@ -1930,7 +1941,11 @@ function renderItensTab(dash){
   }
 
   const kpis         = dash.kpis||{};
-  const maisList     = dash.top20_mais_vendidos||[];
+  const ordV         = window._itOrd==='v';
+  const maisList     = (ordV&&dash.top20_mais_valor?dash.top20_mais_valor:dash.top20_mais_vendidos)||[];
+  const linhas       = dash.por_linha||[];
+  const lin          = window._itLin;
+  const famSel       = lin?(lin.t==='F'?lin.v:((linhas.find(l=>l.linha===lin.v)||{}).familia||'')):'';
   const menosList    = dash.top20_menos_vendidos||[];
 
   const topMarca     = dash.top_marcas||[];
@@ -2027,20 +2042,53 @@ function renderItensTab(dash){
     });
   }
 
+  // ── Filtros da aba: família / linha de produto + ordenação dos mais vendidos ──
+  const fbEl=$('#itens-fb');
+  if(fbEl){
+    const fams=new Map(); linhas.forEach(l=>{ const f=fams.get(l.familia)||{n:0,q:0}; f.n++; f.q+=Number(l.qtde_total)||0; fams.set(l.familia,f); });
+    const famOpts=[...fams].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([f,o])=>`<option value="${esc(f)}"${f===famSel?' selected':''}>${esc(f)}${o.n>1?` (${N(o.n)} linhas)`:''}</option>`).join('');
+    const linOpts=linhas.filter(l=>!famSel||l.familia===famSel).slice().sort((a,b)=>String(a.linha).localeCompare(String(b.linha),'pt-BR')).map(l=>`<option value="${esc(l.linha)}"${lin&&lin.t==='L'&&lin.v===l.linha?' selected':''}>${esc(l.linha)} · ${N(l.qtde_total)} un.</option>`).join('');
+    fbEl.innerHTML=`<div class="fb" style="margin:0 0 .6rem;display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">`+
+      `<label class="fl">Família (1ª palavra)<select id="it-fam"><option value="">Todas</option>${famOpts}</select></label>`+
+      `<label class="fl grow">Linha (nome simples ou composto)<select id="it-lin"><option value="">${famSel?'Todas da família '+esc(famSel):'Todas'}</option>${linOpts}</select></label>`+
+      `<div class="fl">Mais vendidos por<div class="seg" style="margin-top:.2rem"><button type="button" data-itord="q" aria-pressed="${!ordV}">Quantidade</button><button type="button" data-itord="v" aria-pressed="${ordV}">Valor</button></div></div>`+
+      (lin?`<button class="bt" id="it-lin-clr" type="button">Limpar linha (${esc(lin.v)})</button>`:'')+`</div>`;
+  }
+  // ── Vendas por linha de produto ───────────────────────
+  const lnEl=$('#c-itens-linha'), lnH=$('#h-itens-linha');
+  if(lnH) lnH.textContent=`🧩 Vendas por linha de produto — top 25 por ${ordV?'valor':'quantidade'}${famSel?' · família '+famSel:''}`;
+  if(lnEl){
+    const key=ordV?'receita_total':'qtde_total', base=linhas.filter(l=>!famSel||l.familia===famSel);
+    const tot=base.reduce((x,l)=>x+(Number(l[key])||0),0);
+    const lst=base.slice().sort((a,b)=>(Number(b[key])||0)-(Number(a[key])||0)).slice(0,25);
+    if(!lst.length){ lnEl.innerHTML=noData; } else {
+      const mx=Number(lst[0][key])||1, gc='minmax(10rem,2fr) 2.2fr 4.5rem 4.5rem 4.5rem 7rem 4rem';
+      lnEl.innerHTML=`<p style="margin:0 0 .45rem;font-size:.78rem;color:var(--mu)">Linha = 1ª palavra da descrição (PORCA, PARAFUSO…) ou o nome composto quando vier com de/do/da (TRAVA DO PINO, FILTRO DE AR). Clique numa linha para filtrar a aba toda.</p>`+
+        `<div style="display:grid;grid-template-columns:${gc};gap:.4rem;padding:0 0 .35rem;border-bottom:1px solid var(--bd);font-size:.78rem;color:var(--mu);font-weight:600"><span>Linha</span><span>${ordV?'Valor':'Quantidade'}</span><span style="text-align:right">Qtde</span><span style="text-align:right">Produtos</span><span style="text-align:right">Pedidos</span><span style="text-align:right">Receita</span><span style="text-align:right">% total</span></div>`+
+        lst.map(l=>{ const v=Number(l[key])||0, pct=Math.round(v/mx*100), on=lin&&lin.t==='L'&&lin.v===l.linha;
+          return `<button type="button" data-itlin="${esc(l.linha)}" title="Filtrar pela linha ${esc(l.linha)}" style="all:unset;cursor:pointer;display:grid;grid-template-columns:${gc};gap:.4rem;align-items:center;width:100%;padding:.18rem 0;border-radius:4px;${on?'background:color-mix(in srgb,var(--y) 18%,transparent)':''}">`+
+            `<span style="font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:${on?700:500}">${esc(l.linha)}</span>`+
+            `<span style="background:var(--s2);border-radius:4px;height:14px;overflow:hidden"><span style="display:block;width:${pct}%;height:100%;background:${ordV?'var(--y)':'var(--ok)'};border-radius:4px"></span></span>`+
+            `<span style="font-size:.82rem;text-align:right;font-weight:600">${N(l.qtde_total)}</span><span style="font-size:.82rem;text-align:right;color:var(--mu)">${N(l.produtos)}</span><span style="font-size:.82rem;text-align:right;color:var(--mu)">${N(l.pedidos)}</span><span style="font-size:.82rem;text-align:right;color:var(--mu)">${R(l.receita_total||0)}</span><span style="font-size:.8rem;text-align:right;color:var(--y)">${tot?(v/tot*100).toLocaleString('pt-BR',{maximumFractionDigits:1}):0}%</span></button>`; }).join('')+
+        `<p style="margin:.45rem 0 0;font-size:.74rem;color:var(--mu)">${N(base.length)} linhas${famSel?' na família '+esc(famSel):''} no período · % sobre o total ${famSel?'da família':'geral'}.</p>`;
+    }
+  }
+
   // ── Top 20 mais vendidos ──────────────────────────────
-  const maisEl=$('#c-itens-mais');
+  const maisEl=$('#c-itens-mais'), maisH=$('#h-itens-mais');
+  if(maisH) maisH.textContent=`🏆 Top 20 — Mais Vendidos (por ${ordV?'valor':'quantidade'})${lin?' · '+(lin.t==='F'?'família ':'linha ')+lin.v:''}`;
   if(maisEl){
     if(!maisList.length){maisEl.innerHTML=noData;}else{
-      const max=maisList[0].qtde_total||1;
+      const max=(ordV?Math.max(...maisList.map(x=>Number(x.receita_total)||0)):maisList[0].qtde_total)||1;
       const header=`<div style="display:grid;grid-template-columns:minmax(9rem,2fr) 2.5fr 4.5rem 5rem 7rem 7rem;gap:.4rem;padding:0 0 .4rem;border-bottom:1px solid var(--bd);font-size:.82rem;color:var(--mu);font-weight:600">
         <span>Produto</span><span style="padding-left:.3rem">Volume</span><span style="text-align:right">Qtde</span><span style="text-align:right">Pedidos</span><span style="text-align:right">Receita</span><span style="text-align:right">Ticket Méd.</span></div>`;
       const rows=maisList.map(x=>{
-        const pct=max>0?Math.round((x.qtde_total||0)/max*100):0;
+        const pct=max>0?Math.round((ordV?(Number(x.receita_total)||0):(x.qtde_total||0))/max*100):0;
         const ticket=(x.num_pedidos&&x.num_pedidos>0)?(x.receita_total||0)/(x.num_pedidos):0;
         return`<div style="display:grid;grid-template-columns:minmax(9rem,2fr) 2.5fr 4.5rem 5rem 7rem 7rem;align-items:center;gap:.4rem;margin-bottom:.3rem">
-          <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]">${esc((x.descricao||'').substring(0,42))}</span>
+          <span style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)" title="${esc(x.descricao||'')} [${esc(x.marca||'')}]${x.linha?' · linha '+esc(x.linha):''}">${esc((x.descricao||'').substring(0,42))}</span>
           <div style="background:var(--s2);border-radius:4px;overflow:hidden;height:16px;position:relative">
-            <div style="width:${pct}%;height:100%;background:var(--ok);border-radius:4px;transition:width .3s"></div>
+            <div style="width:${pct}%;height:100%;background:${ordV?'var(--y)':'var(--ok)'};border-radius:4px;transition:width .3s"></div>
             <span style="position:absolute;left:.35rem;top:50%;transform:translateY(-50%);font-size:.72rem;color:#fff;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.4)">${pct}%</span>
           </div>
           <span style="font-size:.83rem;color:var(--tx);text-align:right;font-weight:600">${N(x.qtde_total)}</span>
@@ -5274,11 +5322,11 @@ function render(){
     const lojaAgora = F.loja||null;
     const m1Agora = F.mes1||null;
     const m2Agora = F.mes2||null;
-    const cacheOk = _itensDash && _itensDashLoja===lojaAgora && _itensDashMes1===m1Agora && _itensDashMes2===m2Agora;
+    const cacheOk = _itensDash && _itensDashLoja===lojaAgora && _itensDashMes1===m1Agora && _itensDashMes2===m2Agora && _itensDashLin===_itLinKey();
     if(cacheOk){
       renderItensTab(_itensDash);
     } else {
-      const allIds=['itens-kp','c-itens-hist','c-itens-mais','c-itens-menos','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'];
+      const allIds=['itens-kp','c-itens-hist','c-itens-mais','c-itens-linha','c-itens-menos','c-itens-marca','c-itens-loja','c-itens-abc','c-itens-pqr'];
       const spin='<div style="text-align:center;padding:3rem;color:var(--mu)"><div style="display:inline-block;width:2rem;height:2rem;border:3px solid var(--bd);border-top-color:var(--ac,var(--y));border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="margin-top:.75rem;font-size:.85rem">Carregando dados de itens...</p></div>';
       allIds.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=spin;});
       carregarItensSupa(lojaAgora,m1Agora,m2Agora).then(()=>{ if(cur==='itens') renderItensTab(_itensDash); });
@@ -5342,9 +5390,11 @@ async function go(tab){
   if(tab==='itens'){
     const spin='<div style="text-align:center;padding:3rem;color:var(--mu)"><div style="display:inline-block;width:2rem;height:2rem;border:3px solid var(--bd);border-top-color:var(--ac,var(--y));border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="margin-top:.75rem;font-size:.85rem">Carregando dados de itens...</p></div>';
     cg.innerHTML=
+      `<div id="itens-fb" class="itens-fb" style="grid-column:1/-1"></div>`+
       `<div id="itens-kp" style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.75rem;grid-column:1/-1"></div>`+
       `<article class="pn w2"><h3>📅 Histórico mensal de itens</h3><div id="c-itens-hist">${spin}</div></article>`+
-      `<article class="pn w2"><h3>🏆 Top 20 — Mais Vendidos (por qtde)</h3><div id="c-itens-mais">${spin}</div></article>`+
+      `<article class="pn w2"><h3 id="h-itens-mais">🏆 Top 20 — Mais Vendidos</h3><div id="c-itens-mais">${spin}</div></article>`+
+      `<article class="pn w2"><h3 id="h-itens-linha">🧩 Vendas por linha de produto</h3><div id="c-itens-linha">${spin}</div></article>`+
       `<article class="pn w2"><h3>📉 Top 20 — Menos Vendidos</h3><div id="c-itens-menos">${spin}</div></article>`+
       `<div class="itens-g2">
         <article class="pn"><h3>🏷️ Top Marcas</h3><div id="c-itens-marca">${spin}</div></article>
@@ -5358,7 +5408,7 @@ async function go(tab){
     const lojaAgora = F.loja||null;
     const m1Agora = F.mes1||null;
     const m2Agora = F.mes2||null;
-    const cacheOk = _itensDash && _itensDashLoja===lojaAgora && _itensDashMes1===m1Agora && _itensDashMes2===m2Agora;
+    const cacheOk = _itensDash && _itensDashLoja===lojaAgora && _itensDashMes1===m1Agora && _itensDashMes2===m2Agora && _itensDashLin===_itLinKey();
     // Oculta KPIs e tabela de pedidos na aba Itens
     $('#p-kp').hidden=true; $('#p-kp').innerHTML='';
     $('#p-tb').hidden=true;
