@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1439">
+<meta name="version" content="20261124-1444">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1145,13 +1145,15 @@ async function carregarPedidosSupa(){
     const {data, error} = await _sb
       .from('pedidos')
       .select('id,loja,cli,vend,conf,tp,tp2,sit,urg,canc,dia,exp,mes,hr_emissao,hr_sep_ini,hr_sep_fim,dt_sep_ini,dt_sep_fim,tempo_sep,hr_exp,dt_exp,dt_nf,hr_nf,dt_coleta,hr_coleta')
-      .range(from, from + PAGE - 1)
-      .order('dia', {ascending:false});
+      .order('dia', {ascending:false}).order('loja').order('id')
+      .range(from, from + PAGE - 1);
     if(error) throw error;
     all = all.concat(data || []);
     hasMore = (data && data.length === PAGE);
     from += PAGE;
   }
+  // Sem repetição: um pedido = filial + número (chave do banco)
+  { const vis=new Set(); all=all.filter(r=>{ const k=r.loja+'|'+r.id; if(vis.has(k)) return false; vis.add(k); return true; }); }
   // Normaliza tipos (booleanos vindos do Supabase já são bool, datas são strings)
   const out=all.map(r=>({
     ...r,
@@ -2026,15 +2028,22 @@ function renderItensTab(dash){
         <span style="font-size:.82rem;color:var(--mu);font-weight:600">📊 Indicadores da aba Itens</span>
         <button id="itens-eye" title="${hidden?'Mostrar valores':'Ocultar valores sensíveis'}" style="background:none;border:1px solid var(--bd);border-radius:.4rem;cursor:pointer;padding:.2rem .55rem;font-size:1rem;color:var(--mu);line-height:1">${eye}</button>
       </div>`+
-      `<div class="itens-kpg">`+
-        `<div class="k"><div class="kl">📋 Total linhas</div><div class="kv">${N(kpis.total_linhas||0)}</div></div>`+
-        `<div class="k"><div class="kl">🏷️ Produtos</div><div class="kv">${N(kpis.produtos_distintos||0)}</div></div>`+
-        `<div class="k"><div class="kl">🛒 Pedidos</div><div class="kv">${N(kpis.total_pedidos||0)}</div></div>`+
-        `<div class="k"><div class="kl">📦 Qtde total</div><div class="kv">${N(kpis.total_qtde||0)}</div></div>`+
-        `<div class="k"><div class="kl">💰 Receita</div><div class="kv" data-sensivel="1">${mask(BRL(kpis.total_receita||0))}</div></div>`+
-        `<div class="k"><div class="kl">🎯 Ticket médio</div><div class="kv" data-sensivel="1">${mask(BRL(kpis.ticket_medio||0))}</div></div>`+
-        `<div class="k"><div class="kl">📈 Itens/pedido</div><div class="kv">${kpis.media_itens_pedido||0}</div></div>`+
-      `</div>`;
+      (()=>{ // base de comparação: pedidos do painel na mesma filial/período (sem filtro de linha)
+        const lj=_itensDashLoja||null, m1=_itensDashMes1, m2=_itensDashMes2, rows=(_dP&&_dP.rows)||[];
+        const inP=r=>(!lj||r.loja===lj)&&(!m1||String(r.mes||'')>=m1)&&(!m2||String(r.mes||'')<=m2);
+        const erp=rows.filter(r=>inP(r)&&!r._soWms).length, soW=rows.filter(r=>inP(r)&&r._soWms).length, tp=kpis.total_pedidos||0;
+        const sub=t=>`<div style="font-size:.7rem;color:var(--mu);margin-top:.15rem;line-height:1.25">${t}</div>`;
+        const pedSub=lin?`pedidos que têm ${lin.t==='F'?'a família':'a linha'} ${esc(lin.v)}`:(erp?`de ${N(erp)} pedidos do ERP no período${erp>tp?' (os demais não têm itens importados)':''}${soW?(soW===1?' · o pedido só no WMS não tem itens do ERP':` · os ${N(soW)} pedidos só no WMS não têm itens do ERP`):''}`:'pedidos com itens importados');
+        return `<div style="font-size:.74rem;color:var(--mu);margin:-.2rem 0 .45rem">Base: itens dos pedidos do ERP · filtros que valem aqui: filial, período${lin?' e '+(lin.t==='F'?'família':'linha')+' '+esc(lin.v):' e linha'} (vendedor, cliente e os demais filtros não se aplicam aos itens).</div>`+
+        `<div class="itens-kpg">`+
+        `<div class="k"><div class="kl">📋 Linhas de item</div><div class="kv">${N(kpis.total_linhas||0)}</div>${sub('cada produto em cada pedido')}</div>`+
+        `<div class="k"><div class="kl">🏷️ Produtos</div><div class="kv">${N(kpis.produtos_distintos||0)}</div>${sub('códigos diferentes vendidos')}</div>`+
+        `<div class="k"><div class="kl">🛒 Pedidos com itens</div><div class="kv">${N(tp)}</div>${sub(pedSub)}</div>`+
+        `<div class="k"><div class="kl">📦 Qtde total</div><div class="kv">${N(kpis.total_qtde||0)}</div>${sub('peças vendidas')}</div>`+
+        `<div class="k"><div class="kl">💰 Receita</div><div class="kv" data-sensivel="1">${mask(BRL(kpis.total_receita||0))}</div>${sub('soma do valor dos itens')}</div>`+
+        `<div class="k"><div class="kl">🎯 Ticket médio</div><div class="kv" data-sensivel="1">${mask(BRL(kpis.ticket_medio||0))}</div>${sub('receita ÷ pedidos com itens')}</div>`+
+        `<div class="k"><div class="kl">📈 Itens/pedido</div><div class="kv">${kpis.media_itens_pedido||0}</div>${sub('linhas de item ÷ pedidos com itens')}</div>`+
+        `</div>`; })();
     // Botão olho — alterna sem recarregar dados
     const eyeBtn=$('#itens-eye');
     if(eyeBtn) eyeBtn.addEventListener('click',()=>{
@@ -3446,7 +3455,7 @@ const _pwNz=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase
 async function _itensLL(ids){
   const M=new Map(), L=[...new Set((ids||[]).map(x=>Number(x)).filter(x=>x>0))];
   for(let i=0;i<L.length;i+=150){ const ch=L.slice(i,i+150); let from=0;
-    while(true){ const {data,error}=await _sb.from('itens').select('pedido_id,qtde').eq('loja','LL').in('pedido_id',ch).range(from,from+999);
+    while(true){ const {data,error}=await _sb.from('itens').select('pedido_id,qtde').eq('loja','LL').in('pedido_id',ch).order('pedido_id').order('seq').range(from,from+999);
       if(error) throw error; (data||[]).forEach(r=>{ const k=String(r.pedido_id), o=M.get(k)||{n:0,q:0}; o.n++; o.q+=(+r.qtde||0); M.set(k,o); });
       if(!data||data.length<1000) break; from+=1000; } }
   return M;
@@ -4212,7 +4221,7 @@ async function carregarItemBusca(term){
       let q=_sb.from('itens').select('pedido_id,loja,seq,cod_produto,principal,descricao,marca,qtde,saldo,total');
       if(tc) q=q.or(`cod_produto.ilike.*${tc}*,principal.ilike.*${tc}*`);
       if(td) q=q.ilike('descricao',`%${td}%`);
-      const {data,error}=await q.order('pedido_id',{ascending:false}).range(from,from+PAGE-1);
+      const {data,error}=await q.order('pedido_id',{ascending:false}).order('loja').order('seq').range(from,from+PAGE-1);
       if(error) throw error;
       B.rows.push(...(data||[]));
       if(!data||data.length<PAGE) break; from+=PAGE;
@@ -4459,7 +4468,7 @@ function kpis(rs){
     growCards.push({l:'Crescimento LL',v:fmtG(growLL),s:growLabel,c:cl,g:'',blt:'bl'});
   }
   return[
-    {l:'Total de pedidos',v:N(rs.length),s:'LT: '+N(lt)+' · LL: '+N(ll),c:'',g:''},
+    {l:'Total de pedidos',v:N(rs.length),s:'LT: '+N(lt)+' · LL: '+N(ll)+(()=>{const w=rs.filter(r=>r._soWms).length;return w?' · inclui '+N(w)+' só no WMS (LL)':''})(),c:'',g:''},
     {l:'Expedidos',v:N(exp.length),s:PCT(exp.length,rs.length)+' do total',c:'ok',g:''},
     {l:'LT',v:N(lt),s:PCT(lt,rs.length)+' do total',c:'',g:''},
     {l:'LL',v:N(ll),s:PCT(ll,rs.length)+' do total',c:'',g:''},
@@ -6113,7 +6122,7 @@ async function _carregarItensLT(ids){
   for(let i=0;i<falta.length;i+=100){
     const ch=falta.slice(i,i+100), rows=[]; let from=0;
     while(true){
-      const {data,error}=await _sb.from('itens').select('pedido_id,qtde').eq('loja','LT').in('pedido_id',ch.map(Number)).range(from,from+999);
+      const {data,error}=await _sb.from('itens').select('pedido_id,qtde').eq('loja','LT').in('pedido_id',ch.map(Number)).order('pedido_id').order('seq').range(from,from+999);
       if(error) throw error; rows.push(...(data||[])); if(!data||data.length<1000) break; from+=1000;
     }
     ch.forEach(id=>C['LT|'+id]={skus:0,qt:0});
