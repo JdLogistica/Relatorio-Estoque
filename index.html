@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261123-2338">
+<meta name="version" content="20261123-2343">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -5208,7 +5208,7 @@ async function go(tab){
     cg.innerHTML=
       `<div class="vend-row">` +
         `<article class="pn vend-col-sm"><h3>Vendedor por loja</h3><div id="c-lv"></div></article>`+
-        `<article class="pn vend-col-sm"><h3>Pedidos por conferente</h3><div id="c-conf"></div></article>`+
+        `<article class="pn vend-col-sm"><h3>Pedidos por conferente <small style="font-weight:400;color:var(--mu)">(pela data de emissão)</small></h3><div id="c-conf"></div></article>`+
         `<article class="pn vend-col-lg"><h3>Pedidos por vendedor (Pareto 80/20)</h3><div id="c-vend"></div></article>`+
       `</div>`;
   }else if(tab==='cli'){
@@ -5268,11 +5268,9 @@ async function go(tab){
         `<article class="pn"><h3>⏱️ 4 · T4 <small>Emissão NF-e → Expedição</small></h3><div id="c-tm-t4-hist"></div></article>`+
         `<article class="pn"><h3>📊 Lead Total <small>Emissão → Fim sep.</small></h3><div id="c-tm-lead-hist"></div></article>`+
       `</div>`+
-      `<article class="pn w2" id="wms-ll"><h3>🏷️ Separação e Conferência por operador <small style="font-weight:400;color:var(--mu)">(LT: ERP · LL: WMS)</small></h3><div id="c-wms-ll"><p class="mu2" style="padding:1rem">Carregando tempos do WMS…</p></div></article>`+
-      `<article class="pn w2" id="wms-oc"><h3>🕗 Tempo até o 1º pedido e entre pedidos, por operador <small style="font-weight:400;color:var(--mu)">(LT: separação · LL: separação e conferência no WMS · jornada a partir das 08:00)</small></h3><div id="c-wms-oc"></div></article>`+
-      `<article class="pn w2" id="prod-ind"><h3>📈 Produtividade e ociosidade individual <small style="font-weight:400;color:var(--mu)">(LT: ERP · LL: WMS · jornada a partir das 08:00)</small></h3><div id="c-prod-ind"><p class="mu2" style="padding:1rem">Carregando…</p></div></article>`+
+      `<article class="pn w2" id="prod-ind"><h3>📈 Produtividade, separação, conferência e ociosidade por operador <small style="font-weight:400;color:var(--mu)">(LT: ERP · LL: WMS · jornada a partir das 08:00)</small></h3><div id="c-prod-ind"><p class="mu2" style="padding:1rem">Carregando…</p></div></article>`+
       `<article class="pn w2" id="race"><h3>🏁 Ranking evolutivo dos separadores <small style="font-weight:400;color:var(--mu)">(pedidos por separador, dia a dia · segue os filtros do painel)</small></h3><div id="c-race"><p class="mu2" style="padding:1rem">Carregando…</p></div></article>`+
-      `<article class="pn w2"><h3>🔧 T2 (Separação) médio por separador/conferente</h3><div id="c-tm-conf-t2"></div></article>`+
+      `<article class="pn w2"><h3>🔧 T2 (Separação) médio por separador/conferente <small style="font-weight:400;color:var(--mu)">(pela data de emissão do pedido)</small></h3><div id="c-tm-conf-t2"></div></article>`+
       `<article class="pn w2"><h3>👤 Lead Total médio por vendedor</h3><div id="c-tm-vend-lead"></div></article>`+
       `<article class="pn w2"><h3>🔧 T1 e T2 médios por vendedor</h3><div id="c-tm-vend-t1t2"></div></article>`+
       `<article class="pn w2"><h3>📅 T1 e T2 médios por dia <small id="tm-per1" style="font-weight:400;color:var(--mu)">(últimos 60 dias)</small></h3><div id="c-tm-dia-t1t2"></div></article>`+
@@ -5803,7 +5801,7 @@ function renderTemposTab(rs,rsEvol){
 // ── WMS · LL: tempos de separação e conferência medidos no WMS (tabela wms_tempos) ──
 const WMS_LIM=480; // acima de 8h: pedido ficou aberto no WMS (fora da média)
 function renderWmsLL(rsF){
-  const el=document.getElementById('c-wms-ll'); if(!el) return;
+  const el=document.getElementById('c-wms-ll')||document.createElement('div'); // quadro A foi incorporado ao de produtividade; a função segue para os histogramas
   if(!window._WMS){ carregarWms().then(()=>renderWmsLL(rsF)).catch(e=>{el.innerHTML=`<p style="color:var(--bad);padding:1rem">Erro ao carregar WMS: ${_escP(e.message||e)}</p>`;}); return; }
   const lj=(window._PF&&window._PF.loja)||'';
   try{ renderOciosidade(); }catch(e){ console.warn('[ocios]',e); }
@@ -6022,6 +6020,9 @@ function renderProdInd(rsF){
           CS:seq.filter(s=>s.de==='C'&&s.t.tipo==='S'&&!s.pz).map(s=>s.gap),CC:seq.filter(s=>s.de==='C'&&s.t.tipo==='C'&&!s.pz).map(s=>s.gap)},gOk});
   });
   // indicadores por operador (período)
+  // fim da separação de cada pedido (para a espera até a conferência, atribuída a quem conferiu)
+  const _fimSep={}; T.forEach(t=>{ if(t.tipo==='S'){ const k=t.loja+'|'+t.ped; if(!_fimSep[k]||t.fim>_fimSep[k]) _fimSep[k]=t.fim; } });
+  const _skuh=L=>{ const k=L.filter(t=>t.skus!=null); const h=sum(k.map(t=>t.dur))/60; return k.length&&h>0?sum(k.map(t=>t.skus))/h:null; };
   const indOf=ODx=>{ const OP={}; ODx.forEach(d=>{(OP[d.op]=OP[d.op]||[]).push(d);});
   return Object.entries(OP).map(([op,D])=>{
     const L=D.flatMap(d=>d.L), Ls=L.filter(t=>t.tipo==='S'), Lc=L.filter(t=>t.tipo==='C');
@@ -6032,9 +6033,11 @@ function renderProdInd(rsF){
     const qt=sum(PSi.map(p=>p.qt)), skus=sum(PSi.map(p=>p.skus)), tSepI=sum(PSi.map(p=>p.dur));
     const nd=D.length, prod=sum(D.map(d=>d.prod)), peds=new Set(L.map(pk)).size;
     const tr=k=>D.flatMap(d=>d.tr[k]);
+    const iniConf={}; Lc.forEach(t=>{ const k=t.loja+'|'+t.ped; if(!iniConf[k]||t.ini<iniConf[k]) iniConf[k]=t.ini; });
+    const espSC=Object.entries(iniConf).map(([k,a])=>_fimSep[k]?(a-_fimSep[k])/60000:null).filter(v=>v!=null&&v>=0&&v<=480);
     return {op,lojas:[...new Set(L.map(t=>t.loja))].sort().join('+'),nd,peds,nS:PS.length,nC:Object.keys(pedC).length,porDia:peds/nd,
       qt:PSi.length?qt:null,skus:PSi.length?skus:null,itPed:PSi.length?qt/PSi.length:null,skPed:PSi.length?skus/PSi.length:null,
-      tPed:avg(PS.map(p=>p.dur)),tPedMed:med(PS.map(p=>p.dur)),tItem:qt?tSepI/qt:null,tSku:skus?tSepI/skus:null,tConf:avg(Object.values(pedC)),
+      tPed:avg(PS.map(p=>p.dur)),tPedMed:med(PS.map(p=>p.dur)),tItem:qt?tSepI/qt:null,tSku:skus?tSepI/skus:null,tConf:avg(Object.values(pedC)),tConfMed:med(Object.values(pedC)),skuhS:_skuh(Ls),skuhC:_skuh(Lc),espSC:avg(espSC),
       pedH:prod?peds/(prod/60):null,itH:tSepI?qt/(tSepI/60):null,
       ate1:avg(D.map(d=>d.ate1)),hr1:avg(D.map(d=>d.p0)),dur1:avg(D.map(d=>d.dur1)),fim1:avg(D.map(d=>d.fim1)),
       gap:avg(D.flatMap(d=>d.gOk)),SS:avg(tr('SS')),SC:avg(tr('SC')),CS:avg(tr('CS')),CC:avg(tr('CC')),
@@ -6063,6 +6066,10 @@ function renderProdInd(rsF){
     mk('Itens separados',N(totQt),`média ${N(avg(ind.filter(i=>i.itPed!=null).map(i=>i.itPed)))} itens/pedido`,C.S)+
     mk('Tempo médio por pedido',fm(avg(Object.values(T.filter(t=>t.tipo==='S').reduce((o,t)=>{const k=t.loja+'|'+(t.ped||t.pw);o[k]=(o[k]||0)+t.dur;return o},{})))),'separação, início → fim',C.S)+
     mk('Tempo por item',fs(tItemG),'tempo de separação ÷ itens',C.S)+
+    (()=>{ const pc={}; T.filter(t=>t.tipo==='C').forEach(t=>{const k=t.loja+'|'+t.ped;pc[k]=(pc[k]||0)+t.dur;}); const v=Object.values(pc);
+      const ic={}; T.filter(t=>t.tipo==='C').forEach(t=>{const k=t.loja+'|'+t.ped;if(!ic[k]||t.ini<ic[k])ic[k]=t.ini;}); const es=Object.entries(ic).map(([k,a])=>_fimSep[k]?(a-_fimSep[k])/60000:null).filter(x=>x!=null&&x>=0&&x<=480);
+      const semV=new Set((window._WMS||[]).filter(w=>w._soWms).map(w=>w.pedido_wms)).size;
+      return (v.length?mk('Conferência média',fm(avg(v)),`mediana ${fm(med(v))} · ${N(v.length)} pedidos conferidos`,C.C):'')+(es.length?mk('Espera sep. → conf.',fm(avg(es)),`mediana ${fm(med(es))} · ${N(es.length)} pedidos`,'#8a919c'):'')+(semV?mk('Só no WMS',N(semV),'pedidos do WMS ainda sem pedido no ERP (entram nos painéis)','#7e6bc4'):''); })()+
     (()=>{ const e=sum(OD.map(d=>d.esp)), u=sum(OD.map(d=>d.durE)), at=sum(OD.map(d=>d.sepAt)), nA=T.filter(t=>t.tipo==='S'&&t.atr>0.5).length, nE=T.filter(t=>t.tipo==='S'&&t.esp!=null).length;
       return mk('Eficiência da separação',u?Math.round(e/u*100)+'%':'—',`tempo padrão ÷ tempo real · em atraso ${fm(at)} (${N(nA)} de ${N(nE)} separações)`,C.at); })()+
     mk('Utilização',denU?Math.round(prodAll/denU*100)+'%':'—','tempo trabalhando ÷ jornada (sem pausas)','#3ecf8e')+
@@ -6125,12 +6132,12 @@ function renderProdInd(rsF){
   // ── Tabela de indicadores por operador
   const R='style="text-align:right"', td=(v,txt,b)=>`<td data-v="${v==null||isNaN(v)?-1:v}" ${R}>${b?'<b>'+txt+'</b>':txt}</td>`;
   const tab=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:1rem 0 .3rem"><h4 style="margin:0;font-size:.88rem;flex:1 1 auto">📋 Indicadores por operador <small style="font-weight:400;color:var(--mu)">(período filtrado · médias por dia trabalhado)</small></h4>${window._diaNavHtml?window._diaNavHtml():''}</div>`+
-    `<div class="tw" style="overflow:auto"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R} title="Pedidos diferentes em que trabalhou (separou e/ou conferiu)">Pedidos trabalhados</th><th ${R} title="Pedidos diferentes separados">Separados</th><th ${R} title="Pedidos diferentes conferidos">Conferidos</th><th ${R}>% dos pedidos</th><th ${R} title="Posição por pedidos e diferença para o colocado logo acima">Ranking · vs. anterior</th><th ${R}>Pedidos/dia</th><th ${R}>Itens separados</th><th ${R}>Itens/pedido</th><th ${R}>Tempo/pedido</th><th ${R}>Tempo/item</th><th ${R} title="Tempo padrão (itens × padrão por item) ÷ tempo real de separação">Eficiência sep.</th><th ${R} title="Tempo de separação acima do padrão, média por dia">Sep. em atraso/dia</th><th ${R}>Pedidos em atraso</th><th ${R}>Conf./pedido</th><th ${R}>Pedidos/h</th><th ${R}>Itens/h</th>`+
+    `<div class="tw" style="overflow:auto"><table class="ped-tb wms-tb"><thead><tr><th>Operador</th><th>Loja</th><th ${R}>Dias</th><th ${R} title="Pedidos diferentes em que trabalhou (separou e/ou conferiu)">Pedidos trabalhados</th><th ${R} title="Pedidos diferentes separados">Separados</th><th ${R} title="Pedidos diferentes conferidos">Conferidos</th><th ${R}>% dos pedidos</th><th ${R} title="Posição por pedidos e diferença para o colocado logo acima">Ranking · vs. anterior</th><th ${R}>Pedidos/dia</th><th ${R}>Itens separados</th><th ${R}>Itens/pedido</th><th ${R} title="Separação média por pedido (início → fim)">Tempo/pedido</th><th ${R} title="Mediana da separação por pedido">Sep. mediana</th><th ${R}>SKUs/h sep.</th><th ${R}>Tempo/item</th><th ${R} title="Tempo padrão (itens × padrão por item) ÷ tempo real de separação">Eficiência sep.</th><th ${R} title="Tempo de separação acima do padrão, média por dia">Sep. em atraso/dia</th><th ${R}>Pedidos em atraso</th><th ${R}>Conf./pedido</th><th ${R}>Conf. mediana</th><th ${R}>SKUs/h conf.</th><th ${R} title="Fim da separação → início da conferência, nos pedidos que este operador conferiu">Espera sep. → conf.</th><th ${R}>Pedidos/h</th><th ${R}>Itens/h</th>`+
       `<th ${R} title="Horário médio em que pegou o 1º pedido">1º pedido às</th><th ${R}>08:00 → 1º</th><th ${R} title="Duração da separação do 1º pedido">Sep. do 1º</th><th ${R} title="Das 08:00 até terminar a separação do 1º pedido">08:00 → fim 1º</th>`+
       `<th ${R} title="Fim da separação → início da conferência">Sep. → conferir</th><th ${R} title="Fim da separação → início do próximo pedido">Sep. → próx. pedido</th><th ${R} title="Fim da conferência → início da próxima separação">Conf. → separar</th><th ${R}>Até próx. função</th>`+
       `<th ${R}>Trabalhando/dia</th><th ${R}>Parado/dia</th><th ${R}>Pausas/dia</th><th ${R}>Utilização</th></tr></thead><tbody>`+
     ind.map(i=>`<tr><td><b>${_escP(i.op)}</b></td><td>${i.lojas.split('+').map(x=>`<span class="bd ${x==='LT'?'ok':'bl2c'}" style="margin-right:.2rem">${x}</span>`).join('')}</td>`+
-      td(i.nd,N(i.nd))+td(i.peds,N(i.peds),1)+td(i.nS,N(i.nS))+td(i.nC,i.nC?N(i.nC):'—')+td(i.peds,_pctP(i.peds,totPed))+`<td ${R}>${_rkCell(ind.map(x=>x.peds),ind.indexOf(i))}</td>`+td(i.porDia,N(i.porDia))+td(i.qt,N(i.qt))+td(i.itPed,N(i.itPed))+td(i.tPed,fm(i.tPed),1)+td(i.tItem,fs(i.tItem),1)+td(i.efic,i.efic!=null?`<span style="color:${i.efic>=1?'#3aa76d':i.efic>=.8?'#e6b422':'#e8762c'}">${Math.round(i.efic*100)}%</span>`:'—',1)+td(i.atrD,i.atrD>0.5?`<span style="color:#e8762c">${fm(i.atrD)}</span>`:fm(i.atrD))+td(i.nAtr,i.nEsp?`${N(i.nAtr)} <small style="color:var(--mu)">de ${N(i.nEsp)}</small>`:'—')+td(i.tConf,fm(i.tConf))+td(i.pedH,N(i.pedH))+td(i.itH,N(i.itH))+
+      td(i.nd,N(i.nd))+td(i.peds,N(i.peds),1)+td(i.nS,N(i.nS))+td(i.nC,i.nC?N(i.nC):'—')+td(i.peds,_pctP(i.peds,totPed))+`<td ${R}>${_rkCell(ind.map(x=>x.peds),ind.indexOf(i))}</td>`+td(i.porDia,N(i.porDia))+td(i.qt,N(i.qt))+td(i.itPed,N(i.itPed))+td(i.tPed,fm(i.tPed),1)+td(i.tPedMed,fm(i.tPedMed))+td(i.skuhS,N(i.skuhS))+td(i.tItem,fs(i.tItem),1)+td(i.efic,i.efic!=null?`<span style="color:${i.efic>=1?'#3aa76d':i.efic>=.8?'#e6b422':'#e8762c'}">${Math.round(i.efic*100)}%</span>`:'—',1)+td(i.atrD,i.atrD>0.5?`<span style="color:#e8762c">${fm(i.atrD)}</span>`:fm(i.atrD))+td(i.nAtr,i.nEsp?`${N(i.nAtr)} <small style="color:var(--mu)">de ${N(i.nEsp)}</small>`:'—')+td(i.tConf,fm(i.tConf))+td(i.tConfMed,fm(i.tConfMed))+td(i.skuhC,N(i.skuhC))+td(i.espSC,fm(i.espSC))+td(i.pedH,N(i.pedH))+td(i.itH,N(i.itH))+
       td(i.hr1,hh(i.hr1))+td(i.ate1,fm(i.ate1),1)+td(i.dur1,fm(i.dur1))+td(i.fim1,fm(i.fim1))+
       td(i.SC,fm(i.SC))+td(i.SS,fm(i.SS))+td(i.CS,fm(i.CS))+td(i.gap,fm(i.gap),1)+
       td(i.prodD,fm(i.prodD))+td(i.ociosoD,`<span style="color:${C.oc}">${fm(i.ociosoD)}</span>`,1)+td(i.pausaD,fm(i.pausaD))+
