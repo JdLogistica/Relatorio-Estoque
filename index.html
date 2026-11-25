@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-1016">
+<meta name="version" content="20261125-1035">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -497,6 +497,7 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
 .g-kp .k span{font-size:.78rem}
 .g-kp .k b{font-size:clamp(1.5rem,2.6vw,2.2rem);word-break:normal;overflow-wrap:normal}
 .g-kp .k small{display:block;color:var(--mu);font-size:.72rem;margin-top:.25rem;line-height:1.35}
+.g-kp .k.g-go{cursor:pointer;transition:transform .12s,box-shadow .12s}.g-kp .k.g-go:hover,.g-kp .k.g-go:focus-visible{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.22);outline:none}.g-kp .k.g-go::after{content:'Ver detalhes ›';display:block;margin-top:.4rem;font-size:.7rem;font-weight:600;color:var(--y)}
 .g-kp .k.neg{border-left-color:var(--bad)}.g-kp .k.est{border-left-color:var(--bl)}.g-kp .k.tm{border-left-color:var(--ok)}
 .g-ft{color:var(--mu);font-size:.75rem;padding:.4rem 0 1rem;line-height:1.6}
 </style>
@@ -3624,6 +3625,8 @@ document.addEventListener('change',e=>{const el=e.target.closest('.fsel');if(el)
 const themeBtn=()=>{$('#th').textContent=document.documentElement.dataset.t=='dark'?'Tema claro':'Tema escuro'};
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if((h=='ov'||h=='ce'||h=='end'||h=='wms'||h=='pwms'||h=='neg'||TB[h])&&h!=cur)go(h)});
 themeBtn();
+if(window._pendGE){ Object.entries(window._pendGE).forEach(([k,v])=>{ if(k in GF) GF[k]=v; }); window._pendGE=null; }
+window._goE=(tab,gf)=>{ Object.keys(GF).forEach(k=>{GF[k]=''}); Object.entries(gf||{}).forEach(([k,v])=>{ if(k in GF) GF[k]=v; }); return go(tab); };
 const _okT=h=>h=='ov'||h=='ce'||h=='end'||h=='wms'||h=='pwms'||h=='neg'||TB[h];let h0=location.hash.slice(1);if(!_okT(h0)){try{h0=localStorage.getItem('lt-tab-e')||''}catch(e){h0=''}}go(_okT(h0)?h0:'ov');
 }
 // ══════════════════════════════════════════════════════════════
@@ -5943,6 +5946,7 @@ document.addEventListener('itens:check-render',()=>{
 });
 
 $('#th').textContent=document.documentElement.dataset.t==='dark'?'Tema claro':'Tema escuro';
+window._goP=tab=>go(tab);
 const _tabsP=TABS.map(t=>t.k);let h0=location.hash.slice(1);if(!_tabsP.includes(h0)){try{h0=localStorage.getItem('lt-tab-p')||''}catch(e){h0=''}}go(_tabsP.includes(h0)?h0:'ov');
 }
 
@@ -6947,30 +6951,44 @@ function calcular(){
 }
 function desenhar(){
   const R=calcular(), el=$('g-kp'); if(!el) return;
-  const k=(cls,l,v,s)=>`<div class="k ${cls}"><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`;
+  const k=(cls,l,v,s,dest)=>`<div class="k ${cls}${dest?' g-go':''}"${dest?` data-gdest="${dest}" role="link" tabindex="0" title="Abrir a página com os detalhes"`:''}><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`;
   const P=R.P, nCanc=P.filter(r=>r.canc).length, nSo=P.filter(r=>r._soWms).length, semIt=R.itensOk?P.length-R.pedComIt-nSo:null;
   const it=R.itensOk, es=R.estOk;
   const sub=(a,txt)=>a.length?txt:'';
   el.innerHTML=
    `<div class="g-sec">Pedidos</div>`+
-   k('','📋 Total de pedidos',N(P.length),`${R.porLj(P)}${nCanc?' · '+N(nCanc)+' cancelados':''}${nSo?' · '+N(nSo)+' só no WMS':''}`)+
-   k('','🧩 Produtos distintos',it?N(R.prods.size):'—',it?`${N(R.linhas)} linhas de item · ${N(R.pecas)} peças${R.temFiltroItem?' · só os itens filtrados':''}`:'itens não carregados')+
-   k('','📈 Média de itens por pedido',it&&R.pedComIt?N1(R.linhas/R.pedComIt):'—',it?`linhas de item ÷ ${N(R.pedComIt)} pedidos com itens · ${R.pedComIt?N1(R.pecas/R.pedComIt):'—'} peças por pedido${semIt>0?' · '+N(semIt)+' pedidos sem itens':''}`:'itens não carregados')+
-   k('tm','⏱️ Média lead time total',fm(avg(R.lead)),`emissão → fim da separação · mediana ${fm(pq(R.lead,.5))} · 90% até ${fm(pq(R.lead,.9))} · ${N(R.lead.length)} pedidos`)+
-   k('tm','🛠️ Média tempo de separação',fm(avg(R.sep)),`início → fim da separação · mediana ${fm(pq(R.sep,.5))} · 90% até ${fm(pq(R.sep,.9))} · ${N(R.sep.length)} pedidos`)+
+   k('','📋 Total de pedidos',N(P.length),`${R.porLj(P)}${nCanc?' · '+N(nCanc)+' cancelados':''}${nSo?' · '+N(nSo)+' só no WMS':''}`,'p:ov')+
+   k('','🧩 Produtos distintos',it?N(R.prods.size):'—',it?`${N(R.linhas)} linhas de item · ${N(R.pecas)} peças${R.temFiltroItem?' · só os itens filtrados':''}`:'itens não carregados','p:itens')+
+   k('','📈 Média de itens por pedido',it&&R.pedComIt?N1(R.linhas/R.pedComIt):'—',it?`linhas de item ÷ ${N(R.pedComIt)} pedidos com itens · ${R.pedComIt?N1(R.pecas/R.pedComIt):'—'} peças por pedido${semIt>0?' · '+N(semIt)+' pedidos sem itens':''}`:'itens não carregados','p:itens')+
+   k('tm','⏱️ Média lead time total',fm(avg(R.lead)),`emissão → fim da separação · mediana ${fm(pq(R.lead,.5))} · 90% até ${fm(pq(R.lead,.9))} · ${N(R.lead.length)} pedidos`,'p:tempos')+
+   k('tm','🛠️ Média tempo de separação',fm(avg(R.sep)),`início → fim da separação · mediana ${fm(pq(R.sep,.5))} · 90% até ${fm(pq(R.sep,.9))} · ${N(R.sep.length)} pedidos`,'p:tempos')+
    `<div class="g-sec">Estoque e WMS</div>`+
-   k('neg','⚠️ Itens negativos',es?N(R.NG.length):'—',es?`${N(Math.abs(R.NG.reduce((x,r)=>x+r.s,0)))} peças negativas · ${R.porLj(R.NG,r=>r.lj)}`:'estoque não carregado')+
-   k('est','🏷️ Itens sem preço',es?N(R.E.filter(r=>!(r.cu>0)).length):'—',es?`custo zerado no ERP · de ${N(R.E.length)} itens · ${R.porLj(R.E.filter(r=>!(r.cu>0)),r=>r.lj)}`:'estoque não carregado')+
-   k('est','📍 Itens sem locação',es?N(R.SL.length):'—',es?`com saldo no ERP e sem endereço · ${N(R.SL.reduce((x,r)=>x+r.s,0))} peças · ${R.porLj(R.SL,r=>r.lj)}`:'estoque não carregado')+
-   k('est','🏬 Itens no WMS',es?N(R.lojasW.length?R.wItens:0):'—',es?(R.lojasW.length?`${N(R.wPcs)} peças · filial ${R.lojasW.join(' + ')}${R.soW.length?' · '+N(R.soW.length)+' só no WMS':''}`:(F.loja?'a filial '+F.loja+' ainda não tem estoque WMS importado':'sem dados do WMS importados')):'estoque não carregado')+
-   k('est','📦 Pedidos no WMS',N(R.pWms.length),`${N(R.pCas)} ligados a pedido do ERP · ${N(R.pWms.length-R.pCas)} só no WMS`);
+   k('neg','⚠️ Itens negativos',es?N(R.NG.length):'—',es?`${N(Math.abs(R.NG.reduce((x,r)=>x+r.s,0)))} peças negativas · ${R.porLj(R.NG,r=>r.lj)}`:'estoque não carregado','e:neg')+
+   k('est','🏷️ Itens sem preço',es?N(R.E.filter(r=>!(r.cu>0)).length):'—',es?`custo zerado no ERP · de ${N(R.E.length)} itens · ${R.porLj(R.E.filter(r=>!(r.cu>0)),r=>r.lj)}`:'estoque não carregado','e:sp:pr=Sem preço')+
+   k('est','📍 Itens sem locação',es?N(R.SL.length):'—',es?`com saldo no ERP e sem endereço · ${N(R.SL.reduce((x,r)=>x+r.s,0))} peças · ${R.porLj(R.SL,r=>r.lj)}`:'estoque não carregado','e:sl')+
+   k('est','🏬 Itens no WMS',es?N(R.lojasW.length?R.wItens:0):'—',es?(R.lojasW.length?`${N(R.wPcs)} peças · filial ${R.lojasW.join(' + ')}${R.soW.length?' · '+N(R.soW.length)+' só no WMS':''}`:(F.loja?'a filial '+F.loja+' ainda não tem estoque WMS importado':'sem dados do WMS importados')):'estoque não carregado','e:wms')+
+   k('est','📦 Pedidos no WMS',N(R.pWms.length),`${N(R.pCas)} ligados a pedido do ERP · ${N(R.pWms.length-R.pCas)} só no WMS`,'p:tempos');
   const ft=$('g-ft'); if(ft){ const L=window._IMPLOG||[], f=(fo,lj)=>{ const r=L.find(x=>x.fonte===fo&&(x.loja||'')===(lj||'')); return r?(window._impFmtG?window._impFmtG(r.importado_em):''):''; };
     ft.innerHTML=L.length?'🕒 Última atualização dos dados — Pedidos: '+['LT','LL'].map(l=>l+' '+(f('pedidos',l)||'—')).join(' · ')+' · Itens: '+['LT','LL'].map(l=>l+' '+(f('itens',l)||'—')).join(' · ')+' · Estoque ERP: '+['LT','LL'].map(l=>l+' '+(f('estoque',l)||'—')).join(' · ')+' · Estoque negativo: '+['LT','LL'].map(l=>l+' '+(f('neg',l)||'—')).join(' · ')+' · Estoque WMS: '+['LT','LL'].map(l=>l+' '+(f('ewms',l)||'—')).join(' · '):''; }
   resumoAtivos();
 }
 // ── eventos ──
 let _t=null; const agenda=()=>{ clearTimeout(_t); _t=setTimeout(desenhar,120); };
+function irDetalhe(el){
+  const [sec,tab,gf]=String(el.dataset.gdest||'').split(':'); if(!sec||!tab) return;
+  const g={}; if(gf){ const i=gf.indexOf('='); g[gf.slice(0,i)]=gf.slice(i+1); }
+  if(sec==='e'&&F.loja) g.lj=F.loja;
+  try{ localStorage.setItem('lt-tab-'+sec,tab); }catch(_){}
+  const jaAberta=sec==='e'?_bootedE:_bootedP;
+  if(sec==='e') window._pendGE=g;
+  openSection(sec);
+  const go2=sec==='e'?window._goE:window._goP;
+  // seção já aberta antes: troca de aba direto; 1ª abertura: ela já abre na aba salva (e aplica o filtro pendente)
+  if(jaAberta&&typeof go2==='function'){ if(sec==='e'){ window._pendGE=null; go2(tab,g); } else go2(tab); }
+}
+document.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.g-go')){ e.preventDefault(); irDetalhe(e.target.closest('.g-go')); } });
 document.addEventListener('click',e=>{
+  const gd=e.target.closest('.g-go'); if(gd){ irDetalhe(gd); return; }
   if(e.target.closest('#g-fbtn')){ const fp=$('g-fp'); fp.hidden=!fp.hidden; $('g-fbtn').setAttribute('aria-expanded',String(!fp.hidden)); resumoAtivos(); return; }
   if(e.target.closest('#g-clr')||e.target.closest('[data-gclr]')){ Object.keys(F).forEach(k=>delete F[k]); desenharFiltros(); desenhar(); }
 });
