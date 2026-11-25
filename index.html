@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-1642">
+<meta name="version" content="20261125-1706">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -4105,8 +4105,9 @@ async function carregarSaldoWms(){
   if(window._SW) return window._SW;
   const map=new Map(), lojas=new Set(), fonte={}, quando={}, soEw={};
   const _qd=(lj,t)=>{ const v=t?Date.parse(t):0; if(v>(quando[lj]||0)) quando[lj]=v; };
+  let end=new Map();
   try{ const P=await carregarPosWms();
-    const end=new Map(P.cad.map(c=>[c.loja+'|'+c.pos_id,[c.rua,c.predio,c.nivel,c.apto].join('-')]));
+    end=new Map(P.cad.map(c=>[c.loja+'|'+c.pos_id,[c.rua,c.predio,c.nivel,c.apto].join('-')]));
     P.est.forEach(r=>{ const k=_swKey(r.loja,r.referencia); const o=map.get(k)||{q:0,pos:new Set(),cw:_cwLimpo(r.cod_wms),d:r.descricao||'',lj:r.loja,ref:String(r.referencia||'').trim().toUpperCase()};
       o.q+=Number(r.qtde)||0; o.pos.add(end.get(r.loja+'|'+r.pos_id)||('pos. '+r.pos_id)); map.set(k,o); lojas.add(r.loja); fonte[r.loja]='Estoque Posição'; _qd(r.loja,r.importado_em); });
   }catch(e){ console.warn('[saldo WMS: posições]',e); }
@@ -4117,7 +4118,7 @@ async function carregarSaldoWms(){
       if(pk&&map.has(k)&&!map.get(k).ew) return;
       const o=map.get(k)||{q:0,pos:new Set(),cw:_cwLimpo(r.cod_produto),d:r.descricao||'',lj:r.loja,ref:String(r.referencia||'').trim().toUpperCase(),ew:pk};
       if(pk&&!map.has(k)) soEw[r.loja]=(soEw[r.loja]||0)+1;
-      o.q+=Number(r.qtde)||0; if(r.endereco) o.pos.add(r.endereco); map.set(k,o); fonte[r.loja]=fonte[r.loja]||'Estoque WMS'; _qd(r.loja,r.importado_em); });
+      o.q+=Number(r.qtde)||0; if(r.endereco){ const e=String(r.endereco).trim(); o.pos.add(end.get(r.loja+'|'+e.replace(/^0+(?=\d)/,''))||end.get(r.loja+'|'+Number(e))||e); } map.set(k,o); fonte[r.loja]=fonte[r.loja]||'Estoque WMS'; _qd(r.loja,r.importado_em); });
     E.forEach(r=>lojas.add(r.loja));
     Object.keys(soEw).forEach(l=>{ fonte[l]='Estoque Posição + '+soEw[l]+' iten'+(soEw[l]>1?'s':'')+' só do Estoque WMS'; });
   }catch(e){ console.warn('[saldo WMS: estoque WMS]',e); }
