@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-0921">
+<meta name="version" content="20261125-1008">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -392,8 +392,8 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 .imp-no-admin{background:var(--s2);border-radius:8px;padding:.6rem .9rem;font-size:.82rem;color:var(--mu);text-align:center}
 .back-btn{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--ln);background:var(--s2);padding:.35rem .8rem;border-radius:8px;font-weight:600;font-size:.88rem;cursor:pointer;margin-bottom:.8rem}
 .back-btn:hover{border-color:var(--y)}
-#sect-e, #sect-p{display:none}
-#sect-e.active, #sect-p.active{display:block}
+#sect-e, #sect-p, #sect-g{display:none}
+#sect-e.active, #sect-p.active, #sect-g.active{display:block}
 #sect-home{display:none}
 #sect-home.active{display:block}
 .hd-home-title{font-style:italic;font-weight:800;font-size:1.1rem}
@@ -478,6 +478,27 @@ table:not(.hd-tb):not(.wms-map) td.wrap,table.wrap td{white-space:normal;max-wid
 /* Colunas numéricas e de valores (R$) centralizadas em todas as tabelas — cabeçalho e dados alinhados no centro */
 table th.r,table td.r,table th[style*="text-align:right"],table td[style*="text-align:right"],table th[style*="text-align: right"],table td[style*="text-align: right"],table th[align="right"],table td[align="right"]{text-align:center!important;font-variant-numeric:tabular-nums}
 table th.r button,table th[style*="text-align:right"] button{justify-content:center;text-align:center}
+/* Visão gerencial */
+.g-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin:.6rem 0 .5rem}
+.g-bar .bt.on{background:var(--y);color:#0a0a0a;border-color:var(--y)}
+.g-act{font-size:.78rem;color:var(--mu);display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+.g-act b{color:var(--tx)}.g-chip{background:var(--s2);border:1px solid var(--ln);border-radius:999px;padding:.1rem .55rem;font-size:.72rem;color:var(--tx)}
+.g-fp{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:.7rem .8rem;margin-bottom:.8rem;display:grid;gap:.8rem}
+.g-fp[hidden]{display:none}
+.g-fp fieldset{border:1px solid var(--ln);border-radius:8px;margin:0;padding:.5rem .7rem .7rem;min-width:0}
+.g-fp legend{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);font-weight:700;padding:0 .35rem}
+.g-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.6rem .8rem}
+.g-grid .fl select,.g-grid .fl input{width:100%;min-width:0}
+.g-fp-ft{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.g-sec{grid-column:1/-1;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);font-weight:700;margin:.6rem 0 -.1rem;display:flex;align-items:center;gap:.5rem}
+.g-sec::after{content:"";flex:1;height:1px;background:var(--ln)}
+.g-kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.75rem;margin-bottom:.9rem}
+.g-kp .k{padding:.85rem 1rem;border-left-width:4px}
+.g-kp .k span{font-size:.78rem}
+.g-kp .k b{font-size:clamp(1.5rem,2.6vw,2.2rem);word-break:normal;overflow-wrap:normal}
+.g-kp .k small{display:block;color:var(--mu);font-size:.72rem;margin-top:.25rem;line-height:1.35}
+.g-kp .k.neg{border-left-color:var(--bad)}.g-kp .k.est{border-left-color:var(--bl)}.g-kp .k.tm{border-left-color:var(--ok)}
+.g-ft{color:var(--mu);font-size:.75rem;padding:.4rem 0 1rem;line-height:1.6}
 </style>
 <script>
 // ── Versão do painel: mostra no rodapé e avisa quando há versão nova publicada (cada navegador guarda a página em cache) ──
@@ -552,6 +573,12 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
     <p style="margin:0;color:var(--mu);font-size:.9rem">Selecione um painel para acessar</p>
   </div>
   <div class="home-grid">
+    <button class="home-card" onclick="openSection('g')">
+      <span class="ic">📊</span>
+      <h2>Visão gerencial</h2>
+      <p>Principais indicadores de pedidos, tempos, estoque e WMS em cards, com filtros</p>
+      <span class="tag">PEDIDOS + ESTOQUE + WMS</span>
+    </button>
     <button class="home-card" onclick="openSection('e')">
       <span class="ic">📦</span>
       <h2>Estoque</h2>
@@ -843,6 +870,21 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
   <button class="clr-fab" id="clr" type="button" hidden></button>
 </div>
 
+<!-- VISÃO GERENCIAL SECTION -->
+<div id="sect-g">
+  <main class="wrap" id="g-app">
+    <div class="g-bar">
+      <button class="back-btn" style="margin:0" onclick="openSection('home')">← Voltar</button>
+      <button id="g-fbtn" class="bt" type="button" aria-expanded="false" aria-controls="g-fp">🔎 Filtros <span id="g-fn"></span></button>
+      <button id="g-clr" class="bt" type="button" hidden>🗑️ Limpar filtros</button>
+      <div class="g-act" id="g-act"></div>
+    </div>
+    <section id="g-fp" class="g-fp" hidden aria-label="Filtros da visão gerencial"></section>
+    <section id="g-kp" class="g-kp" aria-live="polite"><span style="color:var(--mu);font-size:.85rem">Carregando indicadores…</span></section>
+    <footer class="g-ft" id="g-ft"></footer>
+  </main>
+</div>
+
 <!-- PEDIDOS SECTION -->
 <div id="sect-p">
   <div class="wrap" style="padding-top:.6rem">
@@ -899,6 +941,7 @@ function openSection(s){
   document.getElementById('sect-home').classList.toggle('active', s==='home');
   document.getElementById('sect-e').classList.toggle('active', s==='e');
   document.getElementById('sect-p').classList.toggle('active', s==='p');
+  document.getElementById('sect-g').classList.toggle('active', s==='g');
   document.getElementById('e-tabs').hidden = s!=='e';
   document.getElementById('p-tabs').hidden = s!=='p';
   document.getElementById('hbtn').hidden = s!=='p';
@@ -911,6 +954,10 @@ function openSection(s){
     ttl.innerHTML='<h1 class="hd-home-title">Estoque</h1><p class="hd-home-sub">RELATÓRIO_ERICA.xlsx</p>';
     document.getElementById('th').hidden=false;
     if(!_bootedE && _dE){ _bootedE=true; prepararEstoqueE(_dE).then(()=>bootE(_dE)); }
+  } else if(s==='g'){
+    ttl.innerHTML='<h1 class="hd-home-title">Visão gerencial</h1><p class="hd-home-sub">Lojão dos Tratores &amp; LL Tratores · indicadores</p>';
+    document.getElementById('th').hidden=false;
+    if(window.bootG) window.bootG();
   } else if(s==='p'){
     ttl.innerHTML='<h1 class="hd-home-title">Pedidos</h1><p class="hd-home-sub">LT &amp; LL · '+(window._periodoPedidos?window._periodoPedidos():'')+'</p>';
     document.getElementById('th').hidden=false;
@@ -1435,7 +1482,7 @@ async function entrar(){
     _dE=await carregarErica();
     let sec=''; try{ sec=localStorage.getItem('lt-sec')||''; }catch(e){}
     abrirDashboard();
-    if(sec==='e'||sec==='p') openSection(sec);
+    if(sec==='e'||sec==='p'||sec==='g') openSection(sec);
   }catch(e){ console.warn('[restore]',e); }
   finally{ if(b){b.disabled=false;b.textContent='Entrar';} }
 })();
@@ -1876,7 +1923,7 @@ async function importarItens(input, lojaHint){
       if(st) st.textContent='Enviando... '+ok+'/'+valid.length;
     }
     if(lbl) lbl.className='imp-card done';
-    registrarImport('itens',loja,file.name,valid.length);
+    registrarImport('itens',loja,file.name,valid.length); window._ITG=null; window._itgLoad=null;
     if(st){st.textContent=valid.length+' itens sincronizados!';st.className='imp-status ok';}
     _itensDash=null; // força recarregamento via RPC na próxima visita ao tab
     await carregarItensSupa(); renderIfItens();
@@ -6783,6 +6830,172 @@ document.addEventListener('click',e=>{
 window.renderTmEvol=renderTmEvol;
 
 window.renderBarsRaw=renderBarsRaw; window.parseDur=parseDur; window.fmtMin=fmtMin; window.renderTemposTab=renderTemposTab;
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════
+// VISÃO GERENCIAL — cards com os principais indicadores (pedidos, tempos, estoque, WMS) e filtros escondidos atrás do botão
+// Mesmas regras dos painéis: lead = emissão → fim da separação; separação = início → fim; produtos distintos = cód. de produto;
+// itens por pedido = linhas de item ÷ pedidos com itens; estoque (negativo, sem preço, sem locação, no WMS) = mesmas contas da seção Estoque.
+// ═══════════════════════════════════════════════════════
+(function(){
+const $=id=>document.getElementById(id), N=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:0}), N1=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nrm=x=>String(x??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+const gP=()=>(typeof _dP!=='undefined'&&_dP&&_dP.rows)||[], gE=()=>(typeof _dE!=='undefined'?_dE:null);
+const F={}; // filtros ativos { chave: valor }
+const FILTROS=[
+ ['Pedidos',[['loja','Filial','s'],['mes','Mês','s'],['de','Emitido de','d'],['ate','Emitido até','d'],['tp','Tipo de pedido','s'],['tp2','Tipo 2','s'],['sit','Situação','s'],['cli','Cliente','t','g-cli'],['vend','Vendedor','s'],['conf','Conferente','s'],['urg','Urgente','y'],['canc','Cancelados','c'],['wms','WMS','w'],['opw','Operador WMS','s']]],
+ ['Itens vendidos (limita os pedidos e os itens)',[['imarca','Marca','s'],['fam','Família','s'],['lin','Linha','s'],['prod','Produto (cód. ou descr.)','t','g-prod']]],
+ ['Estoque (negativos, sem preço, sem locação e WMS)',[['emarca','Marca','s'],['eloc','Locação (rua/endereço)','t','g-loc'],['eprod','Produto (cód. ou descr.)','t','g-eprod']]]];
+const NOMES={}; FILTROS.forEach(g=>g[1].forEach(f=>NOMES[f[0]]=f[1]));
+// linha/família do produto (mesma regra do banco: 1ª palavra; "TRAVA DO PINO", "FILTRO DE AR" ficam compostas)
+function linhaProd(d){
+  if(!d||!String(d).trim()) return 'SEM DESCRIÇÃO';
+  let t=String(d).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[º°ª]/g,'').replace(/[.,;:()"'*\-+_#!?]+/g,' ').replace(/\s+/g,' ').trim().split(' ');
+  let t1=t[0]||'', t2=t[1]||'', t3=t[2]||'';
+  if(!t1||/[0-9]/.test(t1)||t1.length<2||['COD','CODIGO','REF','REFERENCIA','ITEM','PECA','PCA','NR','N'].includes(t1)) return 'OUTROS';
+  t1=({JG:'JOGO',CJ:'CONJUNTO',CONJ:'CONJUNTO',PARAF:'PARAFUSO',ROLAM:'ROLAMENTO',RETENT:'RETENTOR'})[t1]||t1;
+  if(['DE','DO','DA','DOS','DAS'].includes(t2)&&t3.length>=2&&!/[0-9/]/.test(t3)) return t1+' '+(t2==='DOS'?'DO':t2==='DAS'?'DA':t2)+' '+t3;
+  return t1;
+}
+const famProd=d=>linhaProd(d).split(' ')[0];
+// ── dados ──
+async function carregarItensGer(){
+  if(window._ITG) return window._ITG; if(window._itgLoad) return window._itgLoad;
+  window._itgLoad=(async()=>{
+    let all=[],from=0;
+    for(;;){
+      const {data,error}=await _sb.from('itens').select('pedido_id,loja,cod_produto,descricao,marca,qtde').order('loja').order('pedido_id').order('seq').range(from,from+999);
+      if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000;
+    }
+    const m=new Map();
+    all.forEach(r=>{ const k=r.loja+'|'+r.pedido_id; const a=m.get(k)||[]; a.push({c:String(r.cod_produto||'').trim(),d:r.descricao||'',m:r.marca||'',q:Number(r.qtde)||0,l:linhaProd(r.descricao),f:famProd(r.descricao)}); m.set(k,a); });
+    window._ITG={map:m,n:all.length}; return window._ITG;
+  })().catch(e=>{ window._itgLoad=null; throw e; });
+  return window._itgLoad;
+}
+const hhmm=s=>{ const m=String(s||'').match(/^(\d+):(\d{2})$/); return m?+m[1]*60+ +m[2]:null; };
+const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null;
+const pq=(a,p)=>{ if(!a.length) return null; const t=a.slice().sort((x,y)=>x-y); return t[Math.min(t.length-1,Math.floor(t.length*p))]; };
+const fm=v=>v==null?'—':window.fmtMin(v);
+// ── filtros ──
+function opcoes(){
+  const P=gP(), IT=window._ITG?window._ITG.map:null, E=((gE()||{}).sp||[]);
+  const uniq=(a)=>[...new Set(a.filter(x=>x!==''&&x!=null))].sort((x,y)=>String(x).localeCompare(String(y),'pt-BR',{numeric:true}));
+  const o={loja:['LT','LL'],mes:uniq(P.map(r=>r.mes)).reverse(),tp:uniq(P.map(r=>r.tp)),tp2:uniq(P.map(r=>r.tp2)),sit:uniq(P.map(r=>r.sit)),vend:uniq(P.map(r=>r.vend)),conf:uniq(P.map(r=>r.conf)),
+    opw:uniq((window._WMS||[]).map(w=>String(w.operador||'').trim())),emarca:uniq(E.map(r=>r.m))};
+  if(IT){ const im=new Set(),fa=new Set(),li=new Set(); IT.forEach(a=>a.forEach(x=>{ if(x.m) im.add(x.m); fa.add(x.f); li.add(x.l); })); o.imarca=uniq([...im]); o.fam=uniq([...fa]); o.lin=uniq([...li]); }
+  else{ o.imarca=[];o.fam=[];o.lin=[]; }
+  return o;
+}
+function desenharFiltros(){
+  const fp=$('g-fp'); if(!fp) return; const O=opcoes();
+  const opt=(arr,v)=>'<option value="">Todos</option>'+arr.map(x=>`<option value="${esc(x)}"${String(v)===String(x)?' selected':''}>${esc(x)}</option>`).join('');
+  const fixo={y:['Sim','Não'],c:['Somente ativos','Somente cancelados'],w:['Somente no WMS (LL)','Fora do WMS','Só no WMS (sem pedido no ERP)']};
+  fp.innerHTML=FILTROS.map(([tit,fs])=>`<fieldset><legend>${esc(tit)}</legend><div class="g-grid">`+fs.map(([k,l,t,ac])=>{
+    const v=F[k]||''; let c;
+    if(t==='d') c=`<input type="date" data-gk="${k}" value="${esc(v)}">`;
+    else if(t==='t') c=`<input type="text" data-gk="${k}" data-ac="${ac}" value="${esc(v)}" placeholder="digite para filtrar…" autocomplete="off">`;
+    else if(t==='s') c=`<select data-gk="${k}">${opt(O[k]||[],v)}</select>`;
+    else c=`<select data-gk="${k}">${opt(fixo[t],v)}</select>`;
+    return `<label class="fl">${esc(l)}${c}</label>`; }).join('')+`</div></fieldset>`).join('')+
+   `<div class="g-fp-ft"><button class="bt" type="button" data-gclr>🗑️ Limpar todos os filtros</button><span style="color:var(--mu);font-size:.74rem">Os filtros de itens limitam os pedidos aos que têm esses itens. Os filtros de estoque valem só para os indicadores de estoque. Filial vale para tudo.</span></div>`;
+}
+function ativos(){ return Object.keys(F).filter(k=>F[k]); }
+function resumoAtivos(){
+  const a=ativos(), n=a.length;
+  $('g-fn').textContent=n?'('+n+')':''; $('g-fbtn').classList.toggle('on',!$('g-fp').hidden||n>0); $('g-clr').hidden=!n;
+  $('g-act').innerHTML=n?'Filtros ativos: '+a.map(k=>`<span class="g-chip"><b>${esc(NOMES[k])}</b>: ${esc(F[k])}</span>`).join(''):'';
+}
+// ── cálculo ──
+function calcular(){
+  const P0=gP(), ITm=window._ITG?window._ITG.map:null, W=window._WMS||[];
+  const wmsIds=new Set(W.filter(w=>w.pedido_id).map(w=>String(w.pedido_id)));
+  const noWms=r=>!!r._soWms||(r.loja==='LL'&&wmsIds.has(String(r.id)));
+  const opIds=F.opw?new Set(W.filter(w=>String(w.operador||'').trim()===F.opw&&w.pedido_id).map(w=>String(w.pedido_id))):null;
+  const temFiltroItem=!!(F.imarca||F.fam||F.lin||F.prod);
+  const pq0=nrm(F.prod), itOk=x=>(!F.imarca||x.m===F.imarca)&&(!F.fam||x.f===F.fam)&&(!F.lin||x.l===F.lin)&&(!pq0||nrm(x.c+' '+x.d).includes(pq0));
+  const cliQ=nrm(F.cli);
+  const P=P0.filter(r=>{
+    if(F.loja&&r.loja!==F.loja) return false; if(F.mes&&r.mes!==F.mes) return false;
+    if(F.de&&String(r.dia)<F.de) return false; if(F.ate&&String(r.dia)>F.ate) return false;
+    if(F.tp&&r.tp!==F.tp) return false; if(F.tp2&&r.tp2!==F.tp2) return false; if(F.sit&&r.sit!==F.sit) return false;
+    if(cliQ&&!nrm(r.cli).includes(cliQ)) return false; if(F.vend&&r.vend!==F.vend) return false; if(F.conf&&r.conf!==F.conf) return false;
+    if(F.urg&&(F.urg==='Sim')!==!!r.urg) return false;
+    if(F.canc&&(F.canc==='Somente cancelados')!==!!r.canc) return false;
+    if(F.wms==='Somente no WMS (LL)'&&!noWms(r)) return false; if(F.wms==='Fora do WMS'&&noWms(r)) return false; if(F.wms==='Só no WMS (sem pedido no ERP)'&&!r._soWms) return false;
+    if(opIds&&!opIds.has(String(r.id))) return false;
+    if(temFiltroItem){ const a=ITm&&ITm.get(r.loja+'|'+r.id); if(!a||!a.some(itOk)) return false; }
+    return true; });
+  // itens dos pedidos filtrados
+  let linhas=0,pecas=0,pedComIt=0; const prods=new Set(); let itensOk=!!ITm;
+  if(ITm) P.forEach(r=>{ const a=ITm.get(r.loja+'|'+r.id); if(!a) return; const b=temFiltroItem?a.filter(itOk):a; if(!b.length) return; pedComIt++; linhas+=b.length; b.forEach(x=>{ pecas+=x.q; if(x.c) prods.add(x.c); }); });
+  // tempos (mesmas contas da aba Tempo Médio)
+  const LIM=2880, lead=[], sep=[];
+  P.forEach(r=>{ const ld=window.parseDur(r.dia,r.hr_emissao,r.dt_sep_fim||r.dia,r.hr_sep_fim); if(ld!=null&&ld>=0&&ld<=LIM) lead.push(ld);
+    const t2=hhmm(r.tempo_sep)??window.parseDur(r.dt_sep_ini||r.dia,r.hr_sep_ini,r.dt_sep_fim||r.dia,r.hr_sep_fim); if(t2!=null&&t2>=0&&t2<=LIM) sep.push(t2); });
+  // estoque
+  const D=gE()||{}, SW=window._SW, eq=nrm(F.eprod), lq=nrm(F.eloc);
+  const eOk=r=>(!F.loja||r.lj===F.loja)&&(!F.emarca||r.m===F.emarca)&&(!lq||nrm(r.l).includes(lq))&&(!eq||nrm((r.c||'')+' '+(r.r||'')+' '+(r.d||'')).includes(eq));
+  const E=(D.sp||[]).filter(eOk), SL=(D.sl||[]).filter(eOk), NG=(D.neg||[]).filter(eOk), soW=(D.wmsOnly||[]).filter(eOk);
+  const lojasW=SW?[...SW.lojas].filter(l=>!F.loja||l===F.loja).sort():[];
+  const comW=E.filter(r=>lojasW.includes(r.lj)), wItens=comW.filter(r=>r.wq>0).length+soW.length, wPcs=comW.reduce((x,r)=>x+(r.wq||0),0)+soW.reduce((x,r)=>x+(r.wq||0),0);
+  const porLj=(a,f)=>['LT','LL'].map(l=>l+' '+N(a.filter(r=>(f?f(r):r.loja)===l).length)).join(' · ');
+  const pWms=P.filter(noWms), pCas=pWms.filter(r=>!r._soWms).length;
+  return {P,linhas,pecas,pedComIt,prods,itensOk,lead,sep,E,SL,NG,soW,comW,wItens,wPcs,lojasW,porLj,pWms,pCas,temFiltroItem,estOk:!!(D._estoqueOk)};
+}
+function desenhar(){
+  const R=calcular(), el=$('g-kp'); if(!el) return;
+  const k=(cls,l,v,s)=>`<div class="k ${cls}"><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`;
+  const P=R.P, nCanc=P.filter(r=>r.canc).length, nSo=P.filter(r=>r._soWms).length, semIt=R.itensOk?P.length-R.pedComIt-nSo:null;
+  const it=R.itensOk, es=R.estOk;
+  const sub=(a,txt)=>a.length?txt:'';
+  el.innerHTML=
+   `<div class="g-sec">Pedidos</div>`+
+   k('','📋 Total de pedidos',N(P.length),`${R.porLj(P)}${nCanc?' · '+N(nCanc)+' cancelados':''}${nSo?' · '+N(nSo)+' só no WMS':''}`)+
+   k('','🧩 Produtos distintos',it?N(R.prods.size):'—',it?`${N(R.linhas)} linhas de item · ${N(R.pecas)} peças${R.temFiltroItem?' · só os itens filtrados':''}`:'itens não carregados')+
+   k('','📈 Média de itens por pedido',it&&R.pedComIt?N1(R.linhas/R.pedComIt):'—',it?`linhas de item ÷ ${N(R.pedComIt)} pedidos com itens · ${R.pedComIt?N1(R.pecas/R.pedComIt):'—'} peças por pedido${semIt>0?' · '+N(semIt)+' pedidos sem itens':''}`:'itens não carregados')+
+   k('tm','⏱️ Média lead time total',fm(avg(R.lead)),`emissão → fim da separação · mediana ${fm(pq(R.lead,.5))} · 90% até ${fm(pq(R.lead,.9))} · ${N(R.lead.length)} pedidos`)+
+   k('tm','🛠️ Média tempo de separação',fm(avg(R.sep)),`início → fim da separação · mediana ${fm(pq(R.sep,.5))} · 90% até ${fm(pq(R.sep,.9))} · ${N(R.sep.length)} pedidos`)+
+   `<div class="g-sec">Estoque e WMS</div>`+
+   k('neg','⚠️ Itens negativos',es?N(R.NG.length):'—',es?`${N(Math.abs(R.NG.reduce((x,r)=>x+r.s,0)))} peças negativas · ${R.porLj(R.NG,r=>r.lj)}`:'estoque não carregado')+
+   k('est','🏷️ Itens sem preço',es?N(R.E.filter(r=>!(r.cu>0)).length):'—',es?`custo zerado no ERP · de ${N(R.E.length)} itens · ${R.porLj(R.E.filter(r=>!(r.cu>0)),r=>r.lj)}`:'estoque não carregado')+
+   k('est','📍 Itens sem locação',es?N(R.SL.length):'—',es?`com saldo no ERP e sem endereço · ${N(R.SL.reduce((x,r)=>x+r.s,0))} peças · ${R.porLj(R.SL,r=>r.lj)}`:'estoque não carregado')+
+   k('est','🏬 Itens no WMS',es&&R.lojasW.length?N(R.wItens):'—',es?(R.lojasW.length?`${N(R.wPcs)} peças · filial ${R.lojasW.join(' + ')}${R.soW.length?' · '+N(R.soW.length)+' só no WMS':''}`:(F.loja?'a filial '+F.loja+' não tem WMS':'sem dados do WMS importados')):'estoque não carregado')+
+   k('est','📦 Pedidos no WMS',N(R.pWms.length),`${N(R.pCas)} ligados a pedido do ERP · ${N(R.pWms.length-R.pCas)} só no WMS`);
+  const ft=$('g-ft'); if(ft){ const L=window._IMPLOG||[], f=(fo,lj)=>{ const r=L.find(x=>x.fonte===fo&&(x.loja||'')===(lj||'')); return r?(window._impFmtG?window._impFmtG(r.importado_em):''):''; };
+    ft.innerHTML=L.length?'🕒 Última atualização dos dados — Pedidos: '+['LT','LL'].map(l=>l+' '+(f('pedidos',l)||'—')).join(' · ')+' · Itens: '+['LT','LL'].map(l=>l+' '+(f('itens',l)||'—')).join(' · ')+' · Estoque ERP: '+['LT','LL'].map(l=>l+' '+(f('estoque',l)||'—')).join(' · ')+' · Estoque negativo: '+['LT','LL'].map(l=>l+' '+(f('neg',l)||'—')).join(' · ')+' · Estoque WMS: '+['LT','LL'].map(l=>l+' '+(f('ewms',l)||'—')).join(' · '):''; }
+  resumoAtivos();
+}
+// ── eventos ──
+let _t=null; const agenda=()=>{ clearTimeout(_t); _t=setTimeout(desenhar,120); };
+document.addEventListener('click',e=>{
+  if(e.target.closest('#g-fbtn')){ const fp=$('g-fp'); fp.hidden=!fp.hidden; $('g-fbtn').setAttribute('aria-expanded',String(!fp.hidden)); resumoAtivos(); return; }
+  if(e.target.closest('#g-clr')||e.target.closest('[data-gclr]')){ Object.keys(F).forEach(k=>delete F[k]); desenharFiltros(); desenhar(); }
+});
+function lerCampo(e){ const el=e.target.closest&&e.target.closest('[data-gk]'); if(!el) return; const v=String(el.value||'').trim(); if(v) F[el.dataset.gk]=v; else delete F[el.dataset.gk]; agenda(); }
+document.addEventListener('change',lerCampo); document.addEventListener('input',lerCampo);
+// autocompletar
+window._acProv=window._acProv||{};
+window._acProv['g-cli']=()=>{ const m=new Map(); (gP()).forEach(r=>{ if(r.cli) m.set(r.cli,(m.get(r.cli)||0)+1); }); return [...m].map(([c,n])=>({v:c,s:n+' pedido(s)'})); };
+window._acProv['g-prod']=()=>{ const m=new Map(); if(window._ITG) window._ITG.map.forEach(a=>a.forEach(x=>{ if(x.c&&!m.has(x.c)) m.set(x.c,x.d); })); return [...m].map(([c,d])=>({v:c,s:d})); };
+window._acProv['g-eprod']=()=>{ const o=[]; (((gE()||{}).sp||[])).forEach(r=>{ o.push({v:r.c,s:(r.d||'')+(r.m?' · '+r.m:'')}); if(r.r&&r.r!==r.c) o.push({v:r.r,s:'Cód. Danfe · '+(r.d||'')}); }); return o; };
+window._acProv['g-loc']=()=>{ const m=new Map(); (((gE()||{}).sp||[])).forEach(r=>{ if(r.l) m.set(r.l,(m.get(r.l)||0)+1); }); return [...m].map(([l,n])=>({v:l,s:n+' item(ns)'})); };
+window._impFmtG=t=>{ const d=new Date(t); return isNaN(d)?'':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',''); };
+// ── abertura da seção ──
+let _boot=0;
+window.bootG=async function(){
+  const id=++_boot, el=$('g-kp'); if(el&&!el.children.length) el.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando indicadores…</span>';
+  const tarefas=[];
+  tarefas.push(carregarItensGer().catch(e=>console.warn('[gerencial: itens]',e)));
+  tarefas.push((window._WMS?Promise.resolve():(window.carregarWms?carregarWms().catch(()=>[]):Promise.resolve())));
+  if(gE()&&!gE()._estoqueOk) tarefas.push(prepararEstoqueE(gE()).catch(e=>console.warn('[gerencial: estoque]',e)));
+  if(!window._IMPLOG&&window.atualizarCarimbosImport) tarefas.push(atualizarCarimbosImport());
+  desenharFiltros(); desenhar();               // mostra já o que está carregado
+  await Promise.all(tarefas); if(id!==_boot) return;
+  desenharFiltros(); desenhar();
+};
 })();
 </script>
 </body>
