@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-1707">
+<meta name="version" content="20261124-2106">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -656,6 +656,38 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
         </div>
         <div id="imp-estoque-status" class="imp-status" style="display:none"></div>
       </div>
+      <!-- Estoque negativo import cards -->
+      <div id="imp-neg-upload-area">
+        <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
+          <span style="font-size:.8rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Estoque negativo</span>
+          <span style="font-size:.7rem;color:var(--mu);background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:.1rem .4rem">ESTOQUENEGATIVOLT + ESTOQUENEGATIVOLL · substitui a lista anterior da filial</span>
+        </div>
+        <div class="imp-cards">
+          <label class="imp-card" id="lbl-neg-lt">
+            <input type="file" id="imp-neg-lt" accept=".xlsx,.xls" onchange="importarEstoqueNeg(this,'LT')">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">⚠️</span>
+              <div>
+                <strong>Estoque negativo LT</strong>
+                <small id="nm-neg-lt">Nenhum arquivo selecionado</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar</span>
+          </label>
+          <label class="imp-card" id="lbl-neg-ll">
+            <input type="file" id="imp-neg-ll" accept=".xlsx,.xls" onchange="importarEstoqueNeg(this,'LL')">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">⚠️</span>
+              <div>
+                <strong>Estoque negativo LL</strong>
+                <small id="nm-neg-ll">Nenhum arquivo selecionado</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar</span>
+          </label>
+        </div>
+        <div id="imp-neg-status" class="imp-status" style="display:none"></div>
+      </div>
       <!-- Estoque WMS import cards -->
       <div id="imp-ewms-upload-area">
         <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
@@ -997,6 +1029,10 @@ async function prepararEstoqueE(D){
       rows.forEach(r=>{ const w=wmsDe(r.lj,r.r,r.s); r.wq=w.q; r.wx=w.tem?w.st:'Sem dados do WMS'; r.wp=w.pos; });
       D.wmsOnly=wmsSemErp(rows).map(o=>({c:o.cw?'(WMS) '+o.cw:'—',r:o.ref,lj:o.lj,d:o.d,m:'',l:'',s:0,w:0,cv:'',pv:0,cu:0,wq:o.q,wx:WX[4],wp:[...o.pos].join(', '),_soWms:true}));
     }catch(e){ console.warn('[saldo WMS]',e); D.wmsOnly=[]; }
+    // estoque negativo (relatório do ERP) — cruzado com o saldo do WMS pelo Cód. Danfe
+    try{ const NG=await carregarEstoqueNeg();
+      D.neg=NG.map(r=>{ const w=wmsDe(r.loja,r.cod,r.saldo); return {c:r.cod_produto||r.cod,r:r.cod,lj:r.loja,d:r.descricao||'',m:r.marca||'',l:r.locacao||'',s:Number(r.saldo)||0,cu:Number(r.custo)||0,uc:Number(r.ult_custo)||0,w:Number(r.peso)||0,cv:r.conversao||'',fb:r.num_fabrica||'',im:r.importado_em,em:r.emitido_em,wq:w.tem?w.q:null,wp:w.pos||''}; });
+    }catch(e){ console.warn('[estoque negativo]',e); D.neg=[]; }
     D._estoqueOk = true;
   }catch(e){
     console.error('[prepararEstoqueE]', e); _estoque=null;
@@ -1526,7 +1562,7 @@ async function renderImportArea(){
     area.innerHTML = `<p class="imp-no-admin">🔒 Apenas administradores podem importar planilhas.</p>`;
   }
   // Mostra/oculta cards de estoque, itens e erica conforme admin
-  ['imp-itens-upload-area','imp-estoque-upload-area','imp-erica-upload-area'].forEach(id=>{
+  ['imp-itens-upload-area','imp-estoque-upload-area','imp-neg-upload-area','imp-erica-upload-area'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.style.display=admin?'':'none';
   });
 }
@@ -2498,11 +2534,11 @@ function gfPass(r,kind,...ex){
 }
 function gfRows(){
  const f=(a,k)=>(a||[]).filter(r=>gfPass(r,k));
- return {sp:f(D.sp,'est'),sp_all:f(D.sp_all||D.sp,'est'),sl:f(D.sl,'est'),sp_erica:f(D.sp_erica,'est'),dv:f(D.dv,'dv'),inv:f(D.inv,'inv')};
+ return {neg:f(D.neg,'est'),sp:f(D.sp,'est'),sp_all:f(D.sp_all||D.sp,'est'),sl:f(D.sl,'est'),sp_erica:f(D.sp_erica,'est'),dv:f(D.dv,'dv'),inv:f(D.inv,'inv')};
 }
 function comFiltroGeral(fn){
  if(!nGF()){window._DFULL=null;return fn();}
- const f=gfRows(),ks=['sp','sp_all','sl','dv','inv','sp_erica'],bD={};
+ const f=gfRows(),ks=['sp','sp_all','sl','dv','inv','sp_erica','neg'],bD={};
  ks.forEach(k=>{bD[k]=D[k];D[k]=f[k]});
  window._DFULL=bD;
  try{return fn()}finally{ks.forEach(k=>D[k]=bD[k]);window._DFULL=null}
@@ -2533,6 +2569,7 @@ function renderGeral(){
  else if(cur==='end'){comFiltroGeral(bootEnd)}
  else if(cur==='wms'){comFiltroGeral(bootWmsE)}
  else if(cur==='pwms'){comFiltroGeral(bootPosW)}
+ else if(cur==='neg'){comFiltroGeral(bootNeg)}
  else if(TB[cur]){S[cur].pg=0;render()}
 }
 function gfSet(k,v){GF[k]=GF[k]===v?'':v;renderGeral()}
@@ -2654,7 +2691,7 @@ function overview(){
   ['Valor no WMS · '+lw,BRL(wV),'saldo WMS × custo do ERP'+(soW.length?' · '+N(soW.length)+' itens só no WMS sem custo':'')],
   ['Diferença WMS − ERP · '+lw,sgn(wV-eVw,BRL),sgn(wP-ePw,N)+' peças · '+N(nDif)+' itens diferentes']]
   :[['Estoque WMS','—',GF.lj?'a filial '+GF.lj+' não tem WMS':'sem dados do WMS importados']];
- $('#e-kp').innerHTML=kpiHtml([...kE,...kW,['Itens sem preço',N(eSemCu),'custo zerado (estoques)'],['Saldo sem locação',N(D.sl.length),'itens (estoques)'],['Valor em divergência',BRL(sum(D.dv,'v')),N(D.dv.length)+' itens · relatório ERICA']]);
+ $('#e-kp').innerHTML=kpiHtml([...kE,...kW,['Itens sem preço',N(eSemCu),'custo zerado (estoques)'],['Saldo sem locação',N(D.sl.length),'itens (estoques)'],['Itens com saldo negativo',N((D.neg||[]).length),N(Math.abs(sum(D.neg||[],'s')))+' peças · '+BRL(Math.abs((D.neg||[]).reduce((x,r)=>x+r.s*r.cu,0)))+' · relatório do ERP'],['Valor em divergência',BRL(sum(D.dv,'v')),N(D.dv.length)+' itens · relatório ERICA']]);
  // ── Dashboard Itens sem preço ───────────────────────────────
  const sp=D.sp;
  const spSaldo=sum(sp,'s'),spSemLoc=sp.filter(r=>!r.l).length,spSemCv=sp.filter(r=>!r.cv).length;
@@ -2697,6 +2734,19 @@ function overview(){
     </div>
    </div>
   </article>`+
+  (()=>{ // ── Estoque negativo (relatório do ERP) ──
+    const NG=D.neg||[], dtN=t=>t?new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',''):'—';
+    const lojasN=[...new Set(NG.map(r=>r.lj))].sort();
+    if(!NG.length) return `<article class="pn w2" style="border-left:4px solid var(--ok)"><h3>⚠️ Estoque negativo <small style="font-weight:400;color:var(--mu)">— relatório "Produtos com saldo negativo" do ERP</small></h3><p style="color:var(--mu);font-size:.85rem;margin:0">${(window._NEG||[]).length?'Nenhum item negativo para o filtro escolhido.':'Nenhuma planilha de estoque negativo importada ainda. Importe na <b>tela inicial</b> (bloco <b>Estoque negativo</b>, botões LT e LL).'}</p></article>`;
+    const pcs=Math.abs(sum(NG,'s')), val=Math.abs(NG.reduce((x,r)=>x+r.s*r.cu,0)), semCu=NG.filter(r=>!(r.cu>0)).length, comW=NG.filter(r=>r.wq>0).length;
+    const porLj=lojasN.map(l=>{const a=NG.filter(r=>r.lj===l);return l+': '+N(a.length)+' itens · '+N(Math.abs(sum(a,'s')))+' pç';}).join(' · ');
+    const quando=lojasN.map(l=>{const t=NG.filter(r=>r.lj===l).reduce((m,r)=>r.im>m?r.im:m,'');return l+' '+dtN(t);}).join(' · ');
+    return `<article class="pn w2" style="border-left:4px solid var(--bad)"><h3>⚠️ Estoque negativo <small style="font-weight:400;color:var(--mu)">— relatório do ERP · importado ${quando}</small></h3>`+
+     `<div class="kp" style="margin-bottom:.6rem">${kpiHtml([['Itens com saldo negativo',N(NG.length),porLj],['Peças negativas','−'+N(pcs),'soma dos saldos negativos'],['Valor negativo',BRL(val),'saldo × custo líquido · '+N(semCu)+' sem custo'],['WMS com saldo',N(comW),'itens negativos no ERP e com peças no WMS']])}</div>`+
+     `<div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Filial</th><th>Cód. Danfe</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th>Locação</th><th style="text-align:center">Saldo ERP</th><th style="text-align:center">Valor</th><th style="text-align:center">WMS</th></tr></thead><tbody>`+
+     NG.slice().sort((a,b)=>a.s-b.s||a.cu-b.cu).slice(0,15).map(r=>`<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td>${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${r.wq==null?'—':N(r.wq)}</td></tr>`).join('')+
+     `</tbody></table></div><div style="margin-top:.5rem"><button class="bt" data-go="neg" style="font-size:.8rem">Ver todos os ${N(NG.length)} itens →</button></div></article>`;
+  })()+
   (()=>{ if(!window._SW) return ''; // ── Estoque WMS × ERP ──
     const base=(D.sp||[]).filter(r=>(!GF.lj||r.lj===GF.lj)), so=(D.wmsOnly||[]).filter(r=>gfPass(r,'est')), lojasW=[...window._SW.lojas].filter(l=>!GF.lj||l===GF.lj);
     if(!lojasW.length) return '';
@@ -2721,16 +2771,17 @@ window._rerenderE=()=>go(cur);
 }
 function go(tab){
  cur=tab;try{history.replaceState(null,'','#'+tab);localStorage.setItem('lt-tab-e',tab)}catch(e){}
- const extraTabs=[['ov','Visão geral'],...Object.entries(TB).flatMap(([k,t])=>k==='inv'?[[k,t.n],['wms','Estoque WMS'],['pwms','Posições WMS']]:[[k,t.n]]),['end','Endereços'],['ce','Controle de Estoque']];
+ const extraTabs=[['ov','Visão geral'],...Object.entries(TB).flatMap(([k,t])=>k==='inv'?[[k,t.n],['wms','Estoque WMS'],['pwms','Posições WMS']]:[[k,t.n]]),['neg','Saldo negativo'],['end','Endereços'],['ce','Controle de Estoque']];
  $('#e-tabs').innerHTML=extraTabs.map(([k,l])=>`<button role="tab" type="button" data-tab="${k}" aria-selected="${k==tab}">${l}</button>`).join('');
- const ovw=tab=='ov',ce=tab=='ce',en=tab=='end',wm=tab=='wms',pw=tab=='pwms';
- $('#e-fb').hidden=ovw||ce;$('#e-tb').hidden=ovw||ce||en||wm||pw;
+ const ovw=tab=='ov',ce=tab=='ce',en=tab=='end',wm=tab=='wms',pw=tab=='pwms',ng=tab=='neg';
+ $('#e-fb').hidden=ovw||ce;$('#e-tb').hidden=ovw||ce||en||wm||pw||ng;
  if(!$('#e-gf').childElementCount)buildFiltrosGerais();else gfSync();
  if(ovw){$('#e-tb').innerHTML='';$('#e-fb').innerHTML='';return comFiltroGeral(overview)}
  if(ce){$('#e-tb').innerHTML='';$('#e-fb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootCE)}
  if(en){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootEnd)}
  if(wm){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootWmsE)}
  if(pw){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootPosW)}
+ if(ng){$('#e-tb').innerHTML='';$('#e-kp').innerHTML='';return comFiltroGeral(bootNeg)}
  buildFilters();
  $('#ch').innerHTML=TB[tab].ch.map((c,i)=>`<article class="pn${c.heat||c.type=='pareto'?' w2':''}" data-tab="${tab}"><h3>${c.t}${c.heat?'<span class="seg"><button type="button" data-hm="sku">Endereços</button><button type="button" data-hm="pcs">Peças</button></span>':''}</h3><div id="c${i}"></div></article>`).join('');
  render();
@@ -2752,6 +2803,51 @@ function parseLoc(l){
 }
 let _giroLoad=null;
 function giroDe(r){const G=window._giro;if(!G)return null;return G.get(r.lj+'|'+r.c)||[0,0,null]}
+
+// ═══════════════════════════════════════════════════════
+// SALDO NEGATIVO — itens que o ERP aponta com saldo < 0 (planilhas ESTOQUENEGATIVOLT / ESTOQUENEGATIVOLL)
+const NF={cu:'',wm:'',loc:''};
+function bootNeg(){
+ const kp=$('#e-kp'), ch=$('#ch');
+ if(!window._NEG){ kp.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando estoque negativo…</span>'; ch.innerHTML=''; return; }
+ const low=v=>String(v??'').toLowerCase();
+ const dt=t=>t?new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',',''):'—';
+ const A=D.neg||[];
+ const passN=(r,ex)=>(ex==='cu'||!NF.cu||(NF.cu==='Sem custo')===!(r.cu>0))&&(ex==='wm'||!NF.wm||(NF.wm==='WMS com saldo'?r.wq>0:NF.wm==='WMS zerado'?(r.wq!=null&&r.wq<=0):r.wq==null));
+ const R=A.filter(r=>passN(r));
+ const op=(v,l,s)=>`<option value="${esc(v)}"${s===v?' selected':''}>${esc(l)}</option>`;
+ const nNF=Object.values(NF).filter(Boolean).length;
+ $('#e-fb').hidden=false;
+ $('#e-fb').innerHTML=
+  `<label class="fl">Custo<select class="negsel" data-k="cu">${op('','Todos',NF.cu)}${op('Com custo','Com custo',NF.cu)}${op('Sem custo','Sem custo (valor R$ 0)',NF.cu)}</select></label>`+
+  `<label class="fl">Saldo no WMS<select class="negsel" data-k="wm">${op('','Todos',NF.wm)}${op('WMS com saldo','WMS com saldo (ERP negativo, peças no WMS)',NF.wm)}${op('WMS zerado','WMS zerado',NF.wm)}${op('Sem dados WMS','Sem dados do WMS',NF.wm)}</select></label>`+
+  `<div class="fa"><button id="neg-clr" class="bt" type="button"${nNF?'':' disabled'}>${nNF?`Limpar (${nNF})`:'Limpar'}</button></div>`;
+ if(!(window._NEG||[]).length){ kp.innerHTML=''; ch.innerHTML=`<article class="pn w2"><h3>⚠️ Saldo negativo</h3><p style="color:var(--mu)">Nenhuma planilha de estoque negativo importada ainda. Importe na <b>tela inicial</b> (bloco <b>Estoque negativo</b>), escolhendo a filial: <b>ESTOQUENEGATIVOLT</b> (LT) e <b>ESTOQUENEGATIVOLL</b> (LL).</p></article>`; return; }
+ const pcs=Math.abs(sum(R,'s')), val=Math.abs(R.reduce((x,r)=>x+r.s*r.cu,0)), semCu=R.filter(r=>!(r.cu>0)).length;
+ const comW=R.filter(r=>r.wq>0).length, lojas=[...new Set((window._NEG||[]).map(r=>r.loja))].sort();
+ const ult=(l)=>(window._NEG||[]).filter(r=>r.loja===l).reduce((m,r)=>r.importado_em>m?r.importado_em:m,'');
+ const emi=(l)=>(window._NEG||[]).filter(r=>r.loja===l).reduce((m,r)=>(r.emitido_em||'')>m?r.emitido_em:m,'');
+ const lj=['LT','LL'].filter(l=>R.some(r=>r.lj===l)||lojas.includes(l));
+ kp.innerHTML=kpiHtml([
+  ['Itens com saldo negativo',N(R.length),lj.map(l=>l+': '+N(R.filter(r=>r.lj===l).length)).join(' · ')],
+  ['Peças negativas','−'+N(pcs),'soma dos saldos (ERP)'],
+  ['Valor negativo',BRL(val),'saldo × custo líquido'],
+  ['Sem custo',N(semCu),'itens com custo zerado no relatório'],
+  ['Com saldo no WMS',N(comW),'ERP negativo e peças no WMS'+(window._SW?'':' · WMS não carregado')],
+  ['Última importação',lojas.map(l=>l+' '+dt(ult(l))).join(' · '),'relatório emitido '+lojas.map(l=>l+' '+dt(emi(l))).join(' · ')]]);
+ const barras=(arr,cor)=>{const mx=Math.max(1,...arr.map(x=>x[1]));return arr.length?arr.map(([k,v,n])=>`<div style="display:grid;grid-template-columns:minmax(4.5rem,12rem) minmax(0,1fr) 9rem;gap:.5rem;align-items:center;margin:.22rem 0;font-size:.8rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</span><div style="background:var(--s2);border-radius:3px;height:10px;overflow:hidden"><div style="width:${v/mx*100}%;height:100%;background:${cor}"></div></div><span style="text-align:right"><b>${N(v)}</b> pç · ${N(n)} it.</span></div>`).join(''):'<p style="color:var(--mu);font-size:.85rem">Sem dados</p>'};
+ const grp=(key)=>{const m=new Map();R.forEach(r=>{const k=r[key]||'(sem marca)';const o=m.get(k)||[k,0,0];o[1]+=Math.abs(r.s);o[2]++;m.set(k,o);});return [...m.values()].sort((a,b)=>b[1]-a[1]);};
+ const cols=[['Filial'],['Cód. Danfe'],['Cód. produto'],['Descrição'],['Marca'],['Locação'],['Saldo ERP',1],['Custo un.',1],['Valor',1],['WMS',1],['Posição WMS'],['Importado em']];
+ const sorted=R.slice().sort((a,b)=>a.s-b.s||(b.cu*b.s)-(a.cu*a.s));
+ const rowsH=sorted.slice(0,500).map(r=>{ const w=r.wq==null?'<span style="color:var(--mu)">—</span>':`<b>${N(r.wq)}</b>${r.wq>0?' <span class="bd wn" style="font-size:.62rem" title="ERP negativo, mas há peças no WMS">tem peças</span>':''}`;
+  return `<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td title="${esc(r.d)}">${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${r.cu>0?BRL(r.cu):'<span style="color:var(--mu)">sem custo</span>'}</td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${w}</td><td title="${esc(r.wp)}">${esc(r.wp||'—')}</td><td>${dt(r.im)}</td></tr>`; }).join('');
+ ch.innerHTML=
+  `<article class="pn"><h3>Peças negativas por marca — Top 10</h3>${barras(grp('m').slice(0,10),'var(--bad)')}</article>`+
+  `<article class="pn"><h3>Peças negativas por filial</h3>${barras(grp('lj'),'var(--y)')}</article>`+
+  `<article class="pn w2"><h3>📋 Itens com saldo negativo <small style="font-weight:400;color:var(--mu)">— ${N(R.length)} item(ns)${R.length>500?' · mostrando os 500 mais negativos':''} · ordenado do mais negativo</small></h3><div class="tw" style="max-height:560px;overflow:auto"><table class="ped-tb"><thead><tr>${cols.map(c=>`<th${c[1]?' style="text-align:center"':''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rowsH||`<tr><td colspan="${cols.length}" style="color:var(--mu)">Nenhum item para os filtros escolhidos.</td></tr>`}</tbody></table></div></article>`;
+}
+document.addEventListener('change',e=>{const el=e.target.closest('.negsel');if(el){NF[el.dataset.k]=el.value;renderGeral()}});
+document.addEventListener('click',e=>{if(e.target.closest('#neg-clr')){NF.cu=NF.wm=NF.loc='';renderGeral()}});
 function bootEnd(){
  if(!window._giro&&!_giroLoad){
   _giroLoad=_sb.rpc('giro_produtos').then(({data,error})=>{
@@ -3422,9 +3518,9 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{if(e.target.id=='q'){S[cur].q=e.target.value;S[cur].pg=0;render()}});
 document.addEventListener('change',e=>{const el=e.target.closest('.fsel');if(el){S[cur].sel[el.dataset.k]=el.value;S[cur].pg=0;render()}});
 const themeBtn=()=>{$('#th').textContent=document.documentElement.dataset.t=='dark'?'Tema claro':'Tema escuro'};
-window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if((h=='ov'||h=='ce'||h=='end'||h=='wms'||h=='pwms'||TB[h])&&h!=cur)go(h)});
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if((h=='ov'||h=='ce'||h=='end'||h=='wms'||h=='pwms'||h=='neg'||TB[h])&&h!=cur)go(h)});
 themeBtn();
-const _okT=h=>h=='ov'||h=='ce'||h=='end'||h=='wms'||h=='pwms'||TB[h];let h0=location.hash.slice(1);if(!_okT(h0)){try{h0=localStorage.getItem('lt-tab-e')||''}catch(e){h0=''}}go(_okT(h0)?h0:'ov');
+const _okT=h=>h=='ov'||h=='ce'||h=='end'||h=='wms'||h=='pwms'||h=='neg'||TB[h];let h0=location.hash.slice(1);if(!_okT(h0)){try{h0=localStorage.getItem('lt-tab-e')||''}catch(e){h0=''}}go(_okT(h0)?h0:'ov');
 }
 // ══════════════════════════════════════════════════════════════
 // ESTOQUE — importação, carga Supabase, renderização
@@ -3991,6 +4087,82 @@ async function importarEstoque(input, loja){
     if(st){ st.className='imp-status err'; st.textContent='❌ '+e.message; }
     input.value='';
   }
+}
+
+
+// ── Estoque negativo (relatório "Produtos com saldo negativo" do ERP) ──
+// Lê o relatório: acha o cabeçalho, a data/hora de emissão e as linhas; só entram itens com saldo < 0.
+async function lerNegativo(file){
+  await loadXLSX();
+  const buf=await file.arrayBuffer(), wb=XLSX.read(buf,{type:'array'}), ws=wb.Sheets[wb.SheetNames[0]];
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  const nk=v=>String(v??'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  let hi=raw.findIndex((r,i)=>i<30&&r&&r.some(c=>nk(c)==='codigo')&&r.some(c=>nk(c).startsWith('descri'))&&r.some(c=>nk(c)==='saldo'));
+  if(hi<0) throw new Error('Não encontrei o cabeçalho (Código · Descrição · Saldo). Este arquivo é o relatório "Produtos com saldo negativo" do ERP?');
+  let emitido=null;
+  for(let i=0;i<hi&&!emitido;i++){ const t=(raw[i]||[]).filter(c=>c!=null).join(' '); const m=t.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})/); if(m) emitido=new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5]).toISOString(); }
+  const H=raw[hi].map(h=>String(h??'').trim()), col=(...ps)=>H.findIndex(h=>ps.some(p=>nk(h)===nk(p)||nk(h).startsWith(nk(p))));
+  const ix={cod:col('Código'),desc:col('Descrição','Descricao'),cm:col('Cód.Marca','Cod.Marca'),marca:col('Marca'),loc:col('Locação','Locacao'),saldo:col('Saldo'),danfe:col('Código Danfe','Codigo Danfe'),fab:col('Número de fábrica','Numero de fabrica'),conv:col('1ª Conversão','1a Conversao'),peso:col('Peso Líq','Peso Liq'),custo:col('Custo Líquido','Custo Liquido'),ult:col('Últ.Custo','Ult.Custo')};
+  const num=v=>{ if(v==null||v==='') return 0; if(typeof v==='number') return v; const n=Number(String(v).trim().replace(/\./g,'').replace(',','.')); return isNaN(n)?0:n; };
+  const tx=(r,i)=>{ if(i<0) return ''; const v=r[i]; if(v==null) return ''; const t=String(v).trim(); return t==='__________'?'':t; };
+  const rows=[]; let ignorados=0;
+  raw.slice(hi+1).forEach(r=>{
+    if(!r||!r.some(c=>c!=null&&String(c).trim()!=='')) return;
+    const cod_produto=tx(r,ix.cod), danfe=tx(r,ix.danfe), saldo=num(ix.saldo>=0?r[ix.saldo]:0);
+    if(!(cod_produto||danfe)) return;
+    if(!(saldo<0)){ ignorados++; return; }
+    rows.push({cod:danfe||cod_produto,cod_produto:cod_produto||null,descricao:tx(r,ix.desc)||null,marca:tx(r,ix.marca)||null,cod_marca:tx(r,ix.cm)||null,locacao:tx(r,ix.loc)||null,saldo,custo:num(ix.custo>=0?r[ix.custo]:0),ult_custo:num(ix.ult>=0?r[ix.ult]:0),peso:num(ix.peso>=0?r[ix.peso]:0),conversao:tx(r,ix.conv)||null,num_fabrica:tx(r,ix.fab)||null});
+  });
+  return {rows,ignorados,emitido,tinhaCab:true};
+}
+async function importarEstoqueNeg(input, loja){
+  const file=input.files[0]; if(!file) return;
+  const st=document.getElementById('imp-neg-status'), lbl=document.getElementById('lbl-neg-'+loja.toLowerCase()), nm=document.getElementById('nm-neg-'+loja.toLowerCase());
+  const msg=(t,c)=>{ if(st){st.style.display='';st.className='imp-status'+(c?' '+c:'');st.textContent=t;} };
+  if(lbl) lbl.className='imp-card loading'; if(nm) nm.textContent=file.name;
+  try{
+    msg(`📖 Lendo ${file.name}...`);
+    const {rows:lido,ignorados,emitido}=await lerNegativo(file);
+    // dedup por Cód. Danfe (mantém o último)
+    const mp=new Map(); lido.forEach(r=>mp.set(r.cod,r)); const rows=[...mp.values()];
+    // trava de segurança: o Cód. Danfe começa com a filial (LT… / LL…) — não deixa gravar a planilha na filial errada
+    const outra=loja==='LT'?'LL':'LT', prefOk=rows.filter(r=>String(r.cod).toUpperCase().startsWith(loja)).length, prefOutra=rows.filter(r=>String(r.cod).toUpperCase().startsWith(outra)).length;
+    if(prefOutra>prefOk) throw new Error(`Esta planilha parece ser da filial ${outra} (Cód. Danfe ${outra}…), mas foi escolhida a filial ${loja}. Importe no botão correto.`);
+    if(!rows.length){
+      const {count:antes}=await _sb.from('estoque_negativo').select('id',{count:'exact',head:true}).eq('loja',loja);
+      if(!confirm(`O arquivo não tem nenhum item com saldo negativo${ignorados?` (${ignorados} linha(s) com saldo ≥ 0 ignoradas)`:''}.\n\nIsso LIMPA a lista de estoque negativo da ${loja} (${(antes||0).toLocaleString('pt-BR')} item(ns) hoje). Continuar?`)) throw new Error('Importação cancelada.');
+    }
+    const lote='L'+Date.now(), agora=new Date().toISOString();
+    const dados=rows.map(r=>({...r,loja,arquivo:file.name,emitido_em:emitido,importado_em:agora,lote_import:lote}));
+    msg(`📤 Enviando ${dados.length} item(ns) negativo(s) (${loja})...`);
+    for(let i=0;i<dados.length;i+=500){
+      const {error}=await _sb.from('estoque_negativo').upsert(dados.slice(i,i+500),{onConflict:'loja,cod'});
+      if(error) throw new Error(error.code==='42501'?'Apenas administradores podem importar o estoque negativo.':'Supabase: '+error.message);
+    }
+    msg(`🧹 Removendo itens da ${loja} que não estão mais negativos...`);
+    const {error:eDel,count:removidos}=await _sb.from('estoque_negativo').delete({count:'exact'}).eq('loja',loja).or(`lote_import.is.null,lote_import.neq.${lote}`);
+    if(eDel) throw new Error((eDel.code==='42501'?'Apenas administradores podem importar o estoque negativo. ':'Supabase: ')+eDel.message);
+    window._NEG=null; window._negLoad=null;
+    reiniciarEstoqueE();
+    if(lbl) lbl.className='imp-card done';
+    const pcs=dados.reduce((x,r)=>x+r.saldo,0);
+    msg(`✅ ${dados.length} item(ns) com saldo negativo (${loja}) · ${pcs.toLocaleString('pt-BR')} peça(s)`+(emitido?` · relatório emitido em ${new Date(emitido).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','')}`:'')+(removidos?` · ${removidos} item(ns) que já não estavam negativos foram retirados`:'')+(ignorados?` · ${ignorados} linha(s) com saldo ≥ 0 ignoradas`:'')+'. Abra Estoque → Saldo negativo.','ok');
+  }catch(e){
+    if(lbl) lbl.className='imp-card err'; msg('❌ '+e.message,'err'); input.value='';
+  }
+}
+function carregarEstoqueNeg(){
+  if(window._NEG) return Promise.resolve(window._NEG);
+  if(window._negLoad) return window._negLoad;
+  window._negLoad=(async()=>{
+    let all=[],from=0;
+    for(;;){
+      const {data,error}=await _sb.from('estoque_negativo').select('loja,cod,cod_produto,descricao,marca,locacao,saldo,custo,ult_custo,peso,conversao,num_fabrica,arquivo,emitido_em,importado_em').order('loja').order('saldo').order('cod').range(from,from+999);
+      if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000;
+    }
+    window._NEG=all; return all;
+  })().catch(e=>{window._negLoad=null;throw e;});
+  return window._negLoad;
 }
 
 async function carregarEstoqueSupa(lojaFilter){
