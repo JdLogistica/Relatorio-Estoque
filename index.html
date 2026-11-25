@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-1611">
+<meta name="version" content="20261125-1642">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1097,7 +1097,7 @@ async function prepararEstoqueE(D){
     D.sl = rows.filter(r=>r.s>0 && !r.l).map(r=>({c:r.c, r:r.r, lj:r.lj, d:r.d, m:r.m, s:r.s, w:r.w, cu:r.cu}));
     try{ await carregarSaldoWms();
       rows.forEach(r=>{ const w=wmsDe(r.lj,r.r,r.s); r.wq=w.q; r.wx=w.tem?w.st:'Sem dados do WMS'; r.wp=w.pos; r.cw=w.cw; });
-      D.sl.forEach(r=>{ const w=wmsDe(r.lj,r.r,r.s); r.wq=w.q; r.cw=w.cw; });
+      D.sl.forEach(r=>{ const w=wmsDe(r.lj,r.r,r.s); r.wq=w.q; r.cw=w.cw; r.wp=w.pos; });
       D.wmsOnly=wmsSemErp(rows).map(o=>({c:o.cw?'(WMS) '+o.cw:'—',r:o.ref,lj:o.lj,d:o.d,m:'',l:'',s:0,w:0,cv:'',pv:0,cu:0,wq:o.q,wx:WX[4],wp:[...o.pos].join(', '),cw:o.cw||'',_soWms:true}));
     }catch(e){ console.warn('[saldo WMS]',e); D.wmsOnly=[]; }
     // estoque negativo (relatório do ERP) — cruzado com o saldo do WMS pelo Cód. Danfe
@@ -2634,7 +2634,7 @@ dv:{n:'Divergências',rows:D.dv,s:['p','d','m'],ph:'Buscar produto, descrição 
  ch:[{t:'Valor por marca (Pareto 80/20)',k:'m',v:'v',fmt:BRL,pr:1,nm:'marcas'},{t:'Situação do saldo',k:'st',type:'donut',col:{'Sem saldo':'var(--bad)','Saldo parcial':'var(--y)','Saldo suficiente':'var(--ok)'}},{t:'Pareto do valor por marca (80/20)',k:'m',v:'v',fmt:BRL,type:'pareto',nm:'marcas'},{t:'Pareto do valor por item (80/20)',k:'pl',v:'v',fmt:BRL,type:'pareto',nm:'itens',lab:k=>k.split(' ')[0]}]},
 sl:{n:'Sem locação',rows:D.sl,s:['c','r','cw','d','m'],ph:'Buscar código, Danfe (LL/LT), cód. WMS, descrição ou marca',
  f:[],
- col:[['c','Código'],['r','Cód. Danfe (LL/LT)','',r=>r.r?`<b>${esc(r.r)}</b>`:'—'],['cw','Cód. WMS','',r=>r.cw?esc(r.cw):'—'],['d','Descrição'],['m','Marca'],['s','Saldo ERP','r',r=>N(r.s)],['wq','Saldo WMS','r',r=>wmsCel(r.lj,r.r,r.s)],['w','Peso (kg)','r',r=>N(r.w)],['cu','Custo líquido','r',r=>BRL(r.cu)]],
+ col:[['c','Código'],['r','Cód. Danfe (LL/LT)','',r=>r.r?`<b>${esc(r.r)}</b>`:'—'],['cw','Cód. WMS','',r=>r.cw?esc(r.cw):'—'],['d','Descrição'],['m','Marca'],['s','Saldo ERP','r',r=>N(r.s)],['wq','Saldo WMS','r',r=>wmsCel(r.lj,r.r,r.s)],['wp','Posição WMS','',r=>dash()(r.wp)],['w','Peso (kg)','r',r=>N(r.w)],['cu','Custo líquido','r',r=>BRL(r.cu)]],
  kpi:rs=>[['Itens com saldo e sem locação',N(rs.length)],['Saldo total',N(sum(rs,'s')),'peças'],['Com custo informado',N(rs.filter(r=>r.cu>0).length)]],
  ch:[{t:'Saldo por marca',k:'m',v:'s'}]}
 };
