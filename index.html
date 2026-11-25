@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-1706">
+<meta name="version" content="20261125-1718">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -2911,8 +2911,55 @@ window._rerenderE=()=>go(cur);
   window._acProv['tb-q']=()=>{ const t=TB[cur]; if(!t) return []; const o=[], ds=new Map(), ms=new Map(); t.rows.forEach(r=>{ if(r.c) o.push({v:String(r.c).replace('(WMS) ',''),s:(r.d||r.p||'')+(r.m?' · '+r.m:'')}); if(r.r&&r.r!==r.c) o.push({v:r.r,s:'Cód. Danfe · '+(r.d||'')}); if(r.cw) o.push({v:r.cw,s:'Cód. WMS · '+(r.d||'')}); if(r.d) ds.set(r.d,(ds.get(r.d)||0)+1); if(r.m) ms.set(r.m,(ms.get(r.m)||0)+1); });
     ds.forEach((n,d)=>o.push({v:d,s:'descrição · '+n+' ite'+(n>1?'ns':'m')})); ms.forEach((n,m)=>o.push({v:m,s:'marca · '+n+' ite'+(n>1?'ns':'m')})); return o; };
 }
+// ═══════════════════════════════════════════════════════
+// DIVERGÊNCIAS › pedidos de ajuste: transportadora "NÃO SEPARAR" e/ou cliente "DIVERGÊNCIA DE ESTOQUE"
+// ═══════════════════════════════════════════════════════
+let _dvPed=null;
+const _nzD=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+const _dvNS=r=>/(^|[^A-Z])N(AO)? ?SEPARAR/.test(_nzD(r.tp)), _dvDE=r=>_nzD(r.cli).includes('DIVERGENCIA DE ESTOQUE');
+async function carregarPedDiv(){
+ if(_dvPed) return _dvPed;
+ const sel='id,loja,cli,vend,conf,tp,tp2,sit,urg,canc,dia,exp,mes,hr_emissao,hr_sep_ini,hr_sep_fim,dt_sep_ini,dt_sep_fim,tempo_sep,hr_exp,dt_exp,dt_nf,hr_nf,dt_coleta,hr_coleta';
+ let all=[],from=0;
+ for(;;){ const {data,error}=await _sb.from('pedidos').select(sel).or('tp.ilike.%SEPARAR%,cli.ilike.%DIVERG%').order('dia',{ascending:false}).order('loja').order('id').range(from,from+999);
+  if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000; }
+ const vis=new Set(); all=all.filter(r=>{ const k=r.loja+'|'+r.id; if(vis.has(k)||!(_dvNS(r)||_dvDE(r))) return false; vis.add(k); return true; });
+ // itens de cada pedido (linhas, peças e valor)
+ const tot=new Map();
+ try{ const ids=[...new Set(all.map(r=>Number(r.id)).filter(Number.isFinite))];
+  for(let i=0;i<ids.length;i+=60){ let f=0;
+   for(;;){ const {data,error}=await _sb.from('itens').select('pedido_id,loja,qtde,total').in('pedido_id',ids.slice(i,i+60)).order('pedido_id').order('seq').range(f,f+999);
+    if(error) throw error; (data||[]).forEach(t=>{ const k=t.loja+'|'+t.pedido_id,o=tot.get(k)||{n:0,q:0,v:0}; o.n++; o.q+=Number(t.qtde)||0; o.v+=Number(t.total)||0; tot.set(k,o); });
+    if(!data||data.length<1000) break; f+=1000; } }
+ }catch(e){ console.warn('[divergências: itens]',e); }
+ all.forEach(r=>{ const o=tot.get(r.loja+'|'+r.id); r._n=o?o.n:null; r._q=o?o.q:null; r._v=o?o.v:null; r._ns=_dvNS(r); r._de=_dvDE(r); });
+ return _dvPed=all;
+}
+async function painelPedDiv(){
+ let box=document.getElementById('dv-ped');
+ if(!box){ box=document.createElement('section'); box.id='dv-ped'; box.style.cssText='margin-top:1rem'; $('#e-tb').insertAdjacentElement('afterend',box); }
+ box.innerHTML='<article class="pn"><h3>🧾 Pedidos de divergência de estoque</h3><p style="color:var(--mu);font-size:.85rem">Carregando pedidos…</p></article>';
+ let R; try{ R=await carregarPedDiv(); }catch(e){ box.innerHTML='<article class="pn"><h3>🧾 Pedidos de divergência de estoque</h3><p style="color:var(--bad)">Não foi possível carregar os pedidos: '+esc(e.message||e)+'</p></article>'; return; }
+ if(cur!=='dv'||!document.body.contains(box)) return;
+ const A=R.filter(r=>!GF.lj||_mv(GF.lj,r.loja));
+ const dt=d=>d?String(d).slice(0,10).split('-').reverse().join('/'):'—';
+ const nNS=A.filter(r=>r._ns).length, nDE=A.filter(r=>r._de).length, pcs=A.reduce((a,r)=>a+(r._q||0),0), val=A.reduce((a,r)=>a+(r._v||0),0);
+ const lj=['LL','LT'].map(l=>l+': '+N(A.filter(r=>r.loja===l).length)).join(' · ');
+ const bdg=r=>(r._ns?'<span class="bd wn" style="font-size:.64rem">Não separar</span> ':'')+(r._de?'<span class="bd bad" style="font-size:.64rem">Divergência de estoque</span>':'');
+ const th=(t,r)=>`<th${r?' style="text-align:right"':''}>${t}</th>`;
+ box.innerHTML=`<article class="pn"><h3>🧾 Pedidos de divergência de estoque <small style="font-weight:400;color:var(--mu)">— transportadora “Não separar” e/ou cliente “Divergência de estoque” · clique no pedido para ver os detalhes</small></h3>`+
+  `<div class="kp" style="margin-bottom:.6rem">${kpiHtml([['Pedidos',N(A.length),lj],['Transportadora “Não separar”',N(nNS),PC(nNS,A.length)+' dos pedidos'],['Cliente “Divergência de estoque”',N(nDE),PC(nDE,A.length)+' dos pedidos'],['Peças',N(pcs),'soma dos itens dos pedidos'],['Valor',BRL(val),'total dos itens']])}</div>`+
+  (A.length?`<div class="tw" style="max-height:440px;overflow:auto"><table class="ped-tb"><thead><tr>${th('Pedido')}${th('Filial')}${th('Emissão')}${th('Cliente')}${th('Vendedor')}${th('Transportadora')}${th('Motivo')}${th('Situação')}${th('Itens',1)}${th('Peças',1)}${th('Valor',1)}</tr></thead><tbody>`+
+   A.map(r=>`<tr class="ped-row" data-pid="${esc(r.id)}" data-pl="${esc(r.loja)}" style="cursor:pointer"><td><b>${esc(r.id)}</b></td><td>${esc(r.loja)}</td><td>${dt(r.dia)}</td><td>${esc(r.cli||'—')}</td><td>${esc(r.vend||'—')}</td><td>${esc(r.tp||'—')}</td><td>${bdg(r)}</td><td>${esc(r.sit||'—')}</td><td style="text-align:right">${r._n==null?'—':N(r._n)}</td><td style="text-align:right">${r._q==null?'—':N(r._q)}</td><td style="text-align:right">${r._v==null?'—':BRL(r._v)}</td></tr>`).join('')+
+   `</tbody></table></div><div style="margin-top:.5rem"><button class="bt" type="button" id="dv-ped-csv" style="font-size:.75rem;padding:.2rem .6rem">Exportar CSV</button></div>`
+   :'<p style="color:var(--mu)">Nenhum pedido encontrado para o filtro de filial escolhido.</p>')+`</article>`;
+ const b=document.getElementById('dv-ped-csv'); if(b) b.onclick=()=>{ const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const lin=A.map(r=>[r.id,r.loja,dt(r.dia),r.cli,r.vend,r.tp,[r._ns?'Não separar':'',r._de?'Divergência de estoque':''].filter(Boolean).join(' + '),r.sit,r._n??'',r._q??'',r._v??''].map(q).join(';'));
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+[['Pedido','Filial','Emissão','Cliente','Vendedor','Transportadora','Motivo','Situação','Itens','Peças','Valor'].map(q).join(';'),...lin].join('\n')],{type:'text/csv;charset=utf-8'})); a.download='pedidos-divergencia-estoque.csv'; a.click(); URL.revokeObjectURL(a.href); };
+}
 function go(tab){
  cur=tab;try{history.replaceState(null,'','#'+tab);localStorage.setItem('lt-tab-e',tab)}catch(e){}
+ { const old=document.getElementById('dv-ped'); if(old) old.remove(); }
  const extraTabs=[['ov','Visão geral'],...Object.entries(TB).flatMap(([k,t])=>k==='inv'?[[k,t.n],['wms','Estoque WMS'],['pwms','Posições WMS']]:[[k,t.n]]),['neg','Saldo negativo'],['end','Endereços'],['ce','Controle de Estoque']];
  $('#e-tabs').innerHTML=extraTabs.map(([k,l])=>`<button role="tab" type="button" data-tab="${k}" aria-selected="${k==tab}">${l}</button>`).join('');
  const ovw=tab=='ov',ce=tab=='ce',en=tab=='end',wm=tab=='wms',pw=tab=='pwms',ng=tab=='neg';
@@ -2927,6 +2974,7 @@ function go(tab){
  buildFilters();
  $('#ch').innerHTML=TB[tab].ch.map((c,i)=>`<article class="pn${c.heat||c.type=='pareto'?' w2':''}" data-tab="${tab}"><h3>${c.t}${c.heat?'<span class="seg"><button type="button" data-hm="sku">Endereços</button><button type="button" data-hm="pcs">Peças</button></span>':''}</h3><div id="c${i}"></div></article>`).join('');
  render();
+ if(tab==='dv') painelPedDiv();
 }
 
 // ═══════════════════════════════════════════════════════
