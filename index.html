@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-2144">
+<meta name="version" content="20261125-0921">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -374,6 +374,15 @@ td{padding:.48rem .75rem;border-top:1px solid var(--ln)}tr:hover td{background:v
 .imp-card-left div{display:grid;gap:.05rem;min-width:0}
 .imp-card-left strong{font-size:.85rem;font-weight:700}
 .imp-card-left small{font-size:.72rem;color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:11rem}
+.imp-card-left small.imp-upd{max-width:none;white-space:normal;color:var(--ok);font-weight:600;font-size:.68rem;margin-top:.1rem}
+.imp-card-left small.imp-upd.nd{color:var(--mu);font-weight:400}
+.imp-ult{margin:.2rem 0 .9rem;border:1px solid var(--bd);border-radius:10px;background:var(--s2);padding:.6rem .8rem}
+.imp-ult h4{margin:0 0 .4rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)}
+.imp-ult table{width:100%;border-collapse:collapse;font-size:.8rem}
+.imp-ult th{color:var(--mu);font-weight:600;text-align:left;padding:.2rem .5rem;font-size:.72rem}
+.imp-ult td{padding:.22rem .5rem;border-top:1px solid var(--bd)}
+.imp-ult td.dt{white-space:nowrap}.imp-ult td.nd{color:var(--mu)}
+.imp-ult .vel{color:var(--bad)}
 .imp-card-btn{flex:none;background:var(--y);color:#0a0a0a;border-radius:6px;padding:.3rem .75rem;font-size:.78rem;font-weight:700;white-space:nowrap}
 .imp-footer{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
 .imp-refresh-btn{margin-left:auto}
@@ -565,6 +574,7 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
         <p class="imp-desc">Importe os arquivos de cada filial. Formatos aceitos: <strong>.xlsx, .xls, .csv</strong>. O nome do arquivo deve conter <strong>LT</strong> ou <strong>LL</strong> para identificar a filial.</p>
       </div>
     </div>
+    <div id="imp-ultimas" class="imp-ult"></div>
     <!-- Área de upload — visível só para admin, se não admin mostra aviso -->
     <div id="imp-upload-area">
       <div class="imp-cards">
@@ -1534,6 +1544,45 @@ async function checkAdmin(){
   return _isAdmin;
 }
 
+// ── Última atualização de cada importação (tabela import_log) ──
+const IMP_FONTES=[['pedidos','Pedidos',1],['itens','Itens dos pedidos',1],['estoque','Estoque ERP',1],['neg','Estoque negativo',1],['ewms','Estoque WMS',1],['pwms','Posições WMS · Estoque Posição',1],['pwms_mapa','Posições WMS · Mapeamento',1],['pwms_cad','Posições WMS · Cadastro de posições',1],['prodwms','Produtividade WMS',0],['erica','Relatório ERICA',0]];
+const IMP_CARDS={'lbl-lt':['pedidos','LT'],'lbl-ll':['pedidos','LL'],'lbl-itens-lt':['itens','LT'],'lbl-itens-ll':['itens','LL'],'lbl-estoque-lt':['estoque','LT'],'lbl-estoque-ll':['estoque','LL'],'lbl-neg-lt':['neg','LT'],'lbl-neg-ll':['neg','LL'],'lbl-ewms-lt':['ewms','LT'],'lbl-ewms-ll':['ewms','LL'],'lbl-erica':['erica',''],'lbl-prodwms-pasta':['prodwms',''],'lbl-prodwms-arqs':['prodwms',''],'lbl-pwms':['pwms','*'],'lbl-pwms-arq':['pwms','*']};
+function _impFmt(t){ if(!t) return ''; const d=new Date(t); if(isNaN(d)) return ''; return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',',''); }
+function _impAgo(t){ const m=Math.round((Date.now()-new Date(t))/60000); if(!(m>=0)) return ''; if(m<2) return 'agora'; if(m<60) return 'há '+m+' min'; const h=Math.round(m/60); if(h<48) return 'há '+h+' h'; return 'há '+Math.round(h/24)+' dias'; }
+function _impGet(fonte,loja){ const L=window._IMPLOG||[]; if(loja==='*'){ const a=L.filter(r=>r.fonte===fonte||r.fonte==='pwms_mapa'||r.fonte==='pwms_cad'); return a.sort((x,y)=>String(y.importado_em).localeCompare(String(x.importado_em)))[0]||null; } return L.find(r=>r.fonte===fonte&&(r.loja||'')===(loja||''))||null; }
+async function registrarImport(fonte,loja,arquivo,linhas){
+  try{
+    let email=''; try{ email=((await _sb.auth.getSession()).data.session||{}).user.email||''; }catch(e){}
+    const {error}=await _sb.from('import_log').upsert({fonte,loja:loja||'',importado_em:new Date().toISOString(),arquivo:arquivo||null,linhas:linhas==null?null:linhas,usuario:email},{onConflict:'fonte,loja'});
+    if(error) console.warn('[import_log]',error.message);
+  }catch(e){ console.warn('[import_log]',e); }
+  return atualizarCarimbosImport();
+}
+async function atualizarCarimbosImport(){
+  try{
+    const {data,error}=await _sb.from('import_log').select('fonte,loja,importado_em,arquivo,linhas,usuario').order('fonte');
+    if(!error) window._IMPLOG=data||[];
+  }catch(e){}
+  desenharCarimbosImport();
+}
+function desenharCarimbosImport(){
+  // 1) linha "Atualizado em …" dentro de cada card de importação
+  Object.entries(IMP_CARDS).forEach(([id,[fonte,loja]])=>{
+    const card=document.getElementById(id); if(!card) return;
+    const box=card.querySelector('.imp-card-left > div'); if(!box) return;
+    let el=box.querySelector('.imp-upd'); if(!el){ el=document.createElement('small'); el.className='imp-upd'; box.appendChild(el); }
+    const r=_impGet(fonte,loja);
+    el.className='imp-upd'+(r?'':' nd'); el.textContent=r?'🕒 Última atualização: '+_impFmt(r.importado_em)+' ('+_impAgo(r.importado_em)+')':'🕒 Sem registro de importação';
+    el.title=r?(r.arquivo?'Arquivo: '+r.arquivo+'\n':'')+(r.linhas!=null?'Linhas: '+Number(r.linhas).toLocaleString('pt-BR')+'\n':'')+(r.usuario?'Por: '+r.usuario:''):'';
+  });
+  // 2) quadro-resumo com todas as bases
+  const box=document.getElementById('imp-ultimas'); if(!box) return;
+  const cel=(fonte,loja,two)=>{ const r=_impGet(fonte,loja); if(!r) return '<td class="nd">—</td>'; const velho=(Date.now()-new Date(r.importado_em))>3*864e5; return `<td class="dt${velho?' vel':''}" title="${(r.arquivo?'Arquivo: '+r.arquivo+' · ':'')+(r.linhas!=null?Number(r.linhas).toLocaleString('pt-BR')+' linhas':'')}">${_impFmt(r.importado_em)} <small style="color:var(--mu)">(${_impAgo(r.importado_em)})</small></td>`; };
+  const linhas=IMP_FONTES.map(([f,nome,porLoja])=>`<tr><td>${nome}</td>${porLoja?cel(f,'LT')+cel(f,'LL'):`<td class="dt" colspan="2">${(()=>{const r=_impGet(f,'');return r?_impFmt(r.importado_em)+' <small style="color:var(--mu)">('+_impAgo(r.importado_em)+')</small>':'<span class="nd">—</span>';})()}</td>`}</tr>`).join('');
+  const todos=(window._IMPLOG||[]).map(r=>r.importado_em).sort().pop();
+  box.innerHTML=`<h4>🕒 Última atualização dos dados${todos?' — mais recente: '+_impFmt(todos):''}</h4><div style="overflow:auto"><table><thead><tr><th>Base</th><th>Filial LT</th><th>Filial LL</th></tr></thead><tbody>${linhas}</tbody></table></div><div style="font-size:.68rem;color:var(--mu);margin-top:.3rem">Datas em vermelho: base sem atualização há mais de 3 dias.</div>`;
+}
+
 // Mostra/oculta área de upload conforme perfil do usuário logado
 async function renderImportArea(){
   const area = document.getElementById('imp-upload-area');
@@ -1566,6 +1615,7 @@ async function renderImportArea(){
   ['imp-itens-upload-area','imp-estoque-upload-area','imp-neg-upload-area','imp-erica-upload-area'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.style.display=admin?'':'none';
   });
+  atualizarCarimbosImport();
 }
 
 // Detecta a loja pelo nome do arquivo (ex: PedidosLT.xlsx → 'LT')
@@ -1639,6 +1689,7 @@ async function importarArquivo(input, lojaHint){
     st.textContent=`📤 Enviando ${rows.length} pedidos (Filial ${loja})...`;
     await enviarAoSupabase(rows, loja, st);
     if(lbl) lbl.className='imp-card done';
+    registrarImport('pedidos',loja,file.name,rows.length);
 
     // Recarrega dashboard
     st.textContent='🔄 Recarregando dados...';
@@ -1825,6 +1876,7 @@ async function importarItens(input, lojaHint){
       if(st) st.textContent='Enviando... '+ok+'/'+valid.length;
     }
     if(lbl) lbl.className='imp-card done';
+    registrarImport('itens',loja,file.name,valid.length);
     if(st){st.textContent=valid.length+' itens sincronizados!';st.className='imp-status ok';}
     _itensDash=null; // força recarregamento via RPC na próxima visita ao tab
     await carregarItensSupa(); renderIfItens();
@@ -1917,6 +1969,7 @@ async function importarErica(input){
     reiniciarEstoqueE();
 
     if(lbl) lbl.className='imp-card done';
+    registrarImport('erica','',file.name,null);
     const summary = `Inventário: ${inv.length} · Divergências: ${dv.length} (itens sem preço e sem locação vêm das planilhas de estoque)`;
     if(nm) nm.textContent = file.name+' — '+summary;
     if(st){ st.textContent='✅ Relatório Erica salvo! '+summary; st.className='imp-status ok'; }
@@ -3707,6 +3760,7 @@ async function importarProdutividadeWms(input){
     const nSep=W.filter(w=>w.tipo==='Separação').length, nConf=W.length-nSep, nPed=new Set(W.map(w=>w.pedido_wms)).size, nV=new Set(W.filter(w=>w.pedido_id).map(w=>w.pedido_wms)).size;
     const ops=[...new Set(W.map(w=>w.operador))].sort();
     if(lbl) lbl.className='imp-card done';
+    registrarImport('prodwms','',fs.length+' arquivo(s) CSV',W.length);
     msg(`✅ Produtividade WMS atualizada: ${fs.length-ign.length} arquivos (${ops.join(', ')}) · ${N0pw(nSep)} separações · ${N0pw(nConf)} conferências · ${N0pw(nPed)} pedidos do WMS, ${N0pw(nV)} ligados a pedidos da LL (${Math.round(nV/nPed*100)}%)${ign.length?` · ${ign.length} arquivo(s) repetido(s) ignorado(s)`:''}.`,'ok');
   }catch(e){ if(lbl) lbl.className='imp-card err'; msg('❌ '+e.message,'err'); }
   input.value='';
@@ -3923,6 +3977,7 @@ async function importarPosicoesWms(input){
     }
     window._PWMS=null; window._pwmsLoad=null; window._SW=null; if(typeof _dE!=='undefined'&&_dE) _dE._estoqueOk=false;
     if(lbl) lbl.className='imp-card done';
+    Object.keys(lidos).forEach(t=>{ if(lidos[t]) registrarImport(t==='est'?'pwms':'pwms_'+t,loja,lidos[t].arq.join(', '),lidos[t].rows.length); });
     msg(`✅ Posições WMS da ${loja} atualizadas — ${res.join(' · ')}${ignorados.length?` · ignorados: ${ignorados.map(_pwkEsc).join(', ')}`:''}. Abra <b>Estoque → Posições WMS</b>.`,'ok');
     if(typeof window._rerenderE==='function'&&document.querySelector('#e-tabs [data-tab="pwms"][aria-selected="true"]')) window._rerenderE();
   }catch(e){
@@ -4013,6 +4068,7 @@ async function importarEstoqueWms(input, loja){
     }
     window._EWMS=null; _ewmsLoad=null;
     if(lbl) lbl.className='imp-card done';
+    registrarImport('ewms',loja,file.name,rows.length);
     msg(`✅ ${rows.length} linhas do Estoque WMS (${loja}) importadas! Abra Estoque → Estoque WMS.`,'ok');
     if(typeof window._rerenderE==='function') window._rerenderE();
   }catch(e){
@@ -4083,6 +4139,7 @@ async function importarEstoque(input, loja){
     _estoque=null; // invalida cache
     reiniciarEstoqueE();
     if(lbl) lbl.className='imp-card done';
+    registrarImport('estoque',loja,file.name,norm.length);
     if(st){ st.className='imp-status ok'; st.textContent=`✅ ${norm.length} itens de estoque (${loja}) importados — ${(window._remEst||0).toLocaleString('pt-BR')} item(ns) que não estavam mais na planilha foram removidos.`; }
     // Se a aba estoque está aberta, recarrega
     if(typeof cur!=='undefined'&&cur==='estoque') renderEstoqueTab();
@@ -4149,6 +4206,7 @@ async function importarEstoqueNeg(input, loja){
     window._NEG=null; window._negLoad=null;
     reiniciarEstoqueE();
     if(lbl) lbl.className='imp-card done';
+    registrarImport('neg',loja,file.name,dados.length);
     const pcs=dados.reduce((x,r)=>x+r.saldo,0);
     msg(`✅ ${dados.length} item(ns) com saldo negativo (${loja}) · ${pcs.toLocaleString('pt-BR')} peça(s)`+(emitido?` · relatório emitido em ${new Date(emitido).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','')}`:'')+(removidos?` · ${removidos} item(ns) que já não estavam negativos foram retirados`:'')+(ignorados?` · ${ignorados} linha(s) com saldo ≥ 0 ignoradas`:'')+'. Abra Estoque → Saldo negativo.','ok');
   }catch(e){
