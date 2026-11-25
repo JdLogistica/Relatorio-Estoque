@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-1451">
+<meta name="version" content="20261125-1611">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1096,12 +1096,13 @@ async function prepararEstoqueE(D){
     D.sp_all = rows;
     D.sl = rows.filter(r=>r.s>0 && !r.l).map(r=>({c:r.c, r:r.r, lj:r.lj, d:r.d, m:r.m, s:r.s, w:r.w, cu:r.cu}));
     try{ await carregarSaldoWms();
-      rows.forEach(r=>{ const w=wmsDe(r.lj,r.r,r.s); r.wq=w.q; r.wx=w.tem?w.st:'Sem dados do WMS'; r.wp=w.pos; });
-      D.wmsOnly=wmsSemErp(rows).map(o=>({c:o.cw?'(WMS) '+o.cw:'—',r:o.ref,lj:o.lj,d:o.d,m:'',l:'',s:0,w:0,cv:'',pv:0,cu:0,wq:o.q,wx:WX[4],wp:[...o.pos].join(', '),_soWms:true}));
+      rows.forEach(r=>{ const w=wmsDe(r.lj,r.r,r.s); r.wq=w.q; r.wx=w.tem?w.st:'Sem dados do WMS'; r.wp=w.pos; r.cw=w.cw; });
+      D.sl.forEach(r=>{ const w=wmsDe(r.lj,r.r,r.s); r.wq=w.q; r.cw=w.cw; });
+      D.wmsOnly=wmsSemErp(rows).map(o=>({c:o.cw?'(WMS) '+o.cw:'—',r:o.ref,lj:o.lj,d:o.d,m:'',l:'',s:0,w:0,cv:'',pv:0,cu:0,wq:o.q,wx:WX[4],wp:[...o.pos].join(', '),cw:o.cw||'',_soWms:true}));
     }catch(e){ console.warn('[saldo WMS]',e); D.wmsOnly=[]; }
     // estoque negativo (relatório do ERP) — cruzado com o saldo do WMS pelo Cód. Danfe
     try{ const NG=await carregarEstoqueNeg();
-      D.neg=NG.map(r=>{ const w=wmsDe(r.loja,r.cod,r.saldo); return {c:r.cod_produto||r.cod,r:r.cod,lj:r.loja,d:r.descricao||'',m:r.marca||'',l:r.locacao||'',s:Number(r.saldo)||0,cu:Number(r.custo)||0,uc:Number(r.ult_custo)||0,w:Number(r.peso)||0,cv:r.conversao||'',fb:r.num_fabrica||'',im:r.importado_em,em:r.emitido_em,wq:w.tem?w.q:null,wp:w.pos||'',pa:(window._NEGPED||[]).filter(p=>p.loja===r.loja&&p.cod===r.cod),ac:r.acao||'',ac_em:r.acao_em||null,ac_por:r.acao_por||''}; });
+      D.neg=NG.map(r=>{ const w=wmsDe(r.loja,r.cod,r.saldo); return {c:r.cod_produto||r.cod,r:r.cod,lj:r.loja,d:r.descricao||'',m:r.marca||'',l:r.locacao||'',s:Number(r.saldo)||0,cu:Number(r.custo)||0,uc:Number(r.ult_custo)||0,w:Number(r.peso)||0,cv:r.conversao||'',fb:r.num_fabrica||'',im:r.importado_em,em:r.emitido_em,wq:w.tem?w.q:null,wp:w.pos||'',cw:w.cw||'',pa:(window._NEGPED||[]).filter(p=>p.loja===r.loja&&p.cod===r.cod),ac:r.acao||'',ac_em:r.acao_em||null,ac_por:r.acao_por||''}; });
       try{ window._negAdmin=await checkAdmin(); }catch(e){ window._negAdmin=false; }
     }catch(e){ console.warn('[estoque negativo]',e); D.neg=[]; }
     D._estoqueOk = true;
@@ -2598,9 +2599,9 @@ inv:{n:'Inventário',rows:D.inv,s:['c','r','p'],ph:'Buscar código, referência 
  kpi:rs=>{const seen=new Set();let u=0;rs.forEach(r=>{if(!seen.has(r.c)){seen.add(r.c);u+=r.e}});
   return[['Produtos (SKU)',N(seen.size),N(rs.length)+' endereços'],['Peças em estoque',N(sum(rs,'e')),N(u)+' sem repetir endereços'],['Estoque zerado',N(rs.filter(r=>!r.e).length),'endereços'],['Sem contagem registrada',N(rs.filter(r=>!r.ct).length),'endereços']]},
  ch:[{t:'Mapa do depósito (rua × prédio)',heat:1},{t:'Endereços por faixa de estoque',k:'fx',ord:FX,type:'col'},{t:'Endereços por nível',k:'ni',ord:'key',type:'col',pre:'N'},{t:'Situação da contagem',k:'cl',type:'donut',u:'endereços',col:{'Sem registro':'var(--bad)','1 contagem':'var(--y)','2 contagens':'var(--tx)'}}]},
-sp:{n:'Estoques',rows:D.sp.concat(D.wmsOnly||[]),s:['c','r','d','m'],ph:'Buscar código, Danfe, descrição ou marca',
+sp:{n:'Estoques',rows:D.sp.concat(D.wmsOnly||[]),s:['c','r','cw','d','m'],ph:'Buscar código, Danfe, descrição ou marca',
  f:[['wx','WMS × ERP'],['pw','Peso'],['c2','1ª conversão']],
- col:[['c','Código'],['d','Descrição'],['m','Marca'],['l','Locação','',r=>dash()(r.l)],['s','Saldo ERP','r',r=>N(r.s)],['wq','Saldo WMS','r',r=>wmsCel(r.lj,r.r,r.s)],['wp','Posição WMS','',r=>dash()(r.wp)],['cu','Custo un.','r',r=>r._soWms?'—':BRL(r.cu)],['ve','Valor ERP','r',r=>r._soWms?'—':BRL(r.ve)],['vw','Valor WMS','r',r=>r.vw==null?(r._soWms?'<span style="color:var(--mu)" title="Sem custo: item não está no ERP">sem custo</span>':'—'):BRL(r.vw)],['vd','Dif. valor','r',r=>r.vd==null||!r.vd?'—':`<b style="color:${r.vd>0?'var(--y)':'var(--bad)'}">${r.vd>0?'+':''}${BRL(r.vd)}</b>`],['w','Peso (kg)','r',r=>N(r.w)],['cv','1ª conversão','',r=>dash()(r.cv)]],
+ col:[['c','Código'],['r','Cód. Danfe (LL/LT)','',r=>r.r?`<b>${esc(r.r)}</b>`:'—'],['cw','Cód. WMS','',r=>r.cw?esc(r.cw):'—'],['d','Descrição'],['m','Marca'],['l','Locação','',r=>dash()(r.l)],['s','Saldo ERP','r',r=>N(r.s)],['wq','Saldo WMS','r',r=>wmsCel(r.lj,r.r,r.s)],['wp','Posição WMS','',r=>dash()(r.wp)],['cu','Custo un.','r',r=>r._soWms?'—':BRL(r.cu)],['ve','Valor ERP','r',r=>r._soWms?'—':BRL(r.ve)],['vw','Valor WMS','r',r=>r.vw==null?(r._soWms?'<span style="color:var(--mu)" title="Sem custo: item não está no ERP">sem custo</span>':'—'):BRL(r.vw)],['vd','Dif. valor','r',r=>r.vd==null||!r.vd?'—':`<b style="color:${r.vd>0?'var(--y)':'var(--bad)'}">${r.vd>0?'+':''}${BRL(r.vd)}</b>`],['w','Peso (kg)','r',r=>N(r.w)],['cv','1ª conversão','',r=>dash()(r.cv)]],
  kpi:rs=>{
   const tot=rs.length,saldo=sum(rs,'s'),semLoc=rs.filter(r=>!r.l&&!r._soWms).length,semCv=rs.filter(r=>!r.cv).length;
   const marcas=new Set(rs.map(r=>r.m)).size,pesoTotal=sum(rs,'w');
@@ -2631,9 +2632,9 @@ dv:{n:'Divergências',rows:D.dv,s:['p','d','m'],ph:'Buscar produto, descrição 
  kpi:rs=>{const z=rs.filter(r=>r.st=='Sem saldo').length,p=rs.filter(r=>r.st=='Saldo parcial').length;
   return[['Valor total',BRL(sum(rs,'v')),N(sum(rs,'q'))+' peças pedidas'],['Itens divergentes',N(rs.length)],['Sem saldo',N(z),PC(z,rs.length)+' dos itens'],['Saldo parcial',N(p),PC(p,rs.length)+' dos itens']]},
  ch:[{t:'Valor por marca (Pareto 80/20)',k:'m',v:'v',fmt:BRL,pr:1,nm:'marcas'},{t:'Situação do saldo',k:'st',type:'donut',col:{'Sem saldo':'var(--bad)','Saldo parcial':'var(--y)','Saldo suficiente':'var(--ok)'}},{t:'Pareto do valor por marca (80/20)',k:'m',v:'v',fmt:BRL,type:'pareto',nm:'marcas'},{t:'Pareto do valor por item (80/20)',k:'pl',v:'v',fmt:BRL,type:'pareto',nm:'itens',lab:k=>k.split(' ')[0]}]},
-sl:{n:'Sem locação',rows:D.sl,s:['c','d','m'],ph:'Buscar código, descrição ou marca',
+sl:{n:'Sem locação',rows:D.sl,s:['c','r','cw','d','m'],ph:'Buscar código, Danfe (LL/LT), cód. WMS, descrição ou marca',
  f:[],
- col:[['c','Código'],['d','Descrição'],['m','Marca'],['s','Saldo ERP','r',r=>N(r.s)],['wq','Saldo WMS','r',r=>wmsCel(r.lj,r.r,r.s)],['w','Peso (kg)','r',r=>N(r.w)],['cu','Custo líquido','r',r=>BRL(r.cu)]],
+ col:[['c','Código'],['r','Cód. Danfe (LL/LT)','',r=>r.r?`<b>${esc(r.r)}</b>`:'—'],['cw','Cód. WMS','',r=>r.cw?esc(r.cw):'—'],['d','Descrição'],['m','Marca'],['s','Saldo ERP','r',r=>N(r.s)],['wq','Saldo WMS','r',r=>wmsCel(r.lj,r.r,r.s)],['w','Peso (kg)','r',r=>N(r.w)],['cu','Custo líquido','r',r=>BRL(r.cu)]],
  kpi:rs=>[['Itens com saldo e sem locação',N(rs.length)],['Saldo total',N(sum(rs,'s')),'peças'],['Com custo informado',N(rs.filter(r=>r.cu>0).length)]],
  ch:[{t:'Saldo por marca',k:'m',v:'s'}]}
 };
@@ -2654,7 +2655,7 @@ const _gfM=k=>{const v=GF[k];let c=_gfC[k];if(!c||c.v!==v)c=_gfC[k]={v,m:_mtM(v)
 const _gfL=()=>{const v=GF.loc;let c=_gfC.loc;if(!c||c.v!==v)c=_gfC.loc={v,m:_mtP(v,x=>String(x??'').toUpperCase().trim())};return c.m};
 function gfPass(r,kind,...ex){
  const on=k=>GF[k]&&!ex.includes(k), low=v=>String(v??'').toLowerCase();
- if(on('cod')){const cs=kind==='dv'?[r.p]:kind==='inv'?[r.c,r.r,String(r.p||'').split(' ')[0]]:[r.c,r.r];if(!_gfM('cod')(cs))return false}
+ if(on('cod')){const cs=kind==='dv'?[r.p]:kind==='inv'?[r.c,r.r,String(r.p||'').split(' ')[0]]:[r.c,r.r,r.cw];if(!_gfM('cod')(cs))return false}
  if(on('desc')){if(!_gfM('desc')(kind==='inv'?r.p:r.d))return false}
  if(on('m')&&kind!=='inv'&&!_mv(GF.m,r.m||''))return false;
  if(on('lj')&&kind!=='dv'){const lj=kind==='inv'?String(r.r||'').slice(0,2).toUpperCase():r.lj;if(!_mv(GF.lj,lj))return false}
@@ -2904,10 +2905,10 @@ function overview(){
 window._rerenderE=()=>go(cur);
 // opções do autocompletar (Estoque): respeitam a filial escolhida
 { const _base=()=>((window._DFULL&&(window._DFULL.sp_all||window._DFULL.sp))||D.sp_all||D.sp||[]).filter(r=>!GF.lj||r.lj===GF.lj);
-  window._acProv['gf-cod']=()=>{ const o=[]; _base().forEach(r=>{ o.push({v:r.c,s:(r.d||'')+(r.m?' · '+r.m:'')}); if(r.r&&r.r!==r.c) o.push({v:r.r,s:'Cód. Danfe · '+(r.d||'')}); }); (D.wmsOnly||[]).forEach(r=>{ if(!GF.lj||r.lj===GF.lj) o.push({v:r.r,s:'só no WMS · '+(r.d||'')}); }); return o; };
+  window._acProv['gf-cod']=()=>{ const o=[]; _base().forEach(r=>{ o.push({v:r.c,s:(r.d||'')+(r.m?' · '+r.m:'')}); if(r.r&&r.r!==r.c) o.push({v:r.r,s:'Cód. Danfe · '+(r.d||'')}); if(r.cw) o.push({v:r.cw,s:'Cód. WMS · '+(r.d||'')}); }); (D.wmsOnly||[]).forEach(r=>{ if(!GF.lj||r.lj===GF.lj) o.push({v:r.r,s:'só no WMS · '+(r.d||'')}); }); return o; };
   window._acProv['gf-desc']=()=>{ const m=new Map(); _base().forEach(r=>{ if(r.d) m.set(r.d,(m.get(r.d)||0)+1); }); return [...m].map(([d,n])=>({v:d,s:n>1?n+' itens':''})); };
   window._acProv['gf-loc']=()=>{ const m=new Map(); _base().forEach(r=>{ if(r.l) m.set(r.l,(m.get(r.l)||0)+1); }); return [...m].map(([l,n])=>({v:l,s:n+' item(ns)'})); };
-  window._acProv['tb-q']=()=>{ const t=TB[cur]; if(!t) return []; const o=[], ds=new Map(), ms=new Map(); t.rows.forEach(r=>{ if(r.c) o.push({v:String(r.c).replace('(WMS) ',''),s:(r.d||r.p||'')+(r.m?' · '+r.m:'')}); if(r.r&&r.r!==r.c) o.push({v:r.r,s:'Cód. Danfe · '+(r.d||'')}); if(r.d) ds.set(r.d,(ds.get(r.d)||0)+1); if(r.m) ms.set(r.m,(ms.get(r.m)||0)+1); });
+  window._acProv['tb-q']=()=>{ const t=TB[cur]; if(!t) return []; const o=[], ds=new Map(), ms=new Map(); t.rows.forEach(r=>{ if(r.c) o.push({v:String(r.c).replace('(WMS) ',''),s:(r.d||r.p||'')+(r.m?' · '+r.m:'')}); if(r.r&&r.r!==r.c) o.push({v:r.r,s:'Cód. Danfe · '+(r.d||'')}); if(r.cw) o.push({v:r.cw,s:'Cód. WMS · '+(r.d||'')}); if(r.d) ds.set(r.d,(ds.get(r.d)||0)+1); if(r.m) ms.set(r.m,(ms.get(r.m)||0)+1); });
     ds.forEach((n,d)=>o.push({v:d,s:'descrição · '+n+' ite'+(n>1?'ns':'m')})); ms.forEach((n,m)=>o.push({v:m,s:'marca · '+n+' ite'+(n>1?'ns':'m')})); return o; };
 }
 function go(tab){
@@ -4098,29 +4099,36 @@ function carregarPosWms(){
 // ═══════════════════════════════════════════════════════
 const WX=['Igual nos dois','WMS maior que ERP','WMS menor que ERP','Só no ERP (WMS sem saldo)','Só no WMS (ERP sem saldo)'];
 window._SW=null;
+const _cwLimpo=c=>{ const t=String(c??'').trim(); return /^\d+$/.test(t)?t.replace(/^0+(?=\d)/,''):t; };
 function _swKey(lj,ref){ return lj+'|'+String(ref||'').trim().toUpperCase(); }
 async function carregarSaldoWms(){
   if(window._SW) return window._SW;
-  const map=new Map(), lojas=new Set(), fonte={}, quando={};
+  const map=new Map(), lojas=new Set(), fonte={}, quando={}, soEw={};
   const _qd=(lj,t)=>{ const v=t?Date.parse(t):0; if(v>(quando[lj]||0)) quando[lj]=v; };
   try{ const P=await carregarPosWms();
     const end=new Map(P.cad.map(c=>[c.loja+'|'+c.pos_id,[c.rua,c.predio,c.nivel,c.apto].join('-')]));
-    P.est.forEach(r=>{ const k=_swKey(r.loja,r.referencia); const o=map.get(k)||{q:0,pos:new Set(),cw:r.cod_wms||'',d:r.descricao||'',lj:r.loja,ref:String(r.referencia||'').trim().toUpperCase()};
+    P.est.forEach(r=>{ const k=_swKey(r.loja,r.referencia); const o=map.get(k)||{q:0,pos:new Set(),cw:_cwLimpo(r.cod_wms),d:r.descricao||'',lj:r.loja,ref:String(r.referencia||'').trim().toUpperCase()};
       o.q+=Number(r.qtde)||0; o.pos.add(end.get(r.loja+'|'+r.pos_id)||('pos. '+r.pos_id)); map.set(k,o); lojas.add(r.loja); fonte[r.loja]='Estoque Posição'; _qd(r.loja,r.importado_em); });
   }catch(e){ console.warn('[saldo WMS: posições]',e); }
   try{ const E=await carregarEstoqueWms();
-    E.forEach(r=>{ if(lojas.has(r.loja)&&fonte[r.loja]==='Estoque Posição') return; const k=_swKey(r.loja,r.referencia); const o=map.get(k)||{q:0,pos:new Set(),cw:r.cod_produto||'',d:r.descricao||'',lj:r.loja,ref:String(r.referencia||'').trim().toUpperCase()};
+    const posOk=new Set(lojas); // filiais que já têm Estoque Posição
+    E.forEach(r=>{ const pk=posOk.has(r.loja)&&fonte[r.loja]==='Estoque Posição'; const k=_swKey(r.loja,r.referencia);
+      // filial com Estoque Posição: o Estoque WMS só completa os itens que o relatório de posições não trouxe
+      if(pk&&map.has(k)&&!map.get(k).ew) return;
+      const o=map.get(k)||{q:0,pos:new Set(),cw:_cwLimpo(r.cod_produto),d:r.descricao||'',lj:r.loja,ref:String(r.referencia||'').trim().toUpperCase(),ew:pk};
+      if(pk&&!map.has(k)) soEw[r.loja]=(soEw[r.loja]||0)+1;
       o.q+=Number(r.qtde)||0; if(r.endereco) o.pos.add(r.endereco); map.set(k,o); fonte[r.loja]=fonte[r.loja]||'Estoque WMS'; _qd(r.loja,r.importado_em); });
     E.forEach(r=>lojas.add(r.loja));
+    Object.keys(soEw).forEach(l=>{ fonte[l]='Estoque Posição + '+soEw[l]+' iten'+(soEw[l]>1?'s':'')+' só do Estoque WMS'; });
   }catch(e){ console.warn('[saldo WMS: estoque WMS]',e); }
   window._SW={map,lojas,fonte,quando}; return window._SW;
 }
 // situação de um item: lj, ref (Cód. Danfe), saldo do ERP
 function wmsDe(lj,ref,erpS){
-  const SW=window._SW; if(!SW||!SW.lojas.has(lj)) return {tem:false,q:null,st:'',pos:''};
+  const SW=window._SW; if(!SW||!SW.lojas.has(lj)) return {tem:false,q:null,st:'',pos:'',cw:'',ew:false};
   const o=SW.map.get(_swKey(lj,ref)), q=o?o.q:0, s=Number(erpS)||0;
   const st=q>0&&s<=0?WX[4]:q<=0&&s>0?WX[3]:q===s?WX[0]:q>s?WX[1]:WX[2];
-  return {tem:true,q,st,pos:o?[...o.pos].join(', '):''};
+  return {tem:true,q,st,pos:o?[...o.pos].join(', '):'',cw:o?o.cw||'':'',ew:!!(o&&o.ew)};
 }
 // itens com saldo no WMS que não aparecem no ERP (a lista do ERP só traz saldo ≥ 1)
 function wmsSemErp(erpRows){
@@ -4132,9 +4140,9 @@ const _wxCor=s=>s===WX[0]?'ok':s===WX[4]?'bad':s===WX[3]?'wn':s?'wn':'';
 function wmsCel(lj,ref,erpS,compacto){
   const w=wmsDe(lj,ref,erpS); if(!w.tem) return '<span style="color:var(--mu)" title="Sem dados do WMS para esta filial">—</span>';
   const d=w.q-(Number(erpS)||0);
-  return `<span style="white-space:nowrap" title="${w.st}${w.pos?' · posição WMS: '+w.pos:''}"><b>${Number(w.q).toLocaleString('pt-BR')}</b>`+
+  return `<span style="white-space:nowrap" title="${w.st}${w.pos?' · posição WMS: '+w.pos:''}${w.ew?' · item fora do relatório de posições; saldo do arquivo Estoque WMS':''}"><b>${Number(w.q).toLocaleString('pt-BR')}</b>`+
     (d?` <small style="color:${d>0?'var(--y)':'var(--bad)'}">(${d>0?'+':''}${d.toLocaleString('pt-BR')})</small>`:'')+
-    (compacto?'':` <span class="bd ${_wxCor(w.st)}" style="font-size:.62rem">${w.st===WX[0]?'igual':w.st===WX[4]?'só WMS':w.st===WX[3]?'só ERP':'diferente'}</span>`)+`</span>`;
+    (compacto?'':` <span class="bd ${_wxCor(w.st)}" style="font-size:.62rem">${w.st===WX[0]?'igual':w.st===WX[4]?'só WMS':w.st===WX[3]?'só ERP':'diferente'}</span>`)+(w.ew?' <small style="color:var(--mu)">†</small>':'')+`</span>`;
 }
 
 async function importarEstoqueWms(input, loja){
