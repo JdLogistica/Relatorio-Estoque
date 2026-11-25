@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-2128">
+<meta name="version" content="20261124-2137">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1031,7 +1031,8 @@ async function prepararEstoqueE(D){
     }catch(e){ console.warn('[saldo WMS]',e); D.wmsOnly=[]; }
     // estoque negativo (relatório do ERP) — cruzado com o saldo do WMS pelo Cód. Danfe
     try{ const NG=await carregarEstoqueNeg();
-      D.neg=NG.map(r=>{ const w=wmsDe(r.loja,r.cod,r.saldo); return {c:r.cod_produto||r.cod,r:r.cod,lj:r.loja,d:r.descricao||'',m:r.marca||'',l:r.locacao||'',s:Number(r.saldo)||0,cu:Number(r.custo)||0,uc:Number(r.ult_custo)||0,w:Number(r.peso)||0,cv:r.conversao||'',fb:r.num_fabrica||'',im:r.importado_em,em:r.emitido_em,wq:w.tem?w.q:null,wp:w.pos||'',pa:(window._NEGPED||[]).filter(p=>p.loja===r.loja&&p.cod===r.cod)}; });
+      D.neg=NG.map(r=>{ const w=wmsDe(r.loja,r.cod,r.saldo); return {c:r.cod_produto||r.cod,r:r.cod,lj:r.loja,d:r.descricao||'',m:r.marca||'',l:r.locacao||'',s:Number(r.saldo)||0,cu:Number(r.custo)||0,uc:Number(r.ult_custo)||0,w:Number(r.peso)||0,cv:r.conversao||'',fb:r.num_fabrica||'',im:r.importado_em,em:r.emitido_em,wq:w.tem?w.q:null,wp:w.pos||'',pa:(window._NEGPED||[]).filter(p=>p.loja===r.loja&&p.cod===r.cod),ac:r.acao||'',ac_em:r.acao_em||null,ac_por:r.acao_por||''}; });
+      try{ window._negAdmin=await checkAdmin(); }catch(e){ window._negAdmin=false; }
     }catch(e){ console.warn('[estoque negativo]',e); D.neg=[]; }
     D._estoqueOk = true;
   }catch(e){
@@ -2743,8 +2744,8 @@ function overview(){
     const quando=lojasN.map(l=>{const t=NG.filter(r=>r.lj===l).reduce((m,r)=>r.im>m?r.im:m,'');return l+' '+dtN(t);}).join(' · ');
     return `<article class="pn w2" style="border-left:4px solid var(--bad)"><h3>⚠️ Estoque negativo <small style="font-weight:400;color:var(--mu)">— relatório do ERP · importado ${quando}</small></h3>`+
      `<div class="kp" style="margin-bottom:.6rem">${kpiHtml([['Itens com saldo negativo',N(NG.length),porLj],['Peças negativas','−'+N(pcs),'soma dos saldos negativos'],['Valor negativo',BRL(val),'saldo × custo líquido · '+N(semCu)+' sem custo'],['WMS com saldo',N(comW),'itens negativos no ERP e com peças no WMS'],['Pedidos aguardando a peça',N(NG.filter(r=>r.pa&&r.pa.length).length),'itens com pedido não expedido e saldo negativo']])}</div>`+
-     `<div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Filial</th><th>Cód. Danfe</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th>Locação</th><th style="text-align:center">Saldo ERP</th><th style="text-align:center">Valor</th><th style="text-align:center">WMS</th><th>Pedido aguardando a peça</th><th>Emissão do pedido</th></tr></thead><tbody>`+
-     NG.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||a.cu-b.cu).slice(0,15).map(r=>`<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td>${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${r.wq==null?'—':N(r.wq)}</td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td></tr>`).join('')+
+     `<div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Filial</th><th>Cód. Danfe</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th>Locação</th><th style="text-align:center">Saldo ERP</th><th style="text-align:center">Valor</th><th style="text-align:center">WMS</th><th>Pedido aguardando a peça</th><th>Emissão do pedido</th><th>Ação</th></tr></thead><tbody>`+
+     NG.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||a.cu-b.cu).slice(0,15).map(r=>`<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td>${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${r.wq==null?'—':N(r.wq)}</td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td><td title="${esc(r.ac||'')}">${r.ac?esc(r.ac):'<span style="color:var(--mu)">—</span>'}</td></tr>`).join('')+
      `</tbody></table></div><div style="margin-top:.5rem"><button class="bt" data-go="neg" style="font-size:.8rem">Ver todos os ${N(NG.length)} itens →</button></div></article>`;
   })()+
   (()=>{ if(!window._SW) return ''; // ── Estoque WMS × ERP ──
@@ -2806,14 +2807,14 @@ function giroDe(r){const G=window._giro;if(!G)return null;return G.get(r.lj+'|'+
 
 // ═══════════════════════════════════════════════════════
 // SALDO NEGATIVO — itens que o ERP aponta com saldo < 0 (planilhas ESTOQUENEGATIVOLT / ESTOQUENEGATIVOLL)
-const NF={cu:'',wm:'',pa:''};
+const NF={cu:'',wm:'',pa:'',ac:''};
 function bootNeg(){
  const kp=$('#e-kp'), ch=$('#ch');
  if(!window._NEG){ kp.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando estoque negativo…</span>'; ch.innerHTML=''; return; }
  const low=v=>String(v??'').toLowerCase();
  const dt=t=>t?new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',',''):'—';
  const A=D.neg||[];
- const passN=(r,ex)=>(ex==='cu'||!NF.cu||(NF.cu==='Sem custo')===!(r.cu>0))&&(ex==='wm'||!NF.wm||(NF.wm==='WMS com saldo'?r.wq>0:NF.wm==='WMS zerado'?(r.wq!=null&&r.wq<=0):r.wq==null))&&(ex==='pa'||!NF.pa||(NF.pa==='Com pedido aguardando')===!!(r.pa&&r.pa.length));
+ const passN=(r,ex)=>(ex==='cu'||!NF.cu||(NF.cu==='Sem custo')===!(r.cu>0))&&(ex==='wm'||!NF.wm||(NF.wm==='WMS com saldo'?r.wq>0:NF.wm==='WMS zerado'?(r.wq!=null&&r.wq<=0):r.wq==null))&&(ex==='pa'||!NF.pa||(NF.pa==='Com pedido aguardando')===!!(r.pa&&r.pa.length))&&(ex==='ac'||!NF.ac||(NF.ac==='Com ação')===!!r.ac);
  const R=A.filter(r=>passN(r));
  const op=(v,l,s)=>`<option value="${esc(v)}"${s===v?' selected':''}>${esc(l)}</option>`;
  const nNF=Object.values(NF).filter(Boolean).length;
@@ -2822,6 +2823,7 @@ function bootNeg(){
   `<label class="fl">Custo<select class="negsel" data-k="cu">${op('','Todos',NF.cu)}${op('Com custo','Com custo',NF.cu)}${op('Sem custo','Sem custo (valor R$ 0)',NF.cu)}</select></label>`+
   `<label class="fl">Saldo no WMS<select class="negsel" data-k="wm">${op('','Todos',NF.wm)}${op('WMS com saldo','WMS com saldo (ERP negativo, peças no WMS)',NF.wm)}${op('WMS zerado','WMS zerado',NF.wm)}${op('Sem dados WMS','Sem dados do WMS',NF.wm)}</select></label>`+
   `<label class="fl">Pedido aguardando<select class="negsel" data-k="pa">${op('','Todos',NF.pa)}${op('Com pedido aguardando','Com pedido aguardando a peça',NF.pa)}${op('Sem pedido aguardando','Sem pedido aguardando',NF.pa)}</select></label>`+
+  `<label class="fl">Ação<select class="negsel" data-k="ac">${op('','Todas',NF.ac)}${op('Com ação','Com ação registrada',NF.ac)}${op('Sem ação','Sem ação (a definir)',NF.ac)}</select></label>`+
   `<div class="fa"><button id="neg-clr" class="bt" type="button"${nNF?'':' disabled'}>${nNF?`Limpar (${nNF})`:'Limpar'}</button></div>`;
  if(!(window._NEG||[]).length){ kp.innerHTML=''; ch.innerHTML=`<article class="pn w2"><h3>⚠️ Saldo negativo</h3><p style="color:var(--mu)">Nenhuma planilha de estoque negativo importada ainda. Importe na <b>tela inicial</b> (bloco <b>Estoque negativo</b>), escolhendo a filial: <b>ESTOQUENEGATIVOLT</b> (LT) e <b>ESTOQUENEGATIVOLL</b> (LL).</p></article>`; return; }
  const pcs=Math.abs(sum(R,'s')), val=Math.abs(R.reduce((x,r)=>x+r.s*r.cu,0)), semCu=R.filter(r=>!(r.cu>0)).length;
@@ -2839,17 +2841,17 @@ function bootNeg(){
   ['Última importação',lojas.map(l=>l+' '+dt(ult(l))).join(' · '),'relatório emitido '+lojas.map(l=>l+' '+dt(emi(l))).join(' · ')]]);
  const barras=(arr,cor)=>{const mx=Math.max(1,...arr.map(x=>x[1]));return arr.length?arr.map(([k,v,n])=>`<div style="display:grid;grid-template-columns:minmax(4.5rem,12rem) minmax(0,1fr) 9rem;gap:.5rem;align-items:center;margin:.22rem 0;font-size:.8rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</span><div style="background:var(--s2);border-radius:3px;height:10px;overflow:hidden"><div style="width:${v/mx*100}%;height:100%;background:${cor}"></div></div><span style="text-align:right"><b>${N(v)}</b> pç · ${N(n)} it.</span></div>`).join(''):'<p style="color:var(--mu);font-size:.85rem">Sem dados</p>'};
  const grp=(key)=>{const m=new Map();R.forEach(r=>{const k=r[key]||'(sem marca)';const o=m.get(k)||[k,0,0];o[1]+=Math.abs(r.s);o[2]++;m.set(k,o);});return [...m.values()].sort((a,b)=>b[1]-a[1]);};
- const cols=[['Filial'],['Cód. Danfe'],['Cód. produto'],['Descrição'],['Marca'],['Locação'],['Saldo ERP',1],['Custo un.',1],['Valor',1],['WMS',1],['Pedido aguardando a peça'],['Emissão do pedido'],['Posição WMS'],['Importado em']];
+ const cols=[['Filial'],['Cód. Danfe'],['Cód. produto'],['Descrição'],['Saldo ERP',1],['Pedido aguardando a peça'],['Emissão do pedido'],['Ação'],['Marca'],['Locação'],['Custo un.',1],['Valor',1],['WMS',1],['Posição WMS'],['Importado em']];
  const sorted=R.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||(b.cu*b.s)-(a.cu*a.s));
  const rowsH=sorted.slice(0,500).map(r=>{ const w=r.wq==null?'<span style="color:var(--mu)">—</span>':`<b>${N(r.wq)}</b>${r.wq>0?' <span class="bd wn" style="font-size:.62rem" title="ERP negativo, mas há peças no WMS">tem peças</span>':''}`;
-  return `<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td title="${esc(r.d)}">${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${r.cu>0?BRL(r.cu):'<span style="color:var(--mu)">sem custo</span>'}</td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${w}</td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td><td title="${esc(r.wp)}">${esc(r.wp||'—')}</td><td>${dt(r.im)}</td></tr>`; }).join('');
+  return `<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td title="${esc(r.d)}">${esc(r.d)}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td><td style="min-width:19rem;max-width:none;overflow:visible">${negAcaoCel(r)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center">${r.cu>0?BRL(r.cu):'<span style="color:var(--mu)">sem custo</span>'}</td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${w}</td><td title="${esc(r.wp)}">${esc(r.wp||'—')}</td><td>${dt(r.im)}</td></tr>`; }).join('');
  ch.innerHTML=
   `<article class="pn"><h3>Peças negativas por marca — Top 10</h3>${barras(grp('m').slice(0,10),'var(--bad)')}</article>`+
   `<article class="pn"><h3>Peças negativas por filial</h3>${barras(grp('lj'),'var(--y)')}</article>`+
   `<article class="pn w2"><h3>📋 Itens com saldo negativo <small style="font-weight:400;color:var(--mu)">— ${N(R.length)} item(ns)${R.length>500?' · mostrando os 500 mais negativos':''} · com pedido aguardando primeiro, depois do mais negativo</small></h3><div class="tw" style="max-height:560px;overflow:auto"><table class="ped-tb"><thead><tr>${cols.map(c=>`<th${c[1]?' style="text-align:center"':''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rowsH||`<tr><td colspan="${cols.length}" style="color:var(--mu)">Nenhum item para os filtros escolhidos.</td></tr>`}</tbody></table></div></article>`;
 }
 document.addEventListener('change',e=>{const el=e.target.closest('.negsel');if(el){NF[el.dataset.k]=el.value;renderGeral()}});
-document.addEventListener('click',e=>{if(e.target.closest('#neg-clr')){NF.cu=NF.wm=NF.pa='';renderGeral()}});
+document.addEventListener('click',e=>{if(e.target.closest('#neg-clr')){NF.cu=NF.wm=NF.pa=NF.ac='';renderGeral()}});
 function bootEnd(){
  if(!window._giro&&!_giroLoad){
   _giroLoad=_sb.rpc('giro_produtos').then(({data,error})=>{
@@ -4160,18 +4162,44 @@ function negPedCel(pa){
   const dm=(d,h)=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]+(h?' '+String(h).slice(0,5):''):'—';};
   return pa.map(p=>`<span style="white-space:nowrap" title="${esc(p.cli||'')} · ${esc(p.sit||'')} · emissão ${dm(p.dia,p.hr_emissao)} · qtde ${p.qtde}"><b style="color:var(--y)">#${esc(p.pedido_id)}</b> <span class="bd wn" style="font-size:.62rem">${esc(String(p.sit||'').replace(/^\d+-/,''))}</span> ${esc(String(p.cli||'').slice(0,26))} · ${p.qtde} pç</span>`).join('<br>');
 }
+function negAcaoCel(r){
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const dt=r.ac_em?new Date(r.ac_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',',''):'';
+  const adm=window._negAdmin;
+  return `<div style="display:flex;align-items:center;gap:.35rem"><input class="neg-acao" type="text" maxlength="500" data-lj="${esc(r.lj)}" data-cod="${esc(r.r)}" value="${esc(r.ac||'')}" title="${esc(r.ac||'')}" placeholder="${adm?'Digite a ação…':'somente leitura'}"${adm?'':' readonly'} style="flex:1;min-width:14rem;font:inherit;font-size:.8rem;padding:.25rem .45rem;border-radius:6px;border:1px solid var(--bd);background:var(--s2);color:inherit"><span class="neg-ok" style="font-size:.68rem;white-space:nowrap"></span></div>`+(r.ac&&dt?`<div style="font-size:.64rem;color:var(--mu);margin-top:.1rem" title="${esc(r.ac_por||'')}">${dt}${r.ac_por?' · '+esc(String(r.ac_por).split('@')[0]):''}</div>`:'');
+}
 function negEmiCel(pa){
   if(!pa||!pa.length) return '<span style="color:var(--mu)">—</span>';
   const dm=(d,h)=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]+(h?' '+String(h).slice(0,5):''):'—';};
   return pa.map(p=>`<span style="white-space:nowrap" title="Pedido #${p.pedido_id} emitido em ${dm(p.dia,p.hr_emissao)}">${dm(p.dia,p.hr_emissao)}</span>`).join('<br>');
 }
+// ação digitada para cada item negativo: fica gravada no banco junto do item e some quando ele sai da lista (próxima importação em que deixa de estar negativo)
+let _negAcT={};
+async function salvarAcaoNeg(inp){
+  const lj=inp.dataset.lj, cod=inp.dataset.cod, val=inp.value.trim(), st=inp.parentElement&&inp.parentElement.querySelector('.neg-ok');
+  const marca=(t,c)=>{ if(st){ st.textContent=t; st.style.color=c||''; } };
+  const row=(window._NEG||[]).find(r=>r.loja===lj&&r.cod===cod); if(row&&(row.acao||'')===val) return;
+  marca('salvando…','var(--mu)');
+  try{
+    let email=''; try{ email=((await _sb.auth.getSession()).data.session||{}).user.email||''; }catch(e){}
+    const agora=new Date().toISOString();
+    const {data,error}=await _sb.from('estoque_negativo').update({acao:val||null,acao_em:val?agora:null,acao_por:val?email:null}).eq('loja',lj).eq('cod',cod).select('cod');
+    if(error) throw error;
+    if(!data||!data.length) throw new Error('Sem permissão (somente administradores gravam ações) ou o item já saiu da lista.');
+    if(row){ row.acao=val; row.acao_em=val?agora:null; row.acao_por=val?email:null; }
+    const d=(D.neg||[]).find(r=>r.lj===lj&&r.r===cod); if(d){ d.ac=val; d.ac_em=val?agora:null; d.ac_por=val?email:''; }
+    inp.title=val; marca(val?'✓ salvo':'','var(--ok)'); if(val) setTimeout(()=>{ if(st&&st.textContent==='✓ salvo') st.textContent=''; },2500);
+  }catch(e){ marca('✗ '+(e.message||e),'var(--bad)'); }
+}
+document.addEventListener('change',e=>{ const i=e.target.closest&&e.target.closest('.neg-acao'); if(i) salvarAcaoNeg(i); });
+document.addEventListener('keydown',e=>{ const i=e.target.closest&&e.target.closest('.neg-acao'); if(i&&e.key==='Enter'){ e.preventDefault(); i.blur(); } });
 function carregarEstoqueNeg(){
   if(window._NEG) return Promise.resolve(window._NEG);
   if(window._negLoad) return window._negLoad;
   window._negLoad=(async()=>{
     let all=[],from=0;
     for(;;){
-      const {data,error}=await _sb.from('estoque_negativo').select('loja,cod,cod_produto,descricao,marca,locacao,saldo,custo,ult_custo,peso,conversao,num_fabrica,arquivo,emitido_em,importado_em').order('loja').order('saldo').order('cod').range(from,from+999);
+      const {data,error}=await _sb.from('estoque_negativo').select('loja,cod,cod_produto,descricao,marca,locacao,saldo,custo,ult_custo,peso,conversao,num_fabrica,arquivo,emitido_em,importado_em,acao,acao_em,acao_por').order('loja').order('saldo').order('cod').range(from,from+999);
       if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000;
     }
     // pedidos ainda NÃO expedidos (em separação, parados…) com saldo negativo nesse item = pedidos aguardando a peça chegar
