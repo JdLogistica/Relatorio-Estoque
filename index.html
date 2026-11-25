@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-2120">
+<meta name="version" content="20261124-2128">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -2743,8 +2743,8 @@ function overview(){
     const quando=lojasN.map(l=>{const t=NG.filter(r=>r.lj===l).reduce((m,r)=>r.im>m?r.im:m,'');return l+' '+dtN(t);}).join(' · ');
     return `<article class="pn w2" style="border-left:4px solid var(--bad)"><h3>⚠️ Estoque negativo <small style="font-weight:400;color:var(--mu)">— relatório do ERP · importado ${quando}</small></h3>`+
      `<div class="kp" style="margin-bottom:.6rem">${kpiHtml([['Itens com saldo negativo',N(NG.length),porLj],['Peças negativas','−'+N(pcs),'soma dos saldos negativos'],['Valor negativo',BRL(val),'saldo × custo líquido · '+N(semCu)+' sem custo'],['WMS com saldo',N(comW),'itens negativos no ERP e com peças no WMS'],['Pedidos aguardando a peça',N(NG.filter(r=>r.pa&&r.pa.length).length),'itens com pedido não expedido e saldo negativo']])}</div>`+
-     `<div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Filial</th><th>Cód. Danfe</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th>Locação</th><th style="text-align:center">Saldo ERP</th><th style="text-align:center">Valor</th><th style="text-align:center">WMS</th><th>Pedido aguardando a peça</th></tr></thead><tbody>`+
-     NG.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||a.cu-b.cu).slice(0,15).map(r=>`<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td>${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${r.wq==null?'—':N(r.wq)}</td><td>${negPedCel(r.pa)}</td></tr>`).join('')+
+     `<div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Filial</th><th>Cód. Danfe</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th>Locação</th><th style="text-align:center">Saldo ERP</th><th style="text-align:center">Valor</th><th style="text-align:center">WMS</th><th>Pedido aguardando a peça</th><th>Emissão do pedido</th></tr></thead><tbody>`+
+     NG.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||a.cu-b.cu).slice(0,15).map(r=>`<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td>${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${r.wq==null?'—':N(r.wq)}</td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td></tr>`).join('')+
      `</tbody></table></div><div style="margin-top:.5rem"><button class="bt" data-go="neg" style="font-size:.8rem">Ver todos os ${N(NG.length)} itens →</button></div></article>`;
   })()+
   (()=>{ if(!window._SW) return ''; // ── Estoque WMS × ERP ──
@@ -2839,10 +2839,10 @@ function bootNeg(){
   ['Última importação',lojas.map(l=>l+' '+dt(ult(l))).join(' · '),'relatório emitido '+lojas.map(l=>l+' '+dt(emi(l))).join(' · ')]]);
  const barras=(arr,cor)=>{const mx=Math.max(1,...arr.map(x=>x[1]));return arr.length?arr.map(([k,v,n])=>`<div style="display:grid;grid-template-columns:minmax(4.5rem,12rem) minmax(0,1fr) 9rem;gap:.5rem;align-items:center;margin:.22rem 0;font-size:.8rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</span><div style="background:var(--s2);border-radius:3px;height:10px;overflow:hidden"><div style="width:${v/mx*100}%;height:100%;background:${cor}"></div></div><span style="text-align:right"><b>${N(v)}</b> pç · ${N(n)} it.</span></div>`).join(''):'<p style="color:var(--mu);font-size:.85rem">Sem dados</p>'};
  const grp=(key)=>{const m=new Map();R.forEach(r=>{const k=r[key]||'(sem marca)';const o=m.get(k)||[k,0,0];o[1]+=Math.abs(r.s);o[2]++;m.set(k,o);});return [...m.values()].sort((a,b)=>b[1]-a[1]);};
- const cols=[['Filial'],['Cód. Danfe'],['Cód. produto'],['Descrição'],['Marca'],['Locação'],['Saldo ERP',1],['Custo un.',1],['Valor',1],['WMS',1],['Pedido aguardando a peça'],['Posição WMS'],['Importado em']];
+ const cols=[['Filial'],['Cód. Danfe'],['Cód. produto'],['Descrição'],['Marca'],['Locação'],['Saldo ERP',1],['Custo un.',1],['Valor',1],['WMS',1],['Pedido aguardando a peça'],['Emissão do pedido'],['Posição WMS'],['Importado em']];
  const sorted=R.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||(b.cu*b.s)-(a.cu*a.s));
  const rowsH=sorted.slice(0,500).map(r=>{ const w=r.wq==null?'<span style="color:var(--mu)">—</span>':`<b>${N(r.wq)}</b>${r.wq>0?' <span class="bd wn" style="font-size:.62rem" title="ERP negativo, mas há peças no WMS">tem peças</span>':''}`;
-  return `<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td title="${esc(r.d)}">${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${r.cu>0?BRL(r.cu):'<span style="color:var(--mu)">sem custo</span>'}</td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${w}</td><td>${negPedCel(r.pa)}</td><td title="${esc(r.wp)}">${esc(r.wp||'—')}</td><td>${dt(r.im)}</td></tr>`; }).join('');
+  return `<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td title="${esc(r.d)}">${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${r.cu>0?BRL(r.cu):'<span style="color:var(--mu)">sem custo</span>'}</td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${w}</td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td><td title="${esc(r.wp)}">${esc(r.wp||'—')}</td><td>${dt(r.im)}</td></tr>`; }).join('');
  ch.innerHTML=
   `<article class="pn"><h3>Peças negativas por marca — Top 10</h3>${barras(grp('m').slice(0,10),'var(--bad)')}</article>`+
   `<article class="pn"><h3>Peças negativas por filial</h3>${barras(grp('lj'),'var(--y)')}</article>`+
@@ -4157,8 +4157,13 @@ async function importarEstoqueNeg(input, loja){
 function negPedCel(pa){
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   if(!pa||!pa.length) return '<span style="color:var(--mu)">—</span>';
-  const dm=d=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]:'';};
-  return pa.map(p=>`<span style="white-space:nowrap" title="${esc(p.cli||'')} · ${esc(p.sit||'')} · qtde ${p.qtde}"><b style="color:var(--y)">#${esc(p.pedido_id)}</b> <span class="bd wn" style="font-size:.62rem">${esc(String(p.sit||'').replace(/^\d+-/,''))}</span> ${esc(String(p.cli||'').slice(0,26))} · ${dm(p.dia)} · ${p.qtde} pç</span>`).join('<br>');
+  const dm=(d,h)=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]+(h?' '+String(h).slice(0,5):''):'—';};
+  return pa.map(p=>`<span style="white-space:nowrap" title="${esc(p.cli||'')} · ${esc(p.sit||'')} · emissão ${dm(p.dia,p.hr_emissao)} · qtde ${p.qtde}"><b style="color:var(--y)">#${esc(p.pedido_id)}</b> <span class="bd wn" style="font-size:.62rem">${esc(String(p.sit||'').replace(/^\d+-/,''))}</span> ${esc(String(p.cli||'').slice(0,26))} · ${p.qtde} pç</span>`).join('<br>');
+}
+function negEmiCel(pa){
+  if(!pa||!pa.length) return '<span style="color:var(--mu)">—</span>';
+  const dm=(d,h)=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]+(h?' '+String(h).slice(0,5):''):'—';};
+  return pa.map(p=>`<span style="white-space:nowrap" title="Pedido #${p.pedido_id} emitido em ${dm(p.dia,p.hr_emissao)}">${dm(p.dia,p.hr_emissao)}</span>`).join('<br>');
 }
 function carregarEstoqueNeg(){
   if(window._NEG) return Promise.resolve(window._NEG);
