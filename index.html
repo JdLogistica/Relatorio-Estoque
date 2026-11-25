@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261124-2140">
+<meta name="version" content="20261124-2144">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -2745,7 +2745,7 @@ function overview(){
     return `<article class="pn w2" style="border-left:4px solid var(--bad)"><h3>⚠️ Estoque negativo <small style="font-weight:400;color:var(--mu)">— relatório do ERP · importado ${quando}</small></h3>`+
      `<div class="kp" style="margin-bottom:.6rem">${kpiHtml([['Itens com saldo negativo',N(NG.length),porLj],['Peças negativas','−'+N(pcs),'soma dos saldos negativos'],['Valor negativo',BRL(val),'saldo × custo líquido · '+N(semCu)+' sem custo'],['WMS com saldo',N(comW),'itens negativos no ERP e com peças no WMS'],['Pedidos aguardando a peça',N(NG.filter(r=>r.pa&&r.pa.length).length),'itens com pedido não expedido e saldo negativo']])}</div>`+
      `<div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Filial</th><th>Cód. Danfe</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th>Locação</th><th style="text-align:center">Saldo ERP</th><th style="text-align:center">Valor</th><th style="text-align:center">WMS</th><th>Pedido aguardando a peça</th><th>Emissão do pedido</th><th>Ação</th></tr></thead><tbody>`+
-     NG.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||a.cu-b.cu).slice(0,15).map(r=>`<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td>${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${r.wq==null?'—':N(r.wq)}</td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td><td title="${esc(r.ac||'')}">${r.ac?esc(r.ac):'<span style="color:var(--mu)">—</span>'}</td></tr>`).join('')+
+     NG.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||a.cu-b.cu).slice(0,15).map(r=>`<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td>${esc(r.d)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${r.wq==null?'—':N(r.wq)}</td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td><td style="min-width:19rem;max-width:none;overflow:visible">${negAcaoCel(r)}</td></tr>`).join('')+
      `</tbody></table></div><div style="margin-top:.5rem"><button class="bt" data-go="neg" style="font-size:.8rem">Ver todos os ${N(NG.length)} itens →</button></div></article>`;
   })()+
   (()=>{ if(!window._SW) return ''; // ── Estoque WMS × ERP ──
