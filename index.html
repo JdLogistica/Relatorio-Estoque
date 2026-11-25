@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-1718">
+<meta name="version" content="20261125-1724">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1076,8 +1076,24 @@ function toggleValores(){
 
 // ── Estoque (seção Estoque): abas Estoques / Sem locação / Controle de Estoque
 // usam a tabela `estoque` (planilhas ESTOQUELT + ESTOQUELL) em vez do RELATÓRIO_ERICA
+// A planilha de divergências do Erica não traz a filial: descobre pela tabela de itens do pedido da divergência (D.meta.pd)
+async function atribuirLojaDv(D){
+  if(D._dvLoja||!D.dv||!D.dv.length) return;
+  D._dvLoja=true;
+  try{
+    const pd=Number(String(D.meta&&D.meta.pd||'').replace(/\D/g,'')); if(!pd) return;
+    let all=[],f=0;
+    for(;;){ const {data,error}=await _sb.from('itens').select('loja,cod_produto,principal').eq('pedido_id',pd).order('seq').range(f,f+999);
+      if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; f+=1000; }
+    if(!all.length) return;
+    const lojas=[...new Set(all.map(r=>r.loja))], m=new Map();
+    all.forEach(r=>{ [r.cod_produto,r.principal].forEach(c=>{ c=String(c||'').trim(); if(c&&!m.has(c)) m.set(c,r.loja); }); });
+    D.dv.forEach(r=>{ r.lj=m.get(String(r.p||'').trim())||(lojas.length===1?lojas[0]:''); });
+  }catch(e){ console.warn('[divergências: filial]',e); D._dvLoja=false; }
+}
 async function prepararEstoqueE(D){
   if(D._estoqueOk) return;
+  await atribuirLojaDv(D);
   const kp=document.getElementById('e-kp');
   if(kp) kp.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando estoque (ESTOQUELT + ESTOQUELL)…</span>';
   try{
@@ -2658,7 +2674,7 @@ function gfPass(r,kind,...ex){
  if(on('cod')){const cs=kind==='dv'?[r.p]:kind==='inv'?[r.c,r.r,String(r.p||'').split(' ')[0]]:[r.c,r.r,r.cw];if(!_gfM('cod')(cs))return false}
  if(on('desc')){if(!_gfM('desc')(kind==='inv'?r.p:r.d))return false}
  if(on('m')&&kind!=='inv'&&!_mv(GF.m,r.m||''))return false;
- if(on('lj')&&kind!=='dv'){const lj=kind==='inv'?String(r.r||'').slice(0,2).toUpperCase():r.lj;if(!_mv(GF.lj,lj))return false}
+ if(on('lj')&&(kind!=='dv'||r.lj)){const lj=kind==='inv'?String(r.r||'').slice(0,2).toUpperCase():r.lj;if(!_mv(GF.lj,lj))return false}
  if(kind==='est'){
   const l=String(r.l||'');
   if(on('loc')&&!r._soWms&&!_gfL()(l))return false;
@@ -2712,7 +2728,7 @@ function renderGeral(){
  else if(cur==='wms'){comFiltroGeral(bootWmsE)}
  else if(cur==='pwms'){comFiltroGeral(bootPosW)}
  else if(cur==='neg'){comFiltroGeral(bootNeg)}
- else if(TB[cur]){S[cur].pg=0;render()}
+ else if(TB[cur]){S[cur].pg=0;render();if(cur==='dv')painelPedDiv()}
 }
 function gfSet(k,v){GF[k]=GF[k]===v?'':v;renderGeral()}
 let _gqT=null;
