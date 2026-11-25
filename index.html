@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-1008">
+<meta name="version" content="20261125-1016">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -6962,7 +6962,7 @@ function desenhar(){
    k('neg','⚠️ Itens negativos',es?N(R.NG.length):'—',es?`${N(Math.abs(R.NG.reduce((x,r)=>x+r.s,0)))} peças negativas · ${R.porLj(R.NG,r=>r.lj)}`:'estoque não carregado')+
    k('est','🏷️ Itens sem preço',es?N(R.E.filter(r=>!(r.cu>0)).length):'—',es?`custo zerado no ERP · de ${N(R.E.length)} itens · ${R.porLj(R.E.filter(r=>!(r.cu>0)),r=>r.lj)}`:'estoque não carregado')+
    k('est','📍 Itens sem locação',es?N(R.SL.length):'—',es?`com saldo no ERP e sem endereço · ${N(R.SL.reduce((x,r)=>x+r.s,0))} peças · ${R.porLj(R.SL,r=>r.lj)}`:'estoque não carregado')+
-   k('est','🏬 Itens no WMS',es&&R.lojasW.length?N(R.wItens):'—',es?(R.lojasW.length?`${N(R.wPcs)} peças · filial ${R.lojasW.join(' + ')}${R.soW.length?' · '+N(R.soW.length)+' só no WMS':''}`:(F.loja?'a filial '+F.loja+' não tem WMS':'sem dados do WMS importados')):'estoque não carregado')+
+   k('est','🏬 Itens no WMS',es?N(R.lojasW.length?R.wItens:0):'—',es?(R.lojasW.length?`${N(R.wPcs)} peças · filial ${R.lojasW.join(' + ')}${R.soW.length?' · '+N(R.soW.length)+' só no WMS':''}`:(F.loja?'a filial '+F.loja+' ainda não tem estoque WMS importado':'sem dados do WMS importados')):'estoque não carregado')+
    k('est','📦 Pedidos no WMS',N(R.pWms.length),`${N(R.pCas)} ligados a pedido do ERP · ${N(R.pWms.length-R.pCas)} só no WMS`);
   const ft=$('g-ft'); if(ft){ const L=window._IMPLOG||[], f=(fo,lj)=>{ const r=L.find(x=>x.fonte===fo&&(x.loja||'')===(lj||'')); return r?(window._impFmtG?window._impFmtG(r.importado_em):''):''; };
     ft.innerHTML=L.length?'🕒 Última atualização dos dados — Pedidos: '+['LT','LL'].map(l=>l+' '+(f('pedidos',l)||'—')).join(' · ')+' · Itens: '+['LT','LL'].map(l=>l+' '+(f('itens',l)||'—')).join(' · ')+' · Estoque ERP: '+['LT','LL'].map(l=>l+' '+(f('estoque',l)||'—')).join(' · ')+' · Estoque negativo: '+['LT','LL'].map(l=>l+' '+(f('neg',l)||'—')).join(' · ')+' · Estoque WMS: '+['LT','LL'].map(l=>l+' '+(f('ewms',l)||'—')).join(' · '):''; }
