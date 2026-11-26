@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261126-1726">
+<meta name="version" content="20261126-1732">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -6364,7 +6364,7 @@ async function renderErros(){
 // ═══════════════════════════════════════════════════════
 // CALENDÁRIO — férias e folgas dos funcionários (tabelas funcionarios e ausencias; edição só administrador)
 // ═══════════════════════════════════════════════════════
-const CAL={ano:new Date().getFullYear(),F:{loja:'',funcao:''},func:[],aus:[],sel:new Set(),pick:new Set(),admin:false,email:'',ready:false,tipo:'Férias',obs:'',pular:false,anchor:null,erro:'',msg:'',busy:false,verInativos:false};
+const CAL={ano:new Date().getFullYear(),F:{loja:'',funcao:''},func:[],aus:[],sel:new Set(),pick:new Set(),admin:false,email:'',ready:false,tipo:'Férias',obs:'',pular:false,anchor:null,ini:null,erro:'',msg:'',busy:false,verInativos:false};
 const CAL_FUNCOES=['Vendedor','Separação/Conferência','Outro'];
 const CAL_COR={'Férias':'#f59e0b','Folga':'#38bdf8','Outro':'#a78bfa'};
 const CAL_MES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -6399,7 +6399,9 @@ function calPeriodos(dias){ // ['2026-01-02',...] -> "02/01–05/01, 09/01"
 }
 function calTopoHtml(){
   const op=(v,l,s)=>`<option value="${_eh(v)}"${s===v?' selected':''}>${_eh(l)}</option>`;
-  return `<div style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">`+
+  const dica=!CAL.admin?'':CAL.tipo==='Férias'?(CAL.ini?`Início em <b>${_cDmy(CAL.ini)}</b> — agora clique no <b>último dia</b> das férias.`:'Clique no <b>primeiro dia</b> das férias e depois no <b>último dia</b>: todos os dias do meio ficam selecionados.'):CAL.tipo==='Folga'?'Clique nos dias de folga (um a um; clique de novo para tirar). Shift+clique seleciona um intervalo.':'Clique nos dias (um a um). Shift+clique seleciona um intervalo.';
+  return `<div style="display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end;margin-bottom:.8rem;padding-bottom:.8rem;border-bottom:1px solid var(--ln)"><div class="fl"><span>1º — O que vai lançar?</span><div style="display:flex;gap:.4rem;flex-wrap:wrap">${[['Férias','🌴 Férias'],['Folga','😴 Folga'],['Outro','📝 Outro (atestado, licença…)']].map(([t,l])=>`<button type="button" class="bt" data-cl="tipo" data-t="${t}" aria-pressed="${CAL.tipo===t}" style="padding:.45rem 1rem;font-weight:700;${CAL.tipo===t?'background:'+CAL_COR[t]+';color:#0a0a0a;border-color:'+CAL_COR[t]+';':''}">${l}</button>`).join('')}</div></div>${dica?`<div style="font-size:.86rem;flex:1;min-width:16rem"><span style="color:var(--mu)">2º —</span> ${dica}</div>`:''}</div>`+
+   `<div style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">`+
    `<div class="fl"><span>Ano</span><div style="display:flex;gap:.3rem;align-items:center"><button class="bt" type="button" data-cl="ano-" style="padding:.3rem .7rem">◀</button><b style="font-size:1.15rem;min-width:3.2rem;text-align:center">${CAL.ano}</b><button class="bt" type="button" data-cl="ano+" style="padding:.3rem .7rem">▶</button><button class="bt" type="button" data-cl="hoje" style="padding:.3rem .7rem">Hoje</button></div></div>`+
    `<label class="fl">Filial<select class="gin es-sel" id="cl-f-loja">${op('','Todas',CAL.F.loja)}${op('LT','LT',CAL.F.loja)}${op('LL','LL',CAL.F.loja)}</select></label>`+
    `<label class="fl">Função<select class="gin es-sel" id="cl-f-funcao">${op('','Todas',CAL.F.funcao)}${CAL_FUNCOES.map(x=>op(x,x,CAL.F.funcao)).join('')}</select></label>`+
@@ -6440,8 +6442,8 @@ function calAcaoHtml(){
   const ranges=calPeriodos(dias), av=calAvisos();
   const pular=CAL.pular?dias.filter(d=>{const w=_cDow(d);return w!==0&&w!==6;}):dias;
   const rows=CAL.admin?`<div style="display:grid;gap:.6rem">`+
-    `<div style="font-size:.86rem"><b>${dias.length}</b> dia(s) selecionado(s)${dias.length?`: <span style="color:var(--mu)">${_eh(ranges.length>120?ranges.slice(0,120)+'…':ranges)}</span>`:' <span style="color:var(--mu)">— clique nos dias do calendário (Shift+clique seleciona um intervalo; clique no nome do mês seleciona o mês)</span>'}<br><b>${P.length}</b> funcionário(s) marcado(s)${P.length&&P.length<=6?': <span style="color:var(--mu)">'+P.map(f=>_eh(f.nome)+' ('+f.loja+')').join(', ')+'</span>':''}</div>`+
-    `<div style="display:flex;gap:.9rem;flex-wrap:wrap;align-items:center">${['Férias','Folga','Outro'].map(t=>`<label style="display:flex;gap:.3rem;align-items:center;cursor:pointer"><input type="radio" name="cl-tipo" value="${t}" ${CAL.tipo===t?'checked':''}><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;background:${CAL_COR[t]}"></i><b>${t==='Outro'?'Outro (atestado, licença…)':t}</b></label>`).join('')}<label style="display:flex;gap:.3rem;align-items:center;font-size:.82rem;color:var(--mu)"><input type="checkbox" id="cl-pular" ${CAL.pular?'checked':''}> pular sábados e domingos</label></div>`+
+    `<div style="font-size:.86rem"><b>${dias.length}</b> dia(s) selecionado(s)${dias.length?`: <span style="color:var(--mu)">${_eh(ranges.length>120?ranges.slice(0,120)+'…':ranges)}</span>`:' <span style="color:var(--mu)">— use o calendário acima'+(CAL.tipo==='Férias'?' (dia inicial e dia final)':'')+'</span>'}<br><b>${P.length}</b> funcionário(s) marcado(s)${P.length&&P.length<=6?': <span style="color:var(--mu)">'+P.map(f=>_eh(f.nome)+' ('+f.loja+')').join(', ')+'</span>':''}</div>`+
+    `<div style="font-size:.86rem">Lançando: <b style="color:${CAL_COR[CAL.tipo]}">${CAL.tipo==='Outro'?'Outro (atestado, licença…)':CAL.tipo}</b> <label style="display:inline-flex;gap:.3rem;align-items:center;font-size:.82rem;color:var(--mu);margin-left:.8rem"><input type="checkbox" id="cl-pular" ${CAL.pular?'checked':''}> pular sábados e domingos</label></div>`+
     `<input class="gin" id="cl-obs" maxlength="120" placeholder="Observação (opcional)" value="${_eh(CAL.obs)}">`+
     (av.length?`<div style="background:rgba(255,80,80,.1);border:1px solid var(--bad);border-radius:8px;padding:.5rem .7rem;font-size:.82rem"><b>⚠ Cobertura da equipe:</b><br>${av.slice(0,6).map(_eh).join('<br>')}${av.length>6?'<br>… e mais '+(av.length-6):''}</div>`:'')+
     `<div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center"><button class="bt" type="button" data-cl="registrar" style="background:var(--y);color:#0a0a0a;border-color:var(--y);padding:.5rem 1.2rem" ${CAL.busy?'disabled':''}>✅ Registrar ${pular.length*P.length?`(${_en(pular.length*P.length)} lançamento${pular.length*P.length>1?'s':''})`:''}</button><button class="bt" type="button" data-cl="remover" style="padding:.5rem 1rem">🗑 Remover marcações dos dias selecionados</button><button class="bt" type="button" data-cl="limpar-dias" style="padding:.5rem 1rem">Limpar seleção</button><span class="es-msg ${/^✅/.test(CAL.msg)?'ok':/^❌/.test(CAL.msg)?'err':''}" id="cl-msg">${_eh(CAL.msg)}</span></div></div>`
@@ -6478,7 +6480,7 @@ async function calRegistrar(){
   try{
     const obs=(CAL.obs||'').trim()||null, linhas=[]; P.forEach(f=>dias.forEach(d=>linhas.push({funcionario_id:f.id,data:d,tipo:CAL.tipo,observacao:obs,criado_por:CAL.email||null})));
     for(let i=0;i<linhas.length;i+=500){ const {error}=await _sb.from('ausencias').upsert(linhas.slice(i,i+500),{onConflict:'funcionario_id,data'}); if(error) throw error; }
-    await calCarregar(); CAL.sel.clear(); CAL.msg=`✅ ${CAL.tipo} registrada: ${tot} lançamento(s) para ${P.length} funcionário(s).`; calDesenha(['cal','acao','func','resumo']);
+    await calCarregar(); CAL.sel.clear(); CAL.ini=null; CAL.msg=`✅ ${CAL.tipo} registrada: ${tot} lançamento(s) para ${P.length} funcionário(s).`; calDesenha(['cal','acao','func','resumo']);
   }catch(e){ msg('❌ '+(e.message||e)); }
   finally{ CAL.busy=false; }
 }
@@ -6504,17 +6506,23 @@ async function calNovoFunc(){
 document.addEventListener('click',async e=>{
   if(cur!=='cal') return;
   const d=e.target.closest('[data-cd]'); if(d){ const iso=d.dataset.cd;
-    if(e.shiftKey&&CAL.anchor){ const [a,b]=[CAL.anchor,iso].sort(); for(let t=new Date(a+'T12:00:00Z');t<=new Date(b+'T12:00:00Z');t=new Date(+t+864e5)) CAL.sel.add(t.toISOString().slice(0,10)); }
+    const faixa=(a,b)=>{ const [x,y]=[a,b].sort(); const o=[]; for(let t=new Date(x+'T12:00:00Z');t<=new Date(y+'T12:00:00Z');t=new Date(+t+864e5)) o.push(t.toISOString().slice(0,10)); return o; };
+    if(CAL.tipo==='Férias'&&!e.shiftKey){ // dia inicial → dia final: preenche os dias do meio
+      if(CAL.ini){ CAL.sel=new Set(faixa(CAL.ini,iso)); CAL.ini=null; }
+      else { CAL.sel=new Set([iso]); CAL.ini=iso; }
+      CAL.anchor=iso; }
+    else if(e.shiftKey&&CAL.anchor){ faixa(CAL.anchor,iso).forEach(x=>CAL.sel.add(x)); CAL.ini=null; }
     else { CAL.sel.has(iso)?CAL.sel.delete(iso):CAL.sel.add(iso); CAL.anchor=iso; }
-    CAL.msg=''; calDesenha(['cal','acao']); return; }
-  const mm=e.target.closest('[data-cm]'); if(mm){ const m=+mm.dataset.cm, nd=new Date(Date.UTC(CAL.ano,m+1,0)).getUTCDate(), dias=Array.from({length:nd},(_,i)=>_cIso(CAL.ano,m,i+1)), todos=dias.every(x=>CAL.sel.has(x)); dias.forEach(x=>todos?CAL.sel.delete(x):CAL.sel.add(x)); calDesenha(['cal','acao']); return; }
+    CAL.msg=''; calDesenha(['topo','cal','acao']); return; }
+  const mm=e.target.closest('[data-cm]'); if(mm){ const m=+mm.dataset.cm, nd=new Date(Date.UTC(CAL.ano,m+1,0)).getUTCDate(), dias=Array.from({length:nd},(_,i)=>_cIso(CAL.ano,m,i+1)), todos=dias.every(x=>CAL.sel.has(x)); dias.forEach(x=>todos?CAL.sel.delete(x):CAL.sel.add(x)); CAL.ini=null; calDesenha(['topo','cal','acao']); return; }
   const fr=e.target.closest('[data-cfr]'); if(fr){ const id=+fr.dataset.cfr; CAL.pick.has(id)?CAL.pick.delete(id):CAL.pick.add(id); calDesenha(['func','cal','acao','resumo']); return; }
   const b=e.target.closest('[data-cl]'); if(!b) return; const a=b.dataset.cl;
+  if(a==='tipo'){ if(CAL.tipo!==b.dataset.t){ CAL.tipo=b.dataset.t; CAL.sel.clear(); CAL.ini=null; CAL.anchor=null; CAL.msg=''; } calDesenha(['topo','cal','acao']); return; }
   if(a==='ano-'||a==='ano+'){ CAL.ano+=a==='ano+'?1:-1; CAL.sel.clear(); try{ await calCarregar(); }catch(x){ CAL.erro=x.message; } calDesenha(); }
   else if(a==='hoje'){ const y=new Date().getFullYear(); if(CAL.ano!==y){ CAL.ano=y; await calCarregar().catch(()=>{}); } calDesenha(); }
   else if(a==='pick-todos'){ calFuncFiltrados().filter(f=>f.ativo).forEach(f=>CAL.pick.add(f.id)); calDesenha(['func','cal','acao','resumo']); }
   else if(a==='pick-nenhum'){ CAL.pick.clear(); calDesenha(['func','cal','acao','resumo']); }
-  else if(a==='limpar-dias'){ CAL.sel.clear(); CAL.msg=''; calDesenha(['cal','acao']); }
+  else if(a==='limpar-dias'){ CAL.sel.clear(); CAL.ini=null; CAL.msg=''; calDesenha(['topo','cal','acao']); }
   else if(a==='registrar') calRegistrar();
   else if(a==='remover') calRemover();
   else if(a==='novo-func') calNovoFunc();
@@ -6527,7 +6535,6 @@ document.addEventListener('change',e=>{
   else if(t.id==='cl-f-funcao'){ CAL.F.funcao=t.value; calDesenha(['func','cal','resumo','acao']); }
   else if(t.id==='cl-inativos'){ CAL.verInativos=t.checked; calDesenha(['func','resumo']); }
   else if(t.dataset&&t.dataset.cf){ const id=+t.dataset.cf; t.checked?CAL.pick.add(id):CAL.pick.delete(id); calDesenha(['func','cal','acao','resumo']); }
-  else if(t.name==='cl-tipo'){ CAL.tipo=t.value; }
   else if(t.id==='cl-pular'){ CAL.pular=t.checked; calDesenha(['acao']); }
 });
 document.addEventListener('input',e=>{ if(cur==='cal'&&e.target.id==='cl-obs') CAL.obs=e.target.value; });
