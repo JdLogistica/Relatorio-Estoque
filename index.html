@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261126-1027">
+<meta name="version" content="20261126-1110">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -4790,6 +4790,7 @@ const TABS=[
   {k:'itens',    ic:'📦', l:'Itens'},
   {k:'estoque',  ic:'🗄️', l:'Estoque'},
   {k:'tempos',   ic:'⏱️', l:'Tempo Médio'},
+  {k:'erros',    ic:'⚠️', l:'Erros de separação'},
 ];
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -6035,6 +6036,7 @@ function buildFilters_unused(){
 }
 
 function render(){
+  if(cur==='erros'){ $('#p-kp').hidden=true; $('#p-tb').hidden=true; return; }
   const rs=filtered();
   // Na aba Itens/Tempos: oculta KPIs de pedidos e tabela de pedidos
   const isItens=cur==='itens';
@@ -6104,6 +6106,229 @@ const _elAncora=a=>{ const el=document.getElementById(a.id); if(!el) return null
 const _restauraAncora=a=>{ if(!a||Date.now()-a.t>4000) return; const fix=()=>{ const el=_elAncora(a); if(!el) return; const d=el.getBoundingClientRect().top-a.top; if(Math.abs(d)>1) _scrollerDe(el).scrollTop+=d; };
   fix(); requestAnimationFrame(fix); setTimeout(fix,120); setTimeout(fix,450); };
 window._rerenderP=()=>{ const a=window._ancora; go(cur); _restauraAncora(a); };
+// ═══════════════════════════════════════════════════════
+// ERROS DE SEPARAÇÃO — registro (pedido → item → quantidade → separador → conferente) + dashboard gerencial
+// Tabela do banco: erros_separacao (leitura: usuários autorizados · inclusão: usuário autorizado · editar/excluir: administrador)
+// ═══════════════════════════════════════════════════════
+const ES={vista:'reg',F:{de:'',ate:'',loja:'',sep:'',conf:'',tipo:''},rows:null,load:null,erro:'',ped:null,itens:[],sel:null,ops:null,admin:null,nome:'',email:'',msg:'',busy:false};
+const ES_TIPOS=['Item trocado (produto errado)','Quantidade a mais','Quantidade a menos','Item faltando','Item avariado','Outro'];
+const _eh=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const _en=(v,d=0)=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:d});
+const _eMoeda=v=>window._valHide?'R$ ••••••':Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const _eDm=d=>{ const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+'/'+m[2]+'/'+m[1]:'—'; };
+const _eHoje=()=>new Date().toLocaleDateString('sv-SE');
+const _eNome=v=>String(v||'').replace(/\s+/g,' ').trim().toUpperCase();
+function esCarregar(force){
+  if(!force&&ES.rows) return Promise.resolve(ES.rows);
+  if(!force&&ES.load) return ES.load;
+  ES.load=(async()=>{
+    let all=[],from=0;
+    for(;;){ const {data,error}=await _sb.from('erros_separacao').select('*').order('data_erro',{ascending:false}).order('id',{ascending:false}).range(from,from+999);
+      if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000; }
+    ES.rows=all; ES.erro=''; return all;
+  })().catch(e=>{ES.load=null;ES.erro=e.message||String(e);throw e;}).finally(()=>{ES.load=null;});
+  return ES.load;
+}
+async function esQuem(){
+  if(ES.email) return;
+  try{ const s=(await _sb.auth.getSession()).data.session; ES.email=(s&&s.user&&s.user.email)||''; }catch(e){}
+  try{ const {data}=await _sb.from('usuarios_auth').select('nome').eq('email',ES.email).maybeSingle(); ES.nome=(data&&data.nome)||''; }catch(e){}
+  try{ ES.admin=await checkAdmin(); }catch(e){ ES.admin=false; }
+}
+// nomes de separadores / conferentes já conhecidos (pedidos do ERP, WMS e registros anteriores) por filial
+async function esPessoas(){
+  if(ES.ops) return ES.ops;
+  const o={LT:new Set(),LL:new Set()};
+  (rows||[]).forEach(r=>{ const n=_eNome(r.conf); if(n&&o[r.loja]) o[r.loja].add(n); });
+  try{ let f=0; for(;;){ const {data,error}=await _sb.from('wms_tempos').select('operador').range(f,f+999); if(error) throw error; (data||[]).forEach(r=>{ const n=_eNome(r.operador); if(n) o.LL.add(n); }); if(!data||data.length<1000) break; f+=1000; } }catch(e){ console.warn('[erros: operadores WMS]',e); }
+  (ES.rows||[]).forEach(r=>{ [r.separador,r.conferente].forEach(x=>{ const n=_eNome(x); if(n&&o[r.loja]) o[r.loja].add(n); }); });
+  return ES.ops=o;
+}
+async function esBuscarPedido(){
+  const id=String(document.getElementById('es-ped').value||'').replace(/\D/g,''), lj=document.getElementById('es-lj').value;
+  const msg=document.getElementById('es-busca-msg'); msg.className='es-msg'; 
+  if(!id){ msg.textContent='Digite o número do pedido.'; return; }
+  msg.textContent='Buscando…';
+  try{
+    let q=_sb.from('pedidos').select('id,loja,cli,vend,conf,sit,dia,tp,canc').eq('id',id); if(lj) q=q.eq('loja',lj);
+    const {data,error}=await q; if(error) throw error;
+    if(!data||!data.length){ msg.textContent='Pedido '+id+' não encontrado'+(lj?' na filial '+lj:'')+'.'; ES.ped=null; ES.itens=[]; ES.sel=null; esDesenhaReg(); return; }
+    let p=data[0];
+    if(data.length>1){ const esc2=_eh; msg.innerHTML='O pedido '+_eh(id)+' existe nas duas filiais — escolha a filial acima e busque de novo.'; return; }
+    const {data:it,error:e2}=await _sb.from('itens').select('seq,cod_produto,principal,descricao,marca,qtde,total').eq('pedido_id',Number(id)).eq('loja',p.loja).order('seq');
+    if(e2) throw e2;
+    // separador / conferente do WMS (quando o pedido passou pelo WMS)
+    let sepW='',confW='';
+    try{ const {data:w}=await _sb.from('wms_tempos').select('tipo,operador').eq('pedido_id',id); const S=new Set(),C=new Set(); (w||[]).forEach(r=>{ const n=_eNome(r.operador); if(!n) return; (String(r.tipo||'').toLowerCase().startsWith('conf')?C:S).add(n); }); sepW=[...S].join(', '); confW=[...C].join(', '); }catch(e){}
+    ES.ped={...p,sepW,confW}; ES.itens=it||[]; ES.sel=null; msg.textContent='';
+    await esCarregar().catch(()=>{}); await esPessoas();
+    esDesenhaReg();
+  }catch(e){ msg.className='es-msg err'; msg.textContent='Erro na busca: '+(e.message||e); }
+}
+function esSelecionar(i){ ES.sel=i; esDesenhaReg(); const q=document.getElementById('es-qtd'); if(q){ q.focus(); q.select(); } }
+async function esSalvar(){
+  const p=ES.ped, it=ES.itens[ES.sel]; if(!p||!it||ES.busy) return;
+  const g=id=>document.getElementById(id), msg=g('es-save-msg'); msg.className='es-msg';
+  const qtd=Number(String(g('es-qtd').value).replace(',','.')), sep=_eNome(g('es-sep').value), conf=_eNome(g('es-conf').value), dia=g('es-data').value||_eHoje(), tipo=g('es-tipo').value, obs=g('es-obs').value.trim();
+  if(!(qtd>0)){ msg.className='es-msg err'; msg.textContent='Informe a quantidade errada (maior que zero).'; g('es-qtd').focus(); return; }
+  if(!sep){ msg.className='es-msg err'; msg.textContent='Confirme o separador.'; g('es-sep').focus(); return; }
+  if(!conf){ msg.className='es-msg err'; msg.textContent='Confirme o conferente.'; g('es-conf').focus(); return; }
+  if(dia>_eHoje()){ msg.className='es-msg err'; msg.textContent='A data do erro não pode ser futura.'; return; }
+  const un=Number(it.qtde)>0?Number(it.total||0)/Number(it.qtde):0;
+  if(!confirm(`Registrar o erro de separação?\n\nPedido ${p.id} (${p.loja})\nItem: ${it.cod_produto} — ${String(it.descricao||'').trim()}\nQuantidade errada: ${qtd}\nSeparador: ${sep}\nConferente: ${conf}`)) return;
+  ES.busy=true; msg.textContent='Salvando…';
+  try{
+    await esQuem();
+    const reg={data_erro:dia,registrado_por:ES.email,registrado_nome:ES.nome||null,loja:p.loja,pedido_id:String(p.id),cliente:p.cli||null,vendedor:p.vend||null,dia_pedido:p.dia||null,seq:it.seq,cod_produto:String(it.cod_produto||'').trim(),descricao:String(it.descricao||'').replace(/\s+/g,' ').trim()||null,marca:String(it.marca||'').replace(/\s+/g,' ').trim()||null,qtde_pedido:Number(it.qtde)||null,qtde_errada:qtd,valor_unit:un?Math.round(un*100)/100:null,valor_erro:un?Math.round(un*qtd*100)/100:null,tipo_erro:tipo||null,observacao:obs||null,separador:sep,conferente:conf};
+    const {error}=await _sb.from('erros_separacao').insert(reg);
+    if(error) throw new Error(error.code==='42501'?'Sem permissão para registrar (usuário não autorizado).':error.message);
+    ES.msg=`✅ Erro registrado: pedido ${p.id} · ${reg.cod_produto} · ${_en(qtd,2)} pç · separador ${sep} · conferente ${conf}`;
+    ES.rows=null; ES.ops=null; ES.sel=null; await esCarregar(true).catch(()=>{});
+    esDesenhaReg();
+  }catch(e){ msg.className='es-msg err'; msg.textContent='❌ '+(e.message||e); }
+  finally{ ES.busy=false; }
+}
+function esFiltrados(skip){
+  const F=ES.F; const R=(ES.rows||[]);
+  return R.filter(r=>(!F.de||r.data_erro>=F.de)&&(!F.ate||r.data_erro<=F.ate)&&(!F.loja||r.loja===F.loja)&&(skip==='sep'||!F.sep||r.separador===F.sep)&&(skip==='conf'||!F.conf||r.conferente===F.conf)&&(!F.tipo||(r.tipo_erro||'Não informado')===F.tipo));
+}
+function esFiltroHtml(){
+  const R=ES.rows||[], F=ES.F, op=(v,l,s)=>`<option value="${_eh(v)}"${s===v?' selected':''}>${_eh(l)}</option>`;
+  const un=k=>[...new Set(R.map(r=>r[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const tipos=[...new Set(R.map(r=>r.tipo_erro||'Não informado'))].sort();
+  const pre=(k,l)=>`<button type="button" class="bt es-pre" data-pre="${k}" style="padding:.25rem .6rem;font-size:.74rem">${l}</button>`;
+  return `<section class="fb es-fb" style="grid-column:1/-1;position:static;display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">`+
+   `<label class="fl">De<input class="gin es-f" data-k="de" type="date" value="${_eh(F.de)}"></label><label class="fl">Até<input class="gin es-f" data-k="ate" type="date" value="${_eh(F.ate)}"></label>`+
+   `<div class="fl"><span>Período</span><div style="display:flex;gap:.25rem">${pre('7','7 dias')}${pre('30','30 dias')}${pre('mes','Mês atual')}${pre('','Tudo')}</div></div>`+
+   `<label class="fl">Filial<select class="gin es-f es-sel" data-k="loja">${op('','Todas',F.loja)}${op('LT','LT',F.loja)}${op('LL','LL',F.loja)}</select></label>`+
+   `<label class="fl">Separador<select class="gin es-f es-sel" data-k="sep">${op('','Todos',F.sep)}${un('separador').map(x=>op(x,x,F.sep)).join('')}</select></label>`+
+   `<label class="fl">Conferente<select class="gin es-f es-sel" data-k="conf">${op('','Todos',F.conf)}${un('conferente').map(x=>op(x,x,F.conf)).join('')}</select></label>`+
+   `<label class="fl">Tipo de erro<select class="gin es-f es-sel" data-k="tipo">${op('','Todos',F.tipo)}${tipos.map(x=>op(x,x,F.tipo)).join('')}</select></label></section>`;
+}
+function esCss(){ if(document.getElementById('es-css')) return; const s=document.createElement('style'); s.id='es-css'; s.textContent=`.es-seg{display:flex;gap:.4rem;grid-column:1/-1;flex-wrap:wrap}.es-seg button{padding:.5rem 1rem;border-radius:8px;border:1px solid var(--ln);background:var(--s2);font-weight:700;cursor:pointer;color:var(--tx)}.es-seg button[aria-pressed=true]{background:var(--y);color:#0a0a0a;border-color:var(--y)}.es-msg{font-size:.82rem;margin:.35rem 0;color:var(--mu)}.es-msg.err{color:var(--bad);font-weight:700}.es-msg.ok{color:var(--ok);font-weight:700}.es-step{display:flex;gap:.6rem;align-items:center;margin:0 0 .5rem}.es-step i{font-style:normal;background:var(--y);color:#0a0a0a;border-radius:50%;width:1.5rem;height:1.5rem;display:inline-grid;place-items:center;font-weight:800;font-size:.8rem}.es-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.7rem}.es-row-sel{background:rgba(255,205,0,.12)}.es-bar{display:grid;grid-template-columns:minmax(5rem,13rem) minmax(0,1fr) 8.5rem;gap:.5rem;align-items:center;margin:.22rem 0;font-size:.8rem}.es-bar>div{background:var(--s2);border-radius:3px;height:10px;overflow:hidden}.es-bar>div>i{display:block;height:100%}`; document.head.appendChild(s); }
+function esHbars(arr,cor,fmt){ const mx=Math.max(1,...arr.map(x=>x[1])); return arr.length?arr.map(([k,v,extra])=>`<div class="es-bar"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_eh(k)}">${_eh(k)}</span><div><i style="width:${v/mx*100}%;background:${cor}"></i></div><span style="text-align:right"><b>${fmt?fmt(v):_en(v)}</b>${extra?' <small style="color:var(--mu)">'+extra+'</small>':''}</span></div>`).join(''):'<p style="color:var(--mu);font-size:.85rem">Sem dados no período.</p>'; }
+function esGrp(R,fn,val){ const m=new Map(); R.forEach(r=>{ const k=fn(r)||'(não informado)'; const o=m.get(k)||{k,n:0,q:0,v:0,peds:new Set()}; o.n++; o.q+=Number(r.qtde_errada)||0; o.v+=Number(r.valor_erro)||0; o.peds.add(r.loja+'|'+r.pedido_id); m.set(k,o); }); return [...m.values()].sort((a,b)=>b.n-a.n||b.q-a.q); }
+function esDesenha(){
+  esCss();
+  const cg=document.getElementById('cg'); if(!cg) return;
+  const seg=`<div class="es-seg" role="group" aria-label="Erros de separação">${[['reg','➕ Registrar erro'],['dash','📊 Dashboard gerencial'],['lista','📋 Registros']].map(([k,l])=>`<button type="button" data-es-v="${k}" aria-pressed="${ES.vista===k}">${l}</button>`).join('')}</div>`;
+  cg.innerHTML=seg+`<div id="es-corpo" style="grid-column:1/-1;display:grid;gap:1rem"></div>`;
+  if(ES.vista==='reg') esDesenhaReg(); else esDesenhaDados();
+}
+function esDesenhaReg(){
+  const box=document.getElementById('es-corpo'); if(!box||ES.vista!=='reg') return;
+  const p=ES.ped, it=ES.sel!=null?ES.itens[ES.sel]:null;
+  const jaReg=new Map(); (ES.rows||[]).filter(r=>p&&r.pedido_id===String(p.id)&&r.loja===p.loja).forEach(r=>{ const k=String(r.cod_produto); jaReg.set(k,(jaReg.get(k)||0)+1); });
+  const antes={ped:(document.getElementById('es-ped')||{}).value,lj:(document.getElementById('es-lj')||{}).value};
+  const sepSug=p?(p.sepW||_eNome(p.conf)):'', confSug=p?(p.confW||''):'';
+  const nomes=p&&ES.ops?[...(ES.ops[p.loja]||[])].sort():[];
+  const h1=`<article class="pn"><h3><span class="es-step"><i>1</i> Buscar o pedido</span></h3>`+
+   `<div style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end"><label class="fl">Nº do pedido<input id="es-ped" class="gin" type="search" inputmode="numeric" placeholder="Ex.: 29662" autocomplete="off" value="${_eh(antes.ped||(p?p.id:''))}" style="min-width:12rem"></label>`+
+   `<label class="fl">Filial<select id="es-lj" class="gin es-sel"><option value="">Todas</option><option value="LT"${(antes.lj||(p&&p.loja))==='LT'?' selected':''}>LT</option><option value="LL"${(antes.lj||(p&&p.loja))==='LL'?' selected':''}>LL</option></select></label>`+
+   `<button id="es-buscar" class="bt" type="button" style="background:var(--y);color:#0a0a0a;border-color:var(--y)">🔎 Buscar</button></div><div id="es-busca-msg" class="es-msg"></div>`+
+   (ES.msg?`<div class="es-msg ok">${_eh(ES.msg)}</div>`:'')+`</article>`;
+  let h2='',h3='';
+  if(p){
+    const linhas=ES.itens.map((x,i)=>`<tr class="${ES.sel===i?'es-row-sel':''}"><td>${_eh(x.seq)}</td><td><b>${_eh(String(x.cod_produto||'').trim())}</b></td><td>${_eh(String(x.descricao||'').trim())}</td><td>${_eh(String(x.marca||'').trim())}</td><td style="text-align:right">${_en(x.qtde,2)}</td><td>${jaReg.get(String(x.cod_produto))?`<span class="bd wn" style="font-size:.62rem" title="Já existe erro registrado para este item neste pedido">⚠ ${jaReg.get(String(x.cod_produto))} registro(s)</span>`:''}</td><td><button type="button" class="bt es-pick" data-i="${i}" style="padding:.25rem .7rem">${ES.sel===i?'✔ Selecionado':'Selecionar'}</button></td></tr>`).join('');
+    h2=`<article class="pn w2"><h3><span class="es-step"><i>2</i> Escolher o item errado</span></h3>`+
+     `<p style="margin:0 0 .5rem;font-size:.85rem"><b style="color:var(--y)">Pedido #${_eh(p.id)}</b> · ${_eh(p.loja)} · ${_eh(p.cli||'—')} · emissão ${_eDm(p.dia)} · ${_eh(String(p.sit||'').replace(/^\d+-/,''))} · vendedor ${_eh(p.vend||'—')}<br><small style="color:var(--mu)">Separador do ERP: <b>${_eh(p.conf||'—')}</b>${p.sepW?' · WMS separou: <b>'+_eh(p.sepW)+'</b>':''}${p.confW?' · WMS conferiu: <b>'+_eh(p.confW)+'</b>':''}</small></p>`+
+     (ES.itens.length?`<div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Seq</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th style="text-align:right">Qtde pedida</th><th></th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`:'<p style="color:var(--mu)">Este pedido não tem itens importados. Importe os ITENS da filial na tela inicial.</p>')+`</article>`;
+  }
+  if(p&&it){
+    h3=`<article class="pn w2"><h3><span class="es-step"><i>3</i> Quantidade, separador e conferente</span></h3>`+
+     `<p style="margin:0 0 .6rem;font-size:.85rem">Item: <b>${_eh(String(it.cod_produto||'').trim())}</b> — ${_eh(String(it.descricao||'').trim())} <small style="color:var(--mu)">(pedido: ${_en(it.qtde,2)} pç)</small></p>`+
+     `<div class="es-grid"><label class="fl">Quantidade errada<input id="es-qtd" class="gin" type="number" min="0" step="any" inputmode="decimal" placeholder="Ex.: 2" value="1"></label>`+
+     `<label class="fl">Confirme o separador<input id="es-sep" class="gin" list="es-dl-ops" autocomplete="off" value="${_eh(sepSug)}" placeholder="Nome do separador"></label>`+
+     `<label class="fl">Confirme o conferente<input id="es-conf" class="gin" list="es-dl-ops" autocomplete="off" value="${_eh(confSug)}" placeholder="Nome do conferente"></label>`+
+     `<label class="fl">Tipo de erro (opcional)<select id="es-tipo" class="gin es-sel"><option value="">Não informado</option>${ES_TIPOS.map(t=>`<option>${_eh(t)}</option>`).join('')}</select></label>`+
+     `<label class="fl">Data do erro<input id="es-data" class="gin" type="date" value="${_eHoje()}" max="${_eHoje()}"></label></div>`+
+     `<datalist id="es-dl-ops">${nomes.map(n=>`<option value="${_eh(n)}">`).join('')}</datalist>`+
+     `<label class="fl" style="margin-top:.6rem">Observação (opcional)<input id="es-obs" class="gin" maxlength="300" placeholder="Ex.: cliente recebeu a peça trocada"></label>`+
+     `<div style="margin-top:.7rem;display:flex;gap:.6rem;align-items:center;flex-wrap:wrap"><button id="es-salvar" class="bt" type="button" style="background:var(--y);color:#0a0a0a;border-color:var(--y);padding:.55rem 1.3rem">💾 Registrar erro</button><span id="es-save-msg" class="es-msg"></span></div></article>`;
+  }
+  const rec=(ES.rows||[]).slice(0,8), recH=`<article class="pn w2"><h3>🕘 Últimos registros</h3>${rec.length?`<div class="tw"><table class="ped-tb"><thead><tr><th>Data</th><th>Filial</th><th>Pedido</th><th>Produto</th><th style="text-align:right">Qtde</th><th>Separador</th><th>Conferente</th><th>Tipo</th><th>Registrado por</th></tr></thead><tbody>${rec.map(r=>`<tr><td>${_eDm(r.data_erro)}</td><td>${_eh(r.loja)}</td><td>#${_eh(r.pedido_id)}</td><td title="${_eh(r.descricao)}"><b>${_eh(r.cod_produto)}</b> ${_eh(String(r.descricao||'').slice(0,30))}</td><td style="text-align:right">${_en(r.qtde_errada,2)}</td><td>${_eh(r.separador)}</td><td>${_eh(r.conferente)}</td><td>${_eh(r.tipo_erro||'—')}</td><td>${_eh(r.registrado_nome||r.registrado_por)}</td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">Nenhum erro registrado ainda.</p>'}</article>`;
+  box.innerHTML=h1+h2+h3+recH;
+}
+function esDesenhaDados(){
+  const box=document.getElementById('es-corpo'); if(!box||ES.vista==='reg') return;
+  if(ES.erro&&!ES.rows){ box.innerHTML=`<article class="pn w2"><h3>⚠️ Erros de separação</h3><p style="color:var(--bad)">Não foi possível carregar: ${_eh(ES.erro)}</p></article>`; return; }
+  if(!ES.rows){ box.innerHTML='<p style="color:var(--mu)">Carregando erros de separação…</p>'; return; }
+  const R=esFiltrados(), F=ES.F;
+  const filtroH=esFiltroHtml();
+  if(ES.vista==='lista'){
+    const lin=R.slice(0,1000);
+    box.innerHTML=filtroH+`<article class="pn w2"><h3>📋 Registros de erros de separação <small style="font-weight:400;color:var(--mu)">— ${_en(R.length)} registro(s)${R.length>1000?' · mostrando os 1.000 mais recentes (exporte o CSV para ver todos)':''}</small> <button class="bt" type="button" id="es-csv" style="font-size:.72rem;padding:.15rem .55rem;margin-left:.5rem">Exportar CSV</button></h3>`+
+     (lin.length?`<div class="tw" style="max-height:620px;overflow:auto"><table class="ped-tb"><thead><tr><th>Data do erro</th><th>Filial</th><th>Pedido</th><th>Cliente</th><th>Cód. produto</th><th>Descrição</th><th>Marca</th><th style="text-align:right">Qtde pedida</th><th style="text-align:right">Qtde errada</th><th style="text-align:right">Valor</th><th>Tipo</th><th>Separador</th><th>Conferente</th><th>Observação</th><th>Registrado por</th><th>Registrado em</th>${ES.admin?'<th></th>':''}</tr></thead><tbody>${lin.map(r=>`<tr><td>${_eDm(r.data_erro)}</td><td>${_eh(r.loja)}</td><td>#${_eh(r.pedido_id)}</td><td title="${_eh(r.cliente)}">${_eh(String(r.cliente||'').slice(0,24))}</td><td><b>${_eh(r.cod_produto)}</b></td><td title="${_eh(r.descricao)}">${_eh(String(r.descricao||'').slice(0,34))}</td><td>${_eh(r.marca)}</td><td style="text-align:right">${_en(r.qtde_pedido,2)}</td><td style="text-align:right"><b>${_en(r.qtde_errada,2)}</b></td><td style="text-align:right">${r.valor_erro==null?'—':_eMoeda(r.valor_erro)}</td><td>${_eh(r.tipo_erro||'—')}</td><td>${_eh(r.separador)}</td><td>${_eh(r.conferente)}</td><td title="${_eh(r.observacao)}">${_eh(String(r.observacao||'').slice(0,30))}</td><td>${_eh(r.registrado_nome||r.registrado_por)}</td><td>${_eh(new Date(r.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',''))}</td>${ES.admin?`<td><button type="button" class="bt es-del" data-id="${r.id}" title="Excluir registro (administrador)" style="padding:.15rem .5rem">🗑</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">Nenhum registro para os filtros escolhidos.</p>')+`</article>`;
+    return;
+  }
+  // ── dashboard ──
+  const nR=R.length, pcs=R.reduce((a,r)=>a+(Number(r.qtde_errada)||0),0), val=R.reduce((a,r)=>a+(Number(r.valor_erro)||0),0), peds=new Set(R.map(r=>r.loja+'|'+r.pedido_id)).size;
+  // volume de pedidos do mesmo recorte (base para a taxa de erro): pedidos emitidos no período, não cancelados
+  const volBase=(rows||[]).filter(r=>!r.canc&&(!F.de||r.dia>=F.de)&&(!F.ate||r.dia<=F.ate)&&(!F.loja||r.loja===F.loja)&&(!F.sep||_eNome(r.conf)===F.sep));
+  const nPed=volBase.length, taxa=nPed?peds/nPed*1000:null;
+  // período anterior de mesmo tamanho (variação)
+  let varTxt='';
+  if(F.de&&F.ate){ const d0=new Date(F.de),d1=new Date(F.ate),dias=Math.round((d1-d0)/864e5)+1, aF=new Date(d0-dias*864e5).toLocaleDateString('sv-SE'), aT=new Date(d0-864e5).toLocaleDateString('sv-SE');
+    const ant=(ES.rows||[]).filter(r=>r.data_erro>=aF&&r.data_erro<=aT&&(!F.loja||r.loja===F.loja)&&(!F.sep||r.separador===F.sep)&&(!F.conf||r.conferente===F.conf)&&(!F.tipo||(r.tipo_erro||'Não informado')===F.tipo)).length;
+    varTxt=ant?` · ${nR>=ant?'▲':'▼'} ${_en(Math.abs(nR-ant)/ant*100,0)}% vs. ${dias} dia(s) anteriores (${_en(ant)})`:` · período anterior sem registros`; }
+  const kp=[['Erros registrados',_en(nR),(F.de||F.ate?'no período':'todo o histórico')+varTxt],['Peças erradas',_en(pcs,2),'soma das quantidades erradas'],['Valor dos erros',_eMoeda(val),'qtde errada × valor unitário do pedido'],['Pedidos com erro',_en(peds),nPed?_en(nPed)+' pedido(s) emitido(s) no recorte':'sem pedidos no recorte'],['Taxa de erro',taxa==null?'—':_en(taxa,1),'pedidos com erro por 1.000 pedidos'],['Erros por pedido afetado',peds?_en(nR/peds,2):'—','itens errados por pedido com erro']];
+  const bySep=esGrp(R,r=>r.separador), byConf=esGrp(R,r=>r.conferente), byTipo=esGrp(R,r=>r.tipo_erro||'Não informado'), byMarca=esGrp(R,r=>String(r.marca||'').replace(/\s+\d+\s*$/,'').trim()), byLj=esGrp(R,r=>r.loja);
+  const byProd=(()=>{ const m=new Map(); R.forEach(r=>{ const k=r.loja+'|'+r.cod_produto; const o=m.get(k)||{k:r.cod_produto,d:r.descricao,n:0,q:0,v:0,seps:new Set()}; o.n++; o.q+=Number(r.qtde_errada)||0; o.v+=Number(r.valor_erro)||0; o.seps.add(r.separador); m.set(k,o); }); return [...m.values()].sort((a,b)=>b.n-a.n||b.q-a.q); })();
+  const dowN=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'], dow=dowN.map((l,i)=>[l,R.filter(r=>new Date(r.data_erro+'T12:00:00').getDay()===i).length]);
+  // evolução: dia (até 45 dias), semana (até ~1 ano) ou mês
+  const ds=R.map(r=>r.data_erro).sort(), span=ds.length?Math.round((new Date(ds[ds.length-1])-new Date(ds[0]))/864e5)+1:0;
+  const modo=span<=45?'dia':span<=200?'semana':'mês';
+  const chave=d=>{ if(modo==='dia') return d; if(modo==='mês') return d.slice(0,7); const x=new Date(d+'T12:00:00'); const w=(x.getDay()+6)%7; x.setDate(x.getDate()-w); return x.toLocaleDateString('sv-SE'); };
+  const ev=new Map(); R.forEach(r=>{ const k=chave(r.data_erro); const o=ev.get(k)||{n:0,v:0}; o.n++; o.v+=Number(r.valor_erro)||0; ev.set(k,o); });
+  const evL=[...ev.keys()].sort(), mxE=Math.max(1,...evL.map(k=>ev.get(k).n));
+  const W=Math.max(520,evL.length*34), Hh=170, bw=Math.min(26,(W-40)/Math.max(1,evL.length)-6);
+  const svg=evL.length?`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${Hh+30}" style="width:100%;min-width:${Math.min(W,900)}px;height:auto" role="img" aria-label="Erros por ${modo}">${[0,.5,1].map(f=>`<line x1="28" x2="${W-4}" y1="${10+(1-f)*Hh}" y2="${10+(1-f)*Hh}" stroke="var(--bd)" stroke-width=".6"/><text x="24" y="${14+(1-f)*Hh}" font-size="9" fill="var(--mu)" text-anchor="end">${_en(mxE*f)}</text>`).join('')}${evL.map((k,i)=>{ const o=ev.get(k), h=o.n/mxE*Hh, x=34+i*((W-40)/evL.length); const lab=modo==='mês'?k.slice(5)+'/'+k.slice(2,4):_eDm(k).slice(0,5); return `<g><title>${_eh(modo==='semana'?'semana de '+_eDm(k):modo==='mês'?k:_eDm(k))}: ${o.n} erro(s) · ${_eMoeda(o.v)}</title><rect x="${x}" y="${10+Hh-h}" width="${bw}" height="${h}" rx="2" fill="var(--y)"/><text x="${x+bw/2}" y="${6+Hh-h}" font-size="9" fill="var(--tx)" text-anchor="middle">${o.n}</text><text x="${x+bw/2}" y="${Hh+24}" font-size="8.5" fill="var(--mu)" text-anchor="middle">${lab}</text></g>`; }).join('')}</svg></div>`:'<p style="color:var(--mu);font-size:.85rem">Sem dados no período.</p>';
+  // ranking de separadores com taxa por volume
+  const volSep=new Map(); (rows||[]).filter(r=>!r.canc&&(!F.de||r.dia>=F.de)&&(!F.ate||r.dia<=F.ate)&&(!F.loja||r.loja===F.loja)).forEach(r=>{ const k=_eNome(r.conf); if(k) volSep.set(k,(volSep.get(k)||0)+1); });
+  const tabSep=`<div class="tw" style="max-height:340px;overflow:auto"><table class="ped-tb"><thead><tr><th>Separador</th><th style="text-align:right">Erros</th><th style="text-align:right">Peças</th><th style="text-align:right">Valor</th><th style="text-align:right">Pedidos separados</th><th style="text-align:right">Erros por 1.000 pedidos</th><th style="text-align:right">% dos erros</th></tr></thead><tbody>${bySep.map(o=>{ const v=volSep.get(o.k)||0; return `<tr><td><b>${_eh(o.k)}</b></td><td style="text-align:right">${_en(o.n)}</td><td style="text-align:right">${_en(o.q,2)}</td><td style="text-align:right">${_eMoeda(o.v)}</td><td style="text-align:right">${v?_en(v):'—'}</td><td style="text-align:right">${v?'<b>'+_en(o.peds.size/v*1000,1)+'</b>':'—'}</td><td style="text-align:right">${_en(o.n/nR*100,1)}%</td></tr>`; }).join('')}</tbody></table></div><p style="font-size:.72rem;color:var(--mu);margin:.4rem 0 0">Pedidos separados = pedidos do período em que o ERP lista a pessoa como separador (pode divergir do WMS na LL).</p>`;
+  // leitura gerencial automática
+  const ins=[]; if(nR){
+    const top3=bySep.slice(0,3), c3=top3.reduce((a,o)=>a+o.n,0)/nR*100;
+    ins.push(`Os ${top3.length} separador(es) com mais erros (<b>${top3.map(o=>_eh(o.k)).join(', ')}</b>) concentram <b>${_en(c3,0)}%</b> dos erros.`);
+    if(byTipo[0]) ins.push(`O erro mais comum é <b>${_eh(byTipo[0].k)}</b> (${_en(byTipo[0].n/nR*100,0)}% dos registros).`);
+    const rep=byProd.filter(p=>p.n>=2); if(rep.length) ins.push(`<b>${rep.length}</b> produto(s) reincidem (2+ erros) — o mais frequente é <b>${_eh(rep[0].k)}</b> (${rep[0].n} erros, ${rep[0].seps.size} separador(es)); vale revisar endereço, embalagem e semelhança com outros itens.`);
+    if(byConf[0]) ins.push(`O conferente com mais erros que passaram é <b>${_eh(byConf[0].k)}</b> (${byConf[0].n}) — erro de separação só vira erro de cliente quando a conferência falha.`);
+    const volr=bySep.map(o=>({k:o.k,v:volSep.get(o.k)||0,r:o.peds.size})).filter(o=>o.v>=30).map(o=>({...o,t:o.r/o.v*1000})).sort((a,b)=>b.t-a.t)[0]; if(volr) ins.push(`Em proporção ao volume (mín. 30 pedidos), <b>${_eh(volr.k)}</b> tem a maior taxa: <b>${_en(volr.t,1)}</b> pedidos com erro por 1.000 separados.`);
+  }
+  box.innerHTML=filtroH+`<section class="kp" style="grid-column:1/-1">${[...kp].map(([l,v,s])=>`<div class="k"><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`).join('')}</section>`+
+   (nR?(`<article class="pn w2"><h3>🧠 Leitura gerencial</h3><ul style="margin:.2rem 0 0 1.1rem;padding:0;line-height:1.55;font-size:.88rem">${ins.map(t=>`<li>${t}</li>`).join('')}</ul></article>`):`<article class="pn w2"><h3>📊 Dashboard</h3><p style="color:var(--mu)">Nenhum erro registrado para os filtros escolhidos. Use <b>➕ Registrar erro</b> para começar.</p></article>`)+
+   (nR?(`<article class="pn w2"><h3>📈 Erros por ${modo} <small style="font-weight:400;color:var(--mu)">(data do erro)</small></h3>${svg}</article>`+
+   `<article class="pn w2"><h3>👷 Separadores — erros e taxa por volume</h3>${tabSep}</article>`+
+   `<article class="pn"><h3>✅ Conferentes — erros que passaram pela conferência</h3>${esHbars(byConf.slice(0,10).map(o=>[o.k,o.n,_en(o.q,0)+' pç']),'var(--bl)')}</article>`+
+   `<article class="pn"><h3>🧩 Tipo de erro</h3>${esHbars(byTipo.map(o=>[o.k,o.n,_en(o.n/nR*100,0)+'%']),'var(--bad)')}</article>`+
+   `<article class="pn"><h3>🏷️ Marcas com mais erros — Top 10</h3>${esHbars(byMarca.slice(0,10).map(o=>[o.k,o.n,_en(o.q,0)+' pç']),'var(--y)')}</article>`+
+   `<article class="pn"><h3>🔁 Produtos reincidentes — Top 10 <small style="font-weight:400;color:var(--mu)">(erros)</small></h3>${esHbars(byProd.slice(0,10).map(o=>[o.k+' '+String(o.d||'').slice(0,18),o.n,_en(o.q,0)+' pç']),'var(--ok)')}</article>`+
+   `<article class="pn"><h3>🏪 Por filial</h3>${esHbars(byLj.map(o=>[o.k,o.n,_eMoeda(o.v)]),'var(--y)')}</article>`+
+   `<article class="pn"><h3>📆 Dia da semana</h3>${esHbars(dow,'#c97fff')}</article>`):'');
+}
+document.addEventListener('click',e=>{
+  if(cur!=='erros') return;
+  const v=e.target.closest('[data-es-v]'); if(v){ ES.vista=v.dataset.esV; ES.msg=''; esDesenha(); if(ES.vista!=='reg') esCarregar().then(()=>esDesenhaDados()).catch(()=>esDesenhaDados()); return; }
+  if(e.target.closest('#es-buscar')){ esBuscarPedido(); return; }
+  const pk=e.target.closest('.es-pick'); if(pk){ esSelecionar(Number(pk.dataset.i)); return; }
+  if(e.target.closest('#es-salvar')){ esSalvar(); return; }
+  const pr=e.target.closest('.es-pre'); if(pr){ const k=pr.dataset.pre, hoje=new Date(), f=d=>d.toLocaleDateString('sv-SE'); if(!k){ ES.F.de=ES.F.ate=''; } else if(k==='mes'){ ES.F.de=f(new Date(hoje.getFullYear(),hoje.getMonth(),1)); ES.F.ate=f(hoje); } else { ES.F.de=f(new Date(hoje-(+k-1)*864e5)); ES.F.ate=f(hoje); } esDesenhaDados(); return; }
+  if(e.target.closest('#es-csv')){ const R=esFiltrados(), q=x=>'"'+String(x??'').replace(/"/g,'""')+'"';
+    const cab=['Data do erro','Filial','Pedido','Cliente','Vendedor','Emissão do pedido','Seq','Cód. produto','Descrição','Marca','Qtde pedida','Qtde errada','Valor unit.','Valor do erro','Tipo de erro','Separador','Conferente','Observação','Registrado por','Registrado em'];
+    const lin=R.map(r=>[_eDm(r.data_erro),r.loja,r.pedido_id,r.cliente,r.vendedor,_eDm(r.dia_pedido),r.seq,r.cod_produto,r.descricao,r.marca,r.qtde_pedido,r.qtde_errada,r.valor_unit,r.valor_erro,r.tipo_erro,r.separador,r.conferente,r.observacao,r.registrado_nome||r.registrado_por,r.criado_em].map(q).join(';'));
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+[cab.map(q).join(';'),...lin].join('\n')],{type:'text/csv;charset=utf-8'})); a.download='erros-de-separacao.csv'; a.click(); URL.revokeObjectURL(a.href); return; }
+  const dl=e.target.closest('.es-del'); if(dl){ const id=dl.dataset.id, r=(ES.rows||[]).find(x=>String(x.id)===id); if(!r||!confirm(`Excluir o registro?\n\nPedido ${r.pedido_id} · ${r.cod_produto} · ${r.qtde_errada} pç · separador ${r.separador}\n\nEsta ação não pode ser desfeita.`)) return;
+    _sb.from('erros_separacao').delete().eq('id',id).then(async({error})=>{ if(error){ alert('Não foi possível excluir: '+error.message); return; } await esCarregar(true).catch(()=>{}); esDesenhaDados(); }); }
+});
+document.addEventListener('change',e=>{ if(cur!=='erros') return; const f=e.target.closest('.es-f'); if(!f) return; ES.F[f.dataset.k]=f.value; esDesenhaDados(); });
+document.addEventListener('keydown',e=>{ if(cur==='erros'&&e.key==='Enter'&&e.target.id==='es-ped'){ e.preventDefault(); esBuscarPedido(); } });
+async function renderErros(){
+  esDesenha();
+  await esQuem();
+  try{ await esCarregar(); }catch(e){ console.warn('[erros_separacao]',e); }
+  if(cur!=='erros') return;
+  if(ES.vista==='reg') esDesenhaReg(); else esDesenhaDados();
+}
 async function go(tab){
   closeSB();
   cur=tab;try{history.replaceState(null,'','#'+tab);localStorage.setItem('lt-tab-p',tab)}catch(e){}
@@ -6191,6 +6416,11 @@ async function go(tab){
       `<article class="pn w2"><h3>🔧 T1 e T2 médios por vendedor</h3><div id="c-tm-vend-t1t2"></div></article>`+
       `<article class="pn w2"><h3>📅 T1 e T2 médios por dia <small id="tm-per1" style="font-weight:400;color:var(--mu)">(últimos 60 dias)</small></h3><div id="c-tm-dia-t1t2"></div></article>`+
       `<article class="pn w2"><div id="c-tm-ped-t2"></div></article>`;
+  } else if(tab==='erros'){
+    $('#p-kp').hidden=true; $('#p-tb').hidden=true; $('#p-kp').innerHTML='';
+    cg.innerHTML='';
+    renderErros();
+    return;
   } else if(tab==='estoque'){
     $('#p-kp').hidden=true; $('#p-tb').hidden=true;
     cg.innerHTML=
