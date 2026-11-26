@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261126-1158">
+<meta name="version" content="20261126-1533">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -3094,7 +3094,8 @@ function bootNeg(){
  const emi=(l)=>(window._NEG||[]).filter(r=>r.loja===l).reduce((m,r)=>(r.emitido_em||'')>m?r.emitido_em:m,'');
  const lj=['LT','LL'].filter(l=>R.some(r=>r.lj===l)||lojas.includes(l));
  const pedParados=pedidosParados(R);
- kp.innerHTML=kpiHtml([
+ const _lojasSemCompra=['LT','LL'].filter(l=>(lojas.includes(l)||R.some(r=>r.lj===l))&&!(window._COMPRAS||[]).some(x=>x.loja===l));
+ kp.innerHTML=(_lojasSemCompra.length?`<div style="grid-column:1/-1;background:rgba(255,205,0,.12);border:1px solid var(--y);border-radius:8px;padding:.6rem .9rem;font-size:.86rem">🛒 <b>Status da compra indisponível para ${_lojasSemCompra.join(' e ')}</b> — a planilha de compras ainda não foi importada. Na tela inicial, abra <b>Importar dados › Compras (pedidos de compra)</b> e envie <b>COMPRASLT</b> e <b>COMPRASLL</b>; depois disso este quadro mostra a quantidade comprada, a previsão de chegada e a situação de cada item.</div>`:'')+kpiHtml([
   ['Itens com saldo negativo',N(R.length),lj.map(l=>l+': '+N(R.filter(r=>r.lj===l).length)).join(' · ')],
   ['Peças negativas','−'+N(pcs),'soma dos saldos (ERP)'],
   ['Valor negativo',BRL(val),'saldo × custo líquido'],
@@ -4536,7 +4537,8 @@ function compraDe(lj,cod,falta){
   const prox=datas.find(d=>d>=hoje)||null, venc=datas.filter(d=>d<hoje);
   const diasVenc=venc.length?Math.round((new Date(hoje)-new Date(venc[0]))/864e5):0;
   const st=!L.length?'Sem compra':q<falta?'Não cobre':'Cobre';
-  return {L,q,cobreEm,prox,venc:venc.length,diasVenc,st,falta:Math.max(0,falta-q),hoje};
+  const semBase=!C.some(x=>x.loja===lj);
+  return {L,q,cobreEm,prox,venc:venc.length,diasVenc,st,semBase,falta:Math.max(0,falta-q),hoje};
 }
 const _nf=v=>Number(v||0).toLocaleString('pt-BR');
 const _dm2=d=>{ const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+'/'+m[2]+'/'+m[1].slice(2):'sem data'; };
@@ -4548,6 +4550,7 @@ function compraPrevCel(cp){
   return `<span title="${_escH(tip)}">${v}${cp.L.length>3?'<br><small style="color:var(--mu)">+'+(cp.L.length-3)+' compra(s)</small>':''}</span>`;
 }
 function compraStCel(cp){
+  if(cp.semBase) return '<span class="bd wn" style="font-size:.66rem" title="A planilha de compras desta filial ainda não foi importada — use Importar dados › Compras">Compras não importadas</span>';
   if(cp.st==='Sem compra') return '<span class="bd bad" style="font-size:.66rem" title="Não há pedido de compra em aberto para este item">Sem compra</span>';
   const base=cp.st==='Cobre'?`<span class="bd ok" style="font-size:.66rem" title="As compras cobrem a falta">Cobre</span>${cp.cobreEm?' <small style="color:var(--mu)">em '+_dm2(cp.cobreEm)+'</small>':''}`:`<span class="bd wn" style="font-size:.66rem" title="A soma das compras é menor que a falta">Não cobre</span> <small style="color:var(--bad)">faltam ${Number(cp.falta)} pç</small>`;
   return base+(cp.venc?` <span class="bd bad" style="font-size:.62rem" title="Há data de entrega já vencida — cobrar o fornecedor">vencida ${cp.diasVenc}d</span>`:'');
