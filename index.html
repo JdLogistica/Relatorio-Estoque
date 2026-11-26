@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261126-1600">
+<meta name="version" content="20261126-1726">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -4797,6 +4797,7 @@ const TABS=[
   {k:'estoque',  ic:'🗄️', l:'Estoque'},
   {k:'tempos',   ic:'⏱️', l:'Tempo Médio'},
   {k:'erros',    ic:'⚠️', l:'Erros de separação'},
+  {k:'cal',      ic:'📅', l:'Calendário'},
 ];
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -6042,7 +6043,7 @@ function buildFilters_unused(){
 }
 
 function render(){
-  if(cur==='erros'){ $('#p-kp').hidden=true; $('#p-tb').hidden=true; return; }
+  if(cur==='erros'||cur==='cal'){ $('#p-kp').hidden=true; $('#p-tb').hidden=true; return; }
   const rs=filtered();
   // Na aba Itens/Tempos: oculta KPIs de pedidos e tabela de pedidos
   const isItens=cur==='itens';
@@ -6360,6 +6361,184 @@ async function renderErros(){
   if(cur!=='erros') return;
   if(ES.vista==='reg') esDesenhaReg(); else esDesenhaDados();
 }
+// ═══════════════════════════════════════════════════════
+// CALENDÁRIO — férias e folgas dos funcionários (tabelas funcionarios e ausencias; edição só administrador)
+// ═══════════════════════════════════════════════════════
+const CAL={ano:new Date().getFullYear(),F:{loja:'',funcao:''},func:[],aus:[],sel:new Set(),pick:new Set(),admin:false,email:'',ready:false,tipo:'Férias',obs:'',pular:false,anchor:null,erro:'',msg:'',busy:false,verInativos:false};
+const CAL_FUNCOES=['Vendedor','Separação/Conferência','Outro'];
+const CAL_COR={'Férias':'#f59e0b','Folga':'#38bdf8','Outro':'#a78bfa'};
+const CAL_MES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const _cIso=(y,m,d)=>y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+const _cDm=d=>d.slice(8,10)+'/'+d.slice(5,7);
+const _cDmy=d=>d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
+const _cDow=d=>new Date(d+'T12:00:00Z').getUTCDay();
+function calFeriados(y){
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=((h+l-7*m+114)%31)+1;
+  const pascoa=Date.UTC(y,mes-1,dia), off=n=>new Date(pascoa+n*864e5).toISOString().slice(0,10);
+  const H={}; [[_cIso(y,0,1),'Confraternização Universal'],[off(-47),'Carnaval (ponto facultativo)'],[off(-2),'Sexta-feira Santa'],[_cIso(y,3,21),'Tiradentes'],[_cIso(y,4,1),'Dia do Trabalho'],[off(60),'Corpus Christi (ponto facultativo)'],[_cIso(y,8,7),'Independência'],[_cIso(y,9,12),'N. Sra. Aparecida'],[_cIso(y,10,2),'Finados'],[_cIso(y,10,15),'Proclamação da República'],[_cIso(y,10,20),'Consciência Negra'],[_cIso(y,11,25),'Natal']].forEach(([d,n])=>H[d]=n);
+  return H;
+}
+async function calCarregar(){
+  const y=CAL.ano;
+  const {data:f,error:e1}=await _sb.from('funcionarios').select('*').order('nome'); if(e1) throw e1;
+  CAL.func=f||[];
+  let all=[],from=0;
+  for(;;){ const {data,error}=await _sb.from('ausencias').select('id,funcionario_id,data,tipo,observacao').gte('data',y+'-01-01').lte('data',y+'-12-31').order('data').range(from,from+999); if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000; }
+  CAL.aus=all; CAL.erro='';
+}
+async function calQuem(){ try{ CAL.admin=await checkAdmin(); }catch(e){ CAL.admin=false; } try{ const s=(await _sb.auth.getSession()).data.session; CAL.email=(s&&s.user&&s.user.email)||''; }catch(e){} }
+const calFuncFiltrados=()=>CAL.func.filter(f=>(CAL.verInativos||f.ativo)&&(!CAL.F.loja||f.loja===CAL.F.loja)&&(!CAL.F.funcao||f.funcao===CAL.F.funcao));
+// funcionários cujas marcações aparecem no calendário: os marcados na lista ou, se nenhum, todos os filtrados
+const calVisiveis=()=>{ const L=calFuncFiltrados(); const P=L.filter(f=>CAL.pick.has(f.id)); return P.length?P:L; };
+function calAusMap(){ const ids=new Set(calVisiveis().map(f=>f.id)), m=new Map(); CAL.aus.forEach(a=>{ if(!ids.has(a.funcionario_id)) return; (m.get(a.data)||m.set(a.data,[]).get(a.data)).push(a); }); return m; }
+const calNome=id=>{ const f=CAL.func.find(x=>x.id===id); return f?f.nome+' ('+f.loja+')':'?'; };
+function calPeriodos(dias){ // ['2026-01-02',...] -> "02/01–05/01, 09/01"
+  const s=[...dias].sort(), out=[]; let ini=null,prev=null;
+  const fecha=()=>{ if(ini) out.push(ini===prev?_cDm(ini):_cDm(ini)+'–'+_cDm(prev)); };
+  s.forEach(d=>{ if(prev&&(new Date(d+'T12:00:00Z')-new Date(prev+'T12:00:00Z'))===864e5){ prev=d; } else { fecha(); ini=d; prev=d; } }); fecha(); return out.join(', ');
+}
+function calTopoHtml(){
+  const op=(v,l,s)=>`<option value="${_eh(v)}"${s===v?' selected':''}>${_eh(l)}</option>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">`+
+   `<div class="fl"><span>Ano</span><div style="display:flex;gap:.3rem;align-items:center"><button class="bt" type="button" data-cl="ano-" style="padding:.3rem .7rem">◀</button><b style="font-size:1.15rem;min-width:3.2rem;text-align:center">${CAL.ano}</b><button class="bt" type="button" data-cl="ano+" style="padding:.3rem .7rem">▶</button><button class="bt" type="button" data-cl="hoje" style="padding:.3rem .7rem">Hoje</button></div></div>`+
+   `<label class="fl">Filial<select class="gin es-sel" id="cl-f-loja">${op('','Todas',CAL.F.loja)}${op('LT','LT',CAL.F.loja)}${op('LL','LL',CAL.F.loja)}</select></label>`+
+   `<label class="fl">Função<select class="gin es-sel" id="cl-f-funcao">${op('','Todas',CAL.F.funcao)}${CAL_FUNCOES.map(x=>op(x,x,CAL.F.funcao)).join('')}</select></label>`+
+   `<div class="fl" style="margin-left:auto"><span>Legenda</span><div style="display:flex;gap:.7rem;font-size:.78rem;flex-wrap:wrap">`+Object.entries(CAL_COR).map(([k,c])=>`<span><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;background:${c};vertical-align:-1px"></i> ${k}</span>`).join('')+`<span><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;border:2px solid var(--y);vertical-align:-1px"></i> selecionado</span><span style="color:var(--bad)">● feriado</span></div></div></div>`;
+}
+function calFuncHtml(){
+  const L=CAL.func.filter(f=>(CAL.verInativos||f.ativo)&&(!CAL.F.loja||f.loja===CAL.F.loja)&&(!CAL.F.funcao||f.funcao===CAL.F.funcao));
+  const dias=new Map(); CAL.aus.forEach(a=>{ const o=dias.get(a.funcionario_id)||{F:0,G:0,O:0}; o[a.tipo==='Férias'?'F':a.tipo==='Folga'?'G':'O']++; dias.set(a.funcionario_id,o); });
+  const grupos=new Map(); L.forEach(f=>{ const k=f.loja+' · '+f.funcao; (grupos.get(k)||grupos.set(k,[]).get(k)).push(f); });
+  const lista=[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([k,fs])=>`<div style="margin:.45rem 0 .15rem;font-size:.72rem;color:var(--mu);font-weight:700;letter-spacing:.04em;text-transform:uppercase">${_eh(k)} <small>(${fs.length})</small></div>`+fs.map(f=>{ const d=dias.get(f.id)||{F:0,G:0,O:0};
+    return `<label style="display:flex;gap:.45rem;align-items:center;padding:.18rem .25rem;border-radius:5px;cursor:pointer;${CAL.pick.has(f.id)?'background:rgba(255,205,0,.14);':''}${f.ativo?'':'opacity:.55;'}"><input type="checkbox" data-cf="${f.id}" ${CAL.pick.has(f.id)?'checked':''}><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_eh(f.nome)}${f.ativo?'':' <small>(inativo)</small>'}</span><small style="color:var(--mu);white-space:nowrap" title="Dias de férias · folgas · outros neste ano">${d.F?`<b style="color:${CAL_COR['Férias']}">${d.F}F</b> `:''}${d.G?`<b style="color:${CAL_COR['Folga']}">${d.G}G</b> `:''}${d.O?`<b style="color:${CAL_COR['Outro']}">${d.O}O</b>`:''}</small>${CAL.admin?`<button type="button" class="bt" data-cl="toggle-ativo" data-id="${f.id}" title="${f.ativo?'Desativar (some da lista, mantém o histórico)':'Reativar'}" style="padding:.05rem .4rem;font-size:.7rem">${f.ativo?'✕':'↺'}</button>`:''}</label>`; }).join('')).join('');
+  return `<h3 style="margin-top:0">👥 Funcionários <small style="font-weight:400;color:var(--mu)">— marque para lançar ou filtrar o calendário</small></h3>`+
+   `<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.3rem"><button class="bt" type="button" data-cl="pick-todos" style="padding:.2rem .6rem;font-size:.74rem">Marcar todos (${L.filter(f=>f.ativo).length})</button><button class="bt" type="button" data-cl="pick-nenhum" style="padding:.2rem .6rem;font-size:.74rem">Limpar</button><label style="font-size:.74rem;display:flex;gap:.3rem;align-items:center;color:var(--mu)"><input type="checkbox" id="cl-inativos" ${CAL.verInativos?'checked':''}> mostrar inativos</label></div>`+
+   `<div style="max-height:430px;overflow:auto;padding-right:.2rem">${lista||'<p style="color:var(--mu)">Nenhum funcionário para os filtros.</p>'}</div>`+
+   (CAL.admin?`<details style="margin-top:.6rem"><summary style="cursor:pointer;font-weight:700;font-size:.85rem">➕ Cadastrar funcionário</summary><div style="display:grid;gap:.4rem;margin-top:.4rem"><input class="gin" id="cl-nf-nome" placeholder="Nome (como aparece no ERP)" maxlength="40" autocomplete="off"><div style="display:flex;gap:.4rem"><select class="gin es-sel" id="cl-nf-loja"><option>LT</option><option>LL</option></select><select class="gin es-sel" id="cl-nf-funcao">${CAL_FUNCOES.map(x=>`<option>${_eh(x)}</option>`).join('')}</select></div><button class="bt" type="button" data-cl="novo-func" style="background:var(--y);color:#0a0a0a;border-color:var(--y)">Cadastrar</button><span id="cl-nf-msg" class="es-msg"></span></div></details>`:'');
+}
+function calMesHtml(m,feriados,mapa,hoje){
+  const y=CAL.ano, nd=new Date(Date.UTC(y,m+1,0)).getUTCDate(), ini=_cDow(_cIso(y,m,1));
+  let cel=''; for(let i=0;i<ini;i++) cel+='<i></i>';
+  for(let d=1;d<=nd;d++){
+    const iso=_cIso(y,m,d), dow=(ini+d-1)%7, A=mapa.get(iso)||[], sel=CAL.sel.has(iso), fer=feriados[iso];
+    const tipos=[...new Set(A.map(a=>a.tipo))];
+    const tip=(fer?fer+'\n':'')+A.map(a=>calNome(a.funcionario_id)+' — '+a.tipo+(a.observacao?' ('+a.observacao+')':'')).join('\n');
+    const barra=tipos.length?`<span style="display:flex;height:4px;border-radius:2px;overflow:hidden;margin-top:2px">${tipos.map(t=>`<i style="flex:1;background:${CAL_COR[t]}"></i>`).join('')}</span>`:'<span style="height:4px;display:block;margin-top:2px"></span>';
+    cel+=`<button type="button" data-cd="${iso}" title="${_eh(tip)}" style="all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:2px 1px;border-radius:5px;font-size:.78rem;line-height:1.15;${sel?'outline:2px solid var(--y);outline-offset:-1px;background:rgba(255,205,0,.22);':''}${iso===hoje?'font-weight:800;box-shadow:inset 0 0 0 1px var(--mu);':''}${dow===0||dow===6?'color:var(--mu);':''}${fer?'color:var(--bad);':''}"><span>${d}</span>${A.length>1?`<sup style="font-size:.55rem">${A.length}</sup>`:''}${barra}</button>`;
+  }
+  return `<div class="pn" style="padding:.55rem .6rem"><div data-cm="${m}" title="Clique para selecionar/limpar o mês inteiro" style="cursor:pointer;font-weight:800;margin-bottom:.25rem;color:var(--y)">${CAL_MES[m]}</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;font-size:.62rem;color:var(--mu);text-align:center;margin-bottom:2px">${['D','S','T','Q','Q','S','S'].map(x=>`<span>${x}</span>`).join('')}</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">${cel}</div></div>`;
+}
+function calCalHtml(){ const F=calFeriados(CAL.ano), mapa=calAusMap(), hoje=new Date().toLocaleDateString('sv-SE'); return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(14.5rem,1fr));gap:.7rem">${CAL_MES.map((_,m)=>calMesHtml(m,F,mapa,hoje)).join('')}</div>`; }
+function calAvisos(){
+  const dias=[...CAL.sel].sort(), P=CAL.func.filter(f=>CAL.pick.has(f.id)); if(!dias.length||!P.length) return [];
+  const grupos=new Map(); P.forEach(f=>{ const k=f.loja+'|'+f.funcao; if(!grupos.has(k)) grupos.set(k,CAL.func.filter(x=>x.ativo&&x.loja===f.loja&&x.funcao===f.funcao)); });
+  const out=[]; dias.forEach(d=>{ grupos.forEach((todos,k)=>{ if(todos.length<2) return; const ids=new Set(todos.map(x=>x.id)); const fora=new Set(CAL.aus.filter(a=>a.data===d&&ids.has(a.funcionario_id)).map(a=>a.funcionario_id)); P.forEach(f=>{ if(ids.has(f.id)) fora.add(f.id); }); if(fora.size/todos.length>=0.5) out.push(_cDm(d)+' · '+k.replace('|',' ')+': '+fora.size+' de '+todos.length+' ausentes'); }); });
+  return out;
+}
+function calAcaoHtml(){
+  const dias=[...CAL.sel].sort(), P=CAL.func.filter(f=>CAL.pick.has(f.id));
+  const ranges=calPeriodos(dias), av=calAvisos();
+  const pular=CAL.pular?dias.filter(d=>{const w=_cDow(d);return w!==0&&w!==6;}):dias;
+  const rows=CAL.admin?`<div style="display:grid;gap:.6rem">`+
+    `<div style="font-size:.86rem"><b>${dias.length}</b> dia(s) selecionado(s)${dias.length?`: <span style="color:var(--mu)">${_eh(ranges.length>120?ranges.slice(0,120)+'…':ranges)}</span>`:' <span style="color:var(--mu)">— clique nos dias do calendário (Shift+clique seleciona um intervalo; clique no nome do mês seleciona o mês)</span>'}<br><b>${P.length}</b> funcionário(s) marcado(s)${P.length&&P.length<=6?': <span style="color:var(--mu)">'+P.map(f=>_eh(f.nome)+' ('+f.loja+')').join(', ')+'</span>':''}</div>`+
+    `<div style="display:flex;gap:.9rem;flex-wrap:wrap;align-items:center">${['Férias','Folga','Outro'].map(t=>`<label style="display:flex;gap:.3rem;align-items:center;cursor:pointer"><input type="radio" name="cl-tipo" value="${t}" ${CAL.tipo===t?'checked':''}><i style="display:inline-block;width:.7rem;height:.7rem;border-radius:2px;background:${CAL_COR[t]}"></i><b>${t==='Outro'?'Outro (atestado, licença…)':t}</b></label>`).join('')}<label style="display:flex;gap:.3rem;align-items:center;font-size:.82rem;color:var(--mu)"><input type="checkbox" id="cl-pular" ${CAL.pular?'checked':''}> pular sábados e domingos</label></div>`+
+    `<input class="gin" id="cl-obs" maxlength="120" placeholder="Observação (opcional)" value="${_eh(CAL.obs)}">`+
+    (av.length?`<div style="background:rgba(255,80,80,.1);border:1px solid var(--bad);border-radius:8px;padding:.5rem .7rem;font-size:.82rem"><b>⚠ Cobertura da equipe:</b><br>${av.slice(0,6).map(_eh).join('<br>')}${av.length>6?'<br>… e mais '+(av.length-6):''}</div>`:'')+
+    `<div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center"><button class="bt" type="button" data-cl="registrar" style="background:var(--y);color:#0a0a0a;border-color:var(--y);padding:.5rem 1.2rem" ${CAL.busy?'disabled':''}>✅ Registrar ${pular.length*P.length?`(${_en(pular.length*P.length)} lançamento${pular.length*P.length>1?'s':''})`:''}</button><button class="bt" type="button" data-cl="remover" style="padding:.5rem 1rem">🗑 Remover marcações dos dias selecionados</button><button class="bt" type="button" data-cl="limpar-dias" style="padding:.5rem 1rem">Limpar seleção</button><span class="es-msg ${/^✅/.test(CAL.msg)?'ok':/^❌/.test(CAL.msg)?'err':''}" id="cl-msg">${_eh(CAL.msg)}</span></div></div>`
+   :`<p style="color:var(--mu);margin:0">Somente o administrador lança férias e folgas. Você pode consultar o calendário e clicar nos dias para ver quem está ausente.</p><div style="font-size:.86rem;margin-top:.4rem"><b>${dias.length}</b> dia(s) selecionado(s)${dias.length?`: <span style="color:var(--mu)">${_eh(ranges)}</span>`:''}</div>`;
+  // quem está fora nos dias selecionados
+  const A=new Map(); CAL.aus.forEach(a=>{ if(CAL.sel.has(a.data)) (A.get(a.data)||A.set(a.data,[]).get(a.data)).push(a); });
+  const det=dias.length?`<div class="tw" style="max-height:260px;overflow:auto;margin-top:.7rem"><table class="ped-tb"><thead><tr><th>Dia</th><th>Ausentes</th></tr></thead><tbody>${dias.slice(0,62).map(d=>{ const L=(A.get(d)||[]).filter(a=>calFuncFiltrados().some(f=>f.id===a.funcionario_id)); return `<tr><td style="white-space:nowrap"><b>${_cDmy(d)}</b> <small style="color:var(--mu)">${['dom','seg','ter','qua','qui','sex','sáb'][_cDow(d)]}</small></td><td>${L.length?L.map(a=>`<span class="bd" style="font-size:.7rem;border:1px solid ${CAL_COR[a.tipo]};color:${CAL_COR[a.tipo]};margin:1px;display:inline-block">${_eh(calNome(a.funcionario_id))} · ${a.tipo}</span>`).join(' '):'<span style="color:var(--mu)">ninguém</span>'}</td></tr>`; }).join('')}</tbody></table></div>`:'';
+  return `<h3 style="margin-top:0">✍️ ${CAL.admin?'Abrir férias / folgas':'Dias selecionados'}</h3>`+rows+det;
+}
+function calResumoHtml(){
+  const L=calFuncFiltrados(), por=new Map(); CAL.aus.forEach(a=>{ (por.get(a.funcionario_id)||por.set(a.funcionario_id,{F:[],G:[],O:[]}).get(a.funcionario_id))[a.tipo==='Férias'?'F':a.tipo==='Folga'?'G':'O'].push(a.data); });
+  const lin=L.map(f=>{ const o=por.get(f.id)||{F:[],G:[],O:[]}; return `<tr style="cursor:pointer;${CAL.pick.has(f.id)?'background:rgba(255,205,0,.12);':''}" data-cfr="${f.id}"><td><b>${_eh(f.nome)}</b></td><td>${f.loja}</td><td>${_eh(f.funcao)}</td><td style="text-align:right" data-v="${o.F.length}"><b style="color:${CAL_COR['Férias']}">${o.F.length||'—'}</b></td><td style="text-align:right" data-v="${o.G.length}"><b style="color:${CAL_COR['Folga']}">${o.G.length||'—'}</b></td><td style="text-align:right" data-v="${o.O.length}">${o.O.length||'—'}</td><td style="font-size:.78rem">${o.F.length?`<span style="color:${CAL_COR['Férias']}">Férias:</span> ${_eh(calPeriodos(o.F))}`:''}${o.G.length?`${o.F.length?'<br>':''}<span style="color:${CAL_COR['Folga']}">Folgas:</span> ${_eh(calPeriodos(o.G))}`:''}${o.O.length?`${o.F.length||o.G.length?'<br>':''}<span style="color:${CAL_COR['Outro']}">Outros:</span> ${_eh(calPeriodos(o.O))}`:''}${!o.F.length&&!o.G.length&&!o.O.length?'<span style="color:var(--mu)">sem marcações em '+CAL.ano+'</span>':''}</td></tr>`; }).join('');
+  return `<h3 style="margin-top:0">📋 Resumo de ${CAL.ano} por funcionário <small style="font-weight:400;color:var(--mu)">— clique na linha para marcar</small></h3><div class="tw" style="max-height:480px;overflow:auto"><table class="ped-tb"><thead><tr><th>Funcionário</th><th>Filial</th><th>Função</th><th style="text-align:right">Dias de férias</th><th style="text-align:right">Folgas</th><th style="text-align:right">Outros</th><th>Períodos</th></tr></thead><tbody>${lin||'<tr><td colspan="7" style="color:var(--mu)">Nenhum funcionário.</td></tr>'}</tbody></table></div>`;
+}
+function calDesenha(partes){
+  const cg=document.getElementById('cg'); if(!cg) return;
+  if(!document.getElementById('cl-corpo')){
+    cg.innerHTML=`<div id="cl-corpo" style="grid-column:1/-1;display:grid;gap:1rem"><article class="pn" id="cl-topo"></article><div style="display:grid;grid-template-columns:minmax(15rem,19rem) minmax(0,1fr);gap:1rem;align-items:start" class="cl-duas"><article class="pn" id="cl-func"></article><div style="display:grid;gap:1rem;min-width:0"><article class="pn" id="cl-cal"></article><article class="pn" id="cl-acao"></article></div></div><article class="pn" id="cl-resumo"></article></div>`;
+    if(!document.getElementById('cl-css')){ const s=document.createElement('style'); s.id='cl-css'; s.textContent='@media(max-width:820px){.cl-duas{grid-template-columns:1fr!important}}'; document.head.appendChild(s); }
+    partes=null;
+  }
+  const P={topo:calTopoHtml,func:calFuncHtml,cal:calCalHtml,acao:calAcaoHtml,resumo:calResumoHtml};
+  (partes||Object.keys(P)).forEach(k=>{ const el=document.getElementById('cl-'+k); if(el) el.innerHTML=P[k](); });
+}
+async function calDiasAlvo(){ const d=[...CAL.sel].sort(); return CAL.pular?d.filter(x=>{const w=_cDow(x);return w!==0&&w!==6;}):d; }
+async function calRegistrar(){
+  if(CAL.busy||!CAL.admin) return;
+  const dias=await calDiasAlvo(), P=CAL.func.filter(f=>CAL.pick.has(f.id)&&f.ativo), msg=t=>{ CAL.msg=t; const e=document.getElementById('cl-msg'); if(e){ e.textContent=t; e.className='es-msg '+(/^✅/.test(t)?'ok':/^❌/.test(t)?'err':''); } };
+  if(!dias.length){ msg('❌ Selecione pelo menos um dia no calendário.'); return; }
+  if(!P.length){ msg('❌ Marque pelo menos um funcionário na lista.'); return; }
+  const av=calAvisos(), tot=dias.length*P.length;
+  if(!confirm(`Registrar ${CAL.tipo.toUpperCase()}?\n\n${P.length} funcionário(s): ${P.slice(0,8).map(f=>f.nome+' ('+f.loja+')').join(', ')}${P.length>8?'…':''}\nDias: ${calPeriodos(dias)}\nTotal: ${tot} lançamento(s)${av.length?'\n\n⚠ Cobertura da equipe:\n'+av.slice(0,5).join('\n'):''}`)) return;
+  CAL.busy=true; msg('Salvando…');
+  try{
+    const obs=(CAL.obs||'').trim()||null, linhas=[]; P.forEach(f=>dias.forEach(d=>linhas.push({funcionario_id:f.id,data:d,tipo:CAL.tipo,observacao:obs,criado_por:CAL.email||null})));
+    for(let i=0;i<linhas.length;i+=500){ const {error}=await _sb.from('ausencias').upsert(linhas.slice(i,i+500),{onConflict:'funcionario_id,data'}); if(error) throw error; }
+    await calCarregar(); CAL.sel.clear(); CAL.msg=`✅ ${CAL.tipo} registrada: ${tot} lançamento(s) para ${P.length} funcionário(s).`; calDesenha(['cal','acao','func','resumo']);
+  }catch(e){ msg('❌ '+(e.message||e)); }
+  finally{ CAL.busy=false; }
+}
+async function calRemover(){
+  if(CAL.busy||!CAL.admin) return;
+  const dias=[...CAL.sel], P=CAL.func.filter(f=>CAL.pick.has(f.id)), msg=t=>{ CAL.msg=t; const e=document.getElementById('cl-msg'); if(e){ e.textContent=t; e.className='es-msg '+(/^✅/.test(t)?'ok':/^❌/.test(t)?'err':''); } };
+  if(!dias.length||!P.length){ msg('❌ Selecione os dias e marque os funcionários dos quais quer remover as marcações.'); return; }
+  const ex=CAL.aus.filter(a=>CAL.sel.has(a.data)&&CAL.pick.has(a.funcionario_id)); if(!ex.length){ msg('Nenhuma marcação encontrada para esses dias e funcionários.'); return; }
+  if(!confirm(`Remover ${ex.length} marcação(ões)?\n\nFuncionários: ${P.slice(0,8).map(f=>f.nome).join(', ')}${P.length>8?'…':''}\nDias: ${calPeriodos(dias)}\n\nEsta ação não pode ser desfeita.`)) return;
+  CAL.busy=true; msg('Removendo…');
+  try{ const ids=ex.map(a=>a.id); for(let i=0;i<ids.length;i+=200){ const {error}=await _sb.from('ausencias').delete().in('id',ids.slice(i,i+200)); if(error) throw error; }
+    await calCarregar(); CAL.msg=`✅ ${ids.length} marcação(ões) removida(s).`; calDesenha(['cal','acao','func','resumo']);
+  }catch(e){ msg('❌ '+(e.message||e)); }
+  finally{ CAL.busy=false; }
+}
+async function calNovoFunc(){
+  const nome=(document.getElementById('cl-nf-nome').value||'').replace(/\s+/g,' ').trim().toUpperCase(), loja=document.getElementById('cl-nf-loja').value, funcao=document.getElementById('cl-nf-funcao').value, m=document.getElementById('cl-nf-msg'); m.className='es-msg';
+  if(!nome){ m.className='es-msg err'; m.textContent='Informe o nome.'; return; }
+  const ja=CAL.func.find(f=>f.nome===nome&&f.loja===loja); if(ja){ m.className='es-msg err'; m.textContent=ja.ativo?'Já cadastrado nesta filial.':'Já existe (inativo) — use ↺ para reativar.'; return; }
+  const {error}=await _sb.from('funcionarios').insert({nome,loja,funcao,criado_por:CAL.email||null}); if(error){ m.className='es-msg err'; m.textContent=error.message; return; }
+  await calCarregar(); calDesenha(['func','cal','resumo','acao']);
+}
+document.addEventListener('click',async e=>{
+  if(cur!=='cal') return;
+  const d=e.target.closest('[data-cd]'); if(d){ const iso=d.dataset.cd;
+    if(e.shiftKey&&CAL.anchor){ const [a,b]=[CAL.anchor,iso].sort(); for(let t=new Date(a+'T12:00:00Z');t<=new Date(b+'T12:00:00Z');t=new Date(+t+864e5)) CAL.sel.add(t.toISOString().slice(0,10)); }
+    else { CAL.sel.has(iso)?CAL.sel.delete(iso):CAL.sel.add(iso); CAL.anchor=iso; }
+    CAL.msg=''; calDesenha(['cal','acao']); return; }
+  const mm=e.target.closest('[data-cm]'); if(mm){ const m=+mm.dataset.cm, nd=new Date(Date.UTC(CAL.ano,m+1,0)).getUTCDate(), dias=Array.from({length:nd},(_,i)=>_cIso(CAL.ano,m,i+1)), todos=dias.every(x=>CAL.sel.has(x)); dias.forEach(x=>todos?CAL.sel.delete(x):CAL.sel.add(x)); calDesenha(['cal','acao']); return; }
+  const fr=e.target.closest('[data-cfr]'); if(fr){ const id=+fr.dataset.cfr; CAL.pick.has(id)?CAL.pick.delete(id):CAL.pick.add(id); calDesenha(['func','cal','acao','resumo']); return; }
+  const b=e.target.closest('[data-cl]'); if(!b) return; const a=b.dataset.cl;
+  if(a==='ano-'||a==='ano+'){ CAL.ano+=a==='ano+'?1:-1; CAL.sel.clear(); try{ await calCarregar(); }catch(x){ CAL.erro=x.message; } calDesenha(); }
+  else if(a==='hoje'){ const y=new Date().getFullYear(); if(CAL.ano!==y){ CAL.ano=y; await calCarregar().catch(()=>{}); } calDesenha(); }
+  else if(a==='pick-todos'){ calFuncFiltrados().filter(f=>f.ativo).forEach(f=>CAL.pick.add(f.id)); calDesenha(['func','cal','acao','resumo']); }
+  else if(a==='pick-nenhum'){ CAL.pick.clear(); calDesenha(['func','cal','acao','resumo']); }
+  else if(a==='limpar-dias'){ CAL.sel.clear(); CAL.msg=''; calDesenha(['cal','acao']); }
+  else if(a==='registrar') calRegistrar();
+  else if(a==='remover') calRemover();
+  else if(a==='novo-func') calNovoFunc();
+  else if(a==='toggle-ativo'){ const id=+b.dataset.id, f=CAL.func.find(x=>x.id===id); if(!f) return; if(f.ativo&&!confirm(`Desativar ${f.nome} (${f.loja})?\n\nEle sai da lista e do cálculo de cobertura; as férias e folgas já lançadas continuam guardadas.`)) return;
+    const {error}=await _sb.from('funcionarios').update({ativo:!f.ativo}).eq('id',id); if(error){ alert(error.message); return; } CAL.pick.delete(id); await calCarregar(); calDesenha(); }
+});
+document.addEventListener('change',e=>{
+  if(cur!=='cal') return; const t=e.target;
+  if(t.id==='cl-f-loja'){ CAL.F.loja=t.value; calDesenha(['func','cal','resumo','acao']); }
+  else if(t.id==='cl-f-funcao'){ CAL.F.funcao=t.value; calDesenha(['func','cal','resumo','acao']); }
+  else if(t.id==='cl-inativos'){ CAL.verInativos=t.checked; calDesenha(['func','resumo']); }
+  else if(t.dataset&&t.dataset.cf){ const id=+t.dataset.cf; t.checked?CAL.pick.add(id):CAL.pick.delete(id); calDesenha(['func','cal','acao','resumo']); }
+  else if(t.name==='cl-tipo'){ CAL.tipo=t.value; }
+  else if(t.id==='cl-pular'){ CAL.pular=t.checked; calDesenha(['acao']); }
+});
+document.addEventListener('input',e=>{ if(cur==='cal'&&e.target.id==='cl-obs') CAL.obs=e.target.value; });
+async function renderCal(){
+  const cg=document.getElementById('cg'); if(cg) cg.innerHTML='<p style="grid-column:1/-1;color:var(--mu)">Carregando calendário…</p>';
+  await calQuem();
+  try{ await calCarregar(); }catch(e){ console.warn('[calendario]',e); CAL.erro=e.message||String(e); }
+  if(cur!=='cal') return;
+  if(CAL.erro){ cg.innerHTML=`<article class="pn w2" style="grid-column:1/-1"><h3>📅 Calendário</h3><p style="color:var(--bad)">Não foi possível carregar: ${_eh(CAL.erro)}</p></article>`; return; }
+  calDesenha();
+}
 async function go(tab){
   closeSB();
   cur=tab;try{history.replaceState(null,'','#'+tab);localStorage.setItem('lt-tab-p',tab)}catch(e){}
@@ -6447,6 +6626,11 @@ async function go(tab){
       `<article class="pn w2"><h3>🔧 T1 e T2 médios por vendedor</h3><div id="c-tm-vend-t1t2"></div></article>`+
       `<article class="pn w2"><h3>📅 T1 e T2 médios por dia <small id="tm-per1" style="font-weight:400;color:var(--mu)">(últimos 60 dias)</small></h3><div id="c-tm-dia-t1t2"></div></article>`+
       `<article class="pn w2"><div id="c-tm-ped-t2"></div></article>`;
+  } else if(tab==='cal'){
+    $('#p-kp').hidden=true; $('#p-tb').hidden=true; $('#p-kp').innerHTML='';
+    cg.innerHTML='';
+    renderCal();
+    return;
   } else if(tab==='erros'){
     $('#p-kp').hidden=true; $('#p-tb').hidden=true; $('#p-kp').innerHTML='';
     cg.innerHTML='';
