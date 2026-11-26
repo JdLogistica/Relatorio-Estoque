@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261125-1731">
+<meta name="version" content="20261126-1027">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -738,6 +738,38 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
         </div>
         <div id="imp-neg-status" class="imp-status" style="display:none"></div>
       </div>
+      <!-- Compras (pedidos de compra) import cards -->
+      <div id="imp-compras-upload-area">
+        <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
+          <span style="font-size:.8rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Compras</span>
+          <span style="font-size:.7rem;color:var(--mu);background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:.1rem .4rem">COMPRASLT + COMPRASLL (041 Pedidos de compra por período) · substitui a lista anterior da filial</span>
+        </div>
+        <div class="imp-cards">
+          <label class="imp-card" id="lbl-compras-lt">
+            <input type="file" id="imp-compras-lt" accept=".xlsx,.xls" onchange="importarCompras(this,'LT')">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">🛒</span>
+              <div>
+                <strong>Compras LT</strong>
+                <small id="nm-compras-lt">Nenhum arquivo selecionado</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar</span>
+          </label>
+          <label class="imp-card" id="lbl-compras-ll">
+            <input type="file" id="imp-compras-ll" accept=".xlsx,.xls" onchange="importarCompras(this,'LL')">
+            <div class="imp-card-left">
+              <span class="imp-card-icon">🛒</span>
+              <div>
+                <strong>Compras LL</strong>
+                <small id="nm-compras-ll">Nenhum arquivo selecionado</small>
+              </div>
+            </div>
+            <span class="imp-card-btn">Importar</span>
+          </label>
+        </div>
+        <div id="imp-compras-status" class="imp-status" style="display:none"></div>
+      </div>
       <!-- Estoque WMS import cards -->
       <div id="imp-ewms-upload-area">
         <div style="margin-top:.9rem;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
@@ -1141,7 +1173,8 @@ async function prepararEstoqueE(D){
     }catch(e){ console.warn('[saldo WMS]',e); D.wmsOnly=[]; }
     // estoque negativo (relatório do ERP) — cruzado com o saldo do WMS pelo Cód. Danfe
     try{ const NG=await carregarEstoqueNeg();
-      D.neg=NG.map(r=>{ const w=wmsDe(r.loja,r.cod,r.saldo); return {c:r.cod_produto||r.cod,r:r.cod,lj:r.loja,d:r.descricao||'',m:r.marca||'',l:r.locacao||'',s:Number(r.saldo)||0,cu:Number(r.custo)||0,uc:Number(r.ult_custo)||0,w:Number(r.peso)||0,cv:r.conversao||'',fb:r.num_fabrica||'',im:r.importado_em,em:r.emitido_em,wq:w.tem?w.q:null,wp:w.pos||'',cw:w.cw||'',pa:(window._NEGPED||[]).filter(p=>p.loja===r.loja&&p.cod===r.cod),ac:r.acao||'',ac_em:r.acao_em||null,ac_por:r.acao_por||''}; });
+      try{ await carregarCompras(); window._comprasErro=false; }catch(e1){ console.warn('[compras]',e1); window._COMPRAS=[]; window._comprasErro=true; }
+      D.neg=NG.map(r=>{ const w=wmsDe(r.loja,r.cod,r.saldo); return {cp:compraDe(r.loja,r.cod_produto||r.cod,Math.abs(Number(r.saldo)||0)),c:r.cod_produto||r.cod,r:r.cod,lj:r.loja,d:r.descricao||'',m:r.marca||'',l:r.locacao||'',s:Number(r.saldo)||0,cu:Number(r.custo)||0,uc:Number(r.ult_custo)||0,w:Number(r.peso)||0,cv:r.conversao||'',fb:r.num_fabrica||'',im:r.importado_em,em:r.emitido_em,wq:w.tem?w.q:null,wp:w.pos||'',cw:w.cw||'',pa:(window._NEGPED||[]).filter(p=>p.loja===r.loja&&p.cod===r.cod),ac:r.acao||'',ac_em:r.acao_em||null,ac_por:r.acao_por||''}; });
       try{ window._negAdmin=await checkAdmin(); }catch(e){ window._negAdmin=false; }
     }catch(e){ console.warn('[estoque negativo]',e); D.neg=[]; }
     D._estoqueOk = true;
@@ -1668,8 +1701,8 @@ async function checkAdmin(){
 }
 
 // ── Última atualização de cada importação (tabela import_log) ──
-const IMP_FONTES=[['pedidos','Pedidos',1],['itens','Itens dos pedidos',1],['estoque','Estoque ERP',1],['neg','Estoque negativo',1],['ewms','Estoque WMS',1],['pwms','Posições WMS · Estoque Posição',1],['pwms_mapa','Posições WMS · Mapeamento',1],['pwms_cad','Posições WMS · Cadastro de posições',1],['prodwms','Produtividade WMS',0],['erica','Relatório ERICA',0]];
-const IMP_CARDS={'lbl-lt':['pedidos','LT'],'lbl-ll':['pedidos','LL'],'lbl-itens-lt':['itens','LT'],'lbl-itens-ll':['itens','LL'],'lbl-estoque-lt':['estoque','LT'],'lbl-estoque-ll':['estoque','LL'],'lbl-neg-lt':['neg','LT'],'lbl-neg-ll':['neg','LL'],'lbl-ewms-lt':['ewms','LT'],'lbl-ewms-ll':['ewms','LL'],'lbl-erica':['erica',''],'lbl-prodwms-pasta':['prodwms',''],'lbl-prodwms-arqs':['prodwms',''],'lbl-pwms':['pwms','*'],'lbl-pwms-arq':['pwms','*']};
+const IMP_FONTES=[['pedidos','Pedidos',1],['itens','Itens dos pedidos',1],['estoque','Estoque ERP',1],['neg','Estoque negativo',1],['compras','Compras (pedidos de compra)',1],['ewms','Estoque WMS',1],['pwms','Posições WMS · Estoque Posição',1],['pwms_mapa','Posições WMS · Mapeamento',1],['pwms_cad','Posições WMS · Cadastro de posições',1],['prodwms','Produtividade WMS',0],['erica','Relatório ERICA',0]];
+const IMP_CARDS={'lbl-lt':['pedidos','LT'],'lbl-ll':['pedidos','LL'],'lbl-itens-lt':['itens','LT'],'lbl-itens-ll':['itens','LL'],'lbl-estoque-lt':['estoque','LT'],'lbl-estoque-ll':['estoque','LL'],'lbl-neg-lt':['neg','LT'],'lbl-neg-ll':['neg','LL'],'lbl-compras-lt':['compras','LT'],'lbl-compras-ll':['compras','LL'],'lbl-ewms-lt':['ewms','LT'],'lbl-ewms-ll':['ewms','LL'],'lbl-erica':['erica',''],'lbl-prodwms-pasta':['prodwms',''],'lbl-prodwms-arqs':['prodwms',''],'lbl-pwms':['pwms','*'],'lbl-pwms-arq':['pwms','*']};
 function _impFmt(t){ if(!t) return ''; const d=new Date(t); if(isNaN(d)) return ''; return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',',''); }
 function _impAgo(t){ const m=Math.round((Date.now()-new Date(t))/60000); if(!(m>=0)) return ''; if(m<2) return 'agora'; if(m<60) return 'há '+m+' min'; const h=Math.round(m/60); if(h<48) return 'há '+h+' h'; return 'há '+Math.round(h/24)+' dias'; }
 function _impGet(fonte,loja){ const L=window._IMPLOG||[]; if(loja==='*'){ const a=L.filter(r=>r.fonte===fonte||r.fonte==='pwms_mapa'||r.fonte==='pwms_cad'); return a.sort((x,y)=>String(y.importado_em).localeCompare(String(x.importado_em)))[0]||null; } return L.find(r=>r.fonte===fonte&&(r.loja||'')===(loja||''))||null; }
@@ -1735,7 +1768,7 @@ async function renderImportArea(){
     area.innerHTML = `<p class="imp-no-admin">🔒 Apenas administradores podem importar planilhas.</p>`;
   }
   // Mostra/oculta cards de estoque, itens e erica conforme admin
-  ['imp-itens-upload-area','imp-estoque-upload-area','imp-neg-upload-area','imp-erica-upload-area'].forEach(id=>{
+  ['imp-itens-upload-area','imp-estoque-upload-area','imp-neg-upload-area','imp-compras-upload-area','imp-erica-upload-area'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.style.display=admin?'':'none';
   });
   atualizarCarimbosImport();
@@ -3035,14 +3068,14 @@ function giroDe(r){const G=window._giro;if(!G)return null;return G.get(r.lj+'|'+
 
 // ═══════════════════════════════════════════════════════
 // SALDO NEGATIVO — itens que o ERP aponta com saldo < 0 (planilhas ESTOQUENEGATIVOLT / ESTOQUENEGATIVOLL)
-const NF={cu:'',wm:'',pa:'',ac:''};
+const NF={cu:'',wm:'',pa:'',ac:'',cp:''};
 function bootNeg(){
  const kp=$('#e-kp'), ch=$('#ch');
  if(!window._NEG){ kp.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando estoque negativo…</span>'; ch.innerHTML=''; return; }
  const low=v=>String(v??'').toLowerCase();
  const dt=t=>t?new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',',''):'—';
  const A=D.neg||[];
- const passN=(r,ex)=>(ex==='cu'||!NF.cu||(NF.cu==='Sem custo')===!(r.cu>0))&&(ex==='wm'||!NF.wm||(NF.wm==='WMS com saldo'?r.wq>0:NF.wm==='WMS zerado'?(r.wq!=null&&r.wq<=0):r.wq==null))&&(ex==='pa'||!NF.pa||(NF.pa==='Com pedido aguardando')===!!(r.pa&&r.pa.length))&&(ex==='ac'||!NF.ac||(NF.ac==='Com ação')===!!r.ac);
+ const passN=(r,ex)=>(ex==='cu'||!NF.cu||(NF.cu==='Sem custo')===!(r.cu>0))&&(ex==='wm'||!NF.wm||(NF.wm==='WMS com saldo'?r.wq>0:NF.wm==='WMS zerado'?(r.wq!=null&&r.wq<=0):r.wq==null))&&(ex==='pa'||!NF.pa||(NF.pa==='Com pedido aguardando')===!!(r.pa&&r.pa.length))&&(ex==='ac'||!NF.ac||(NF.ac==='Com ação')===!!r.ac)&&(ex==='cp'||!NF.cp||(NF.cp==='Sem compra'?r.cp.st==='Sem compra':NF.cp==='Com compra'?r.cp.st!=='Sem compra':NF.cp==='Compra não cobre'?r.cp.st==='Não cobre':r.cp.venc>0));
  const R=A.filter(r=>passN(r));
  const op=(v,l,s)=>`<option value="${esc(v)}"${s===v||_msOn(s,v)?' selected':''}>${esc(l)}</option>`;
  const nNF=Object.values(NF).filter(Boolean).length;
@@ -3051,6 +3084,7 @@ function bootNeg(){
   `<label class="fl">Custo<select class="negsel" data-k="cu">${op('','Todos',NF.cu)}${op('Com custo','Com custo',NF.cu)}${op('Sem custo','Sem custo (valor R$ 0)',NF.cu)}</select></label>`+
   `<label class="fl">Saldo no WMS<select class="negsel" data-k="wm">${op('','Todos',NF.wm)}${op('WMS com saldo','WMS com saldo (ERP negativo, peças no WMS)',NF.wm)}${op('WMS zerado','WMS zerado',NF.wm)}${op('Sem dados WMS','Sem dados do WMS',NF.wm)}</select></label>`+
   `<label class="fl">Pedido aguardando<select class="negsel" data-k="pa">${op('','Todos',NF.pa)}${op('Com pedido aguardando','Com pedido aguardando a peça',NF.pa)}${op('Sem pedido aguardando','Sem pedido aguardando',NF.pa)}</select></label>`+
+  `<label class="fl">Compra<select class="negsel" data-k="cp">${op('','Todas',NF.cp)}${op('Sem compra','Sem pedido de compra',NF.cp)}${op('Com compra','Com pedido de compra',NF.cp)}${op('Compra não cobre','Compra não cobre a falta',NF.cp)}${op('Previsão vencida','Previsão de chegada vencida',NF.cp)}</select></label>`+
   `<label class="fl">Ação<select class="negsel" data-k="ac">${op('','Todas',NF.ac)}${op('Com ação','Com ação registrada',NF.ac)}${op('Sem ação','Sem ação (a definir)',NF.ac)}</select></label>`+
   `<div class="fa"><button id="neg-clr" class="bt" type="button"${nNF?'':' disabled'}>${nNF?`Limpar (${nNF})`:'Limpar'}</button></div>`;
  if(!(window._NEG||[]).length){ kp.innerHTML=''; ch.innerHTML=`<article class="pn w2"><h3>⚠️ Saldo negativo</h3><p style="color:var(--mu)">Nenhuma planilha de estoque negativo importada ainda. Importe na <b>tela inicial</b> (bloco <b>Estoque negativo</b>), escolhendo a filial: <b>ESTOQUENEGATIVOLT</b> (LT) e <b>ESTOQUENEGATIVOLL</b> (LL).</p></article>`; return; }
@@ -3059,27 +3093,33 @@ function bootNeg(){
  const ult=(l)=>(window._NEG||[]).filter(r=>r.loja===l).reduce((m,r)=>r.importado_em>m?r.importado_em:m,'');
  const emi=(l)=>(window._NEG||[]).filter(r=>r.loja===l).reduce((m,r)=>(r.emitido_em||'')>m?r.emitido_em:m,'');
  const lj=['LT','LL'].filter(l=>R.some(r=>r.lj===l)||lojas.includes(l));
+ const pedParados=pedidosParados(R);
  kp.innerHTML=kpiHtml([
   ['Itens com saldo negativo',N(R.length),lj.map(l=>l+': '+N(R.filter(r=>r.lj===l).length)).join(' · ')],
   ['Peças negativas','−'+N(pcs),'soma dos saldos (ERP)'],
   ['Valor negativo',BRL(val),'saldo × custo líquido'],
   ['Pedidos aguardando a peça',N(R.filter(r=>r.pa&&r.pa.length).length),N(new Set(R.flatMap(r=>(r.pa||[]).map(p=>p.loja+'|'+p.pedido_id))).size)+' pedido(s) não expedido(s) com saldo negativo no item'],
+  ['Sem compra',N(R.filter(r=>r.cp.st==='Sem compra').length),N(R.filter(r=>r.cp.st==='Sem compra').reduce((x,r)=>x+Math.abs(r.s),0))+' peça(s) em falta sem pedido de compra'+(window._comprasErro?' · compras não carregadas':(window._COMPRAS||[]).length?'':' · nenhuma compra importada')],
+  ['Compra não cobre',N(R.filter(r=>r.cp.st==='Não cobre').length),N(R.filter(r=>r.cp.st==='Não cobre').reduce((x,r)=>x+r.cp.falta,0))+' peça(s) ainda sem compra'],
+  ['Previsão vencida',N(R.filter(r=>r.cp.venc>0).length),'compra com data de entrega já passada'],
+  ['Pedidos parados sem compra',N(pedParados.filter(p=>p.sem).length),'de '+N(pedParados.length)+' pedido(s) parado(s) por falta de peça'],
   ['Sem custo',N(semCu),'itens com custo zerado no relatório'],
   ['Com saldo no WMS',N(comW),'ERP negativo e peças no WMS'+(window._SW?'':' · WMS não carregado')],
   ['Última importação',lojas.map(l=>l+' '+dt(ult(l))).join(' · '),'relatório emitido '+lojas.map(l=>l+' '+dt(emi(l))).join(' · ')]]);
  const barras=(arr,cor)=>{const mx=Math.max(1,...arr.map(x=>x[1]));return arr.length?arr.map(([k,v,n])=>`<div style="display:grid;grid-template-columns:minmax(4.5rem,12rem) minmax(0,1fr) 9rem;gap:.5rem;align-items:center;margin:.22rem 0;font-size:.8rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</span><div style="background:var(--s2);border-radius:3px;height:10px;overflow:hidden"><div style="width:${v/mx*100}%;height:100%;background:${cor}"></div></div><span style="text-align:right"><b>${N(v)}</b> pç · ${N(n)} it.</span></div>`).join(''):'<p style="color:var(--mu);font-size:.85rem">Sem dados</p>'};
  const grp=(key)=>{const m=new Map();R.forEach(r=>{const k=r[key]||'(sem marca)';const o=m.get(k)||[k,0,0];o[1]+=Math.abs(r.s);o[2]++;m.set(k,o);});return [...m.values()].sort((a,b)=>b[1]-a[1]);};
- const cols=[['Filial'],['Cód. Danfe'],['Cód. produto'],['Descrição'],['Saldo ERP',1],['Pedido aguardando a peça'],['Emissão do pedido'],['Ação'],['Marca'],['Locação'],['Custo un.',1],['Valor',1],['WMS',1],['Posição WMS'],['Importado em']];
- const sorted=R.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||a.s-b.s||(b.cu*b.s)-(a.cu*a.s));
+ const cols=[['Filial'],['Cód. Danfe'],['Cód. produto'],['Descrição'],['Saldo ERP',1],['Compra (pç)',1],['Previsão de chegada'],['Situação da compra'],['Pedido aguardando a peça'],['Emissão do pedido'],['Ação'],['Marca'],['Locação'],['Custo un.',1],['Valor',1],['WMS',1],['Posição WMS'],['Importado em']];
+ const sorted=R.slice().sort((a,b)=>((b.pa||[]).length>0)-((a.pa||[]).length>0)||((b.cp.st==='Sem compra')-(a.cp.st==='Sem compra'))||a.s-b.s||(b.cu*b.s)-(a.cu*a.s));
  const rowsH=sorted.slice(0,500).map(r=>{ const w=r.wq==null?'<span style="color:var(--mu)">—</span>':`<b>${N(r.wq)}</b>${r.wq>0?' <span class="bd wn" style="font-size:.62rem" title="ERP negativo, mas há peças no WMS">tem peças</span>':''}`;
-  return `<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td title="${esc(r.d)}">${esc(r.d)}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td><td style="min-width:19rem;max-width:none;overflow:visible">${negAcaoCel(r)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center">${r.cu>0?BRL(r.cu):'<span style="color:var(--mu)">sem custo</span>'}</td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${w}</td><td title="${esc(r.wp)}">${esc(r.wp||'—')}</td><td>${dt(r.im)}</td></tr>`; }).join('');
+  return `<tr><td>${esc(r.lj)}</td><td><b>${esc(r.r)}</b></td><td>${esc(r.c)}</td><td title="${esc(r.d)}">${esc(r.d)}</td><td style="text-align:center;color:var(--bad)"><b>${N(r.s)}</b></td><td style="text-align:center">${r.cp.L.length?'<b>'+N(r.cp.q)+'</b>':'<span style="color:var(--mu)">—</span>'}</td><td>${compraPrevCel(r.cp)}</td><td>${compraStCel(r.cp)}</td><td>${negPedCel(r.pa)}</td><td>${negEmiCel(r.pa)}</td><td style="min-width:19rem;max-width:none;overflow:visible">${negAcaoCel(r)}</td><td>${esc(r.m)}</td><td>${esc(r.l||'—')}</td><td style="text-align:center">${r.cu>0?BRL(r.cu):'<span style="color:var(--mu)">sem custo</span>'}</td><td style="text-align:center">${BRL(r.s*r.cu)}</td><td style="text-align:center">${w}</td><td title="${esc(r.wp)}">${esc(r.wp||'—')}</td><td>${dt(r.im)}</td></tr>`; }).join('');
  ch.innerHTML=
   `<article class="pn"><h3>Peças negativas por marca — Top 10</h3>${barras(grp('m').slice(0,10),'var(--bad)')}</article>`+
   `<article class="pn"><h3>Peças negativas por filial</h3>${barras(grp('lj'),'var(--y)')}</article>`+
-  `<article class="pn w2"><h3>📋 Itens com saldo negativo <small style="font-weight:400;color:var(--mu)">— ${N(R.length)} item(ns)${R.length>500?' · mostrando os 500 mais negativos':''} · com pedido aguardando primeiro, depois do mais negativo</small></h3><div class="tw" style="max-height:560px;overflow:auto"><table class="ped-tb"><thead><tr>${cols.map(c=>`<th${c[1]?' style="text-align:center"':''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rowsH||`<tr><td colspan="${cols.length}" style="color:var(--mu)">Nenhum item para os filtros escolhidos.</td></tr>`}</tbody></table></div></article>`;
+  painelPedParados(pedParados)+
+  `<article class="pn w2"><h3>📋 Itens com saldo negativo <small style="font-weight:400;color:var(--mu)">— ${N(R.length)} item(ns)${R.length>500?' · mostrando os 500 mais negativos':''} · com pedido aguardando primeiro, depois sem compra, depois do mais negativo</small> <button class="bt" type="button" id="neg-csv" style="font-size:.72rem;padding:.15rem .55rem;margin-left:.5rem">Exportar plano de compras (CSV)</button></h3><div class="tw" style="max-height:560px;overflow:auto"><table class="ped-tb"><thead><tr>${cols.map(c=>`<th${c[1]?' style="text-align:center"':''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${rowsH||`<tr><td colspan="${cols.length}" style="color:var(--mu)">Nenhum item para os filtros escolhidos.</td></tr>`}</tbody></table></div></article>`;
 }
 document.addEventListener('change',e=>{const el=e.target.closest('.negsel');if(el){NF[el.dataset.k]=el.value;renderGeral()}});
-document.addEventListener('click',e=>{if(e.target.closest('#neg-clr')){NF.cu=NF.wm=NF.pa=NF.ac='';renderGeral()}});
+document.addEventListener('click',e=>{if(e.target.closest('#neg-clr')){NF.cu=NF.wm=NF.pa=NF.ac=NF.cp='';renderGeral()}});
 function bootEnd(){
  if(!window._giro&&!_giroLoad){
   _giroLoad=_sb.rpc('giro_produtos').then(({data,error})=>{
@@ -4402,6 +4442,144 @@ async function importarEstoqueNeg(input, loja){
     if(lbl) lbl.className='imp-card err'; msg('❌ '+e.message,'err'); input.value='';
   }
 }
+// ── Compras (relatório "041 Pedidos de compra por período" do ERP: COMPRASLT / COMPRASLL) ──
+// Estrutura: linha de grupo "Pedido: N Fornecedor: COD NOME P/Cliente: X", depois uma linha por item
+// (Pedido · Dt Emi · Dt Ent = previsão de entrega · Ven · Qtde. · Produto · [Principal] · Descrição · Marca · Total Produto).
+async function lerCompras(file){
+  await loadXLSX();
+  const buf=await file.arrayBuffer(), wb=XLSX.read(buf,{type:'array'}), ws=wb.Sheets[wb.SheetNames[0]];
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  const nk=v=>String(v??'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const hi=raw.findIndex((r,i)=>i<30&&r&&r.some(c=>nk(c)==='pedido')&&r.some(c=>nk(c)==='produto')&&r.some(c=>nk(c).startsWith('qtde')));
+  if(hi<0) throw new Error('Não encontrei o cabeçalho (Pedido · Dt Ent · Qtde. · Produto). Este arquivo é o relatório "041 Pedidos de compra por período" do ERP?');
+  const cab=raw.slice(0,hi).map(r=>(r||[]).filter(c=>c!=null).join(' ')).join(' ');
+  const empresa=/LOJAO DOS TRATORES/i.test(nk(cab).toUpperCase())?'LT':/(^|\s)LL TRATORES/i.test(nk(cab).toUpperCase())?'LL':null;
+  const H=raw[hi].map(h=>nk(h)), col=(...ps)=>H.findIndex(h=>ps.some(p=>h===p||h.startsWith(p)));
+  const ix={ped:col('pedido'),emi:col('dt emi'),ent:col('dt ent'),ven:col('ven'),q:col('qtde'),prod:col('produto'),prin:col('principal'),desc:col('descri'),marca:col('marca'),tot:col('total')};
+  const num=v=>{ if(v==null||v==='') return 0; if(typeof v==='number') return v; const n=Number(String(v).trim().replace(/\./g,'').replace(',','.')); return isNaN(n)?0:n; };
+  const tx=v=>v==null?'':String(v).replace(/\s+/g,' ').trim();
+  const dia=v=>{ if(v==null||v==='') return null;
+    if(typeof v==='number'&&v>20000&&v<80000) return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);
+    const m=String(v).match(/^(\d{2})\/(\d{2})\/(\d{4})/); if(m) return m[3]+'-'+m[2]+'-'+m[1];
+    const m2=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/); return m2?m2[0]:null; };
+  const rows=[]; let forn={cod:'',nome:'',pc:''};
+  raw.slice(hi+1).forEach(r=>{
+    if(!r) return;
+    const a=r[ix.ped];
+    if(typeof a==='string'){
+      const g=a.match(/^Pedido:\s*(\d+)\s+Fornecedor:\s*(\d+)\s+(.*?)\s+P\/Cliente:\s*(\d+)/i);
+      if(g) forn={cod:g[2],nome:tx(g[3]),pc:g[4]&&g[4]!=='0'?g[4]:''};
+      return;
+    }
+    if(typeof a!=='number'||!(a>0)) return;
+    const prod=tx(r[ix.prod]); if(!prod) return;
+    rows.push({pedido:String(Math.round(a)),fornecedor_cod:forn.cod||null,fornecedor:forn.nome||null,p_cliente:forn.pc||null,dt_emissao:dia(r[ix.emi]),dt_entrega:dia(r[ix.ent]),comprador:tx(r[ix.ven])||null,cod_produto:prod,principal:ix.prin>=0?(tx(r[ix.prin])||null):null,descricao:ix.desc>=0?(tx(r[ix.desc])||null):null,marca:ix.marca>=0?(tx(r[ix.marca])||null):null,qtde:num(r[ix.q]),total:ix.tot>=0?num(r[ix.tot]):null});
+  });
+  return {rows,empresa};
+}
+async function importarCompras(input, loja){
+  const file=input.files[0]; if(!file) return;
+  const st=document.getElementById('imp-compras-status'), lbl=document.getElementById('lbl-compras-'+loja.toLowerCase()), nm=document.getElementById('nm-compras-'+loja.toLowerCase());
+  const msg=(t,c)=>{ if(st){st.style.display='';st.className='imp-status'+(c?' '+c:'');st.textContent=t;} };
+  if(lbl) lbl.className='imp-card loading'; if(nm) nm.textContent=file.name;
+  try{
+    msg(`📖 Lendo ${file.name}...`);
+    const {rows,empresa}=await lerCompras(file);
+    // trava de segurança: a empresa no cabeçalho do relatório precisa ser a da filial do botão
+    if(empresa&&empresa!==loja) throw new Error(`Esta planilha é da filial ${empresa} (cabeçalho do relatório), mas foi escolhida a filial ${loja}. Importe no botão correto.`);
+    if(!rows.length){
+      const {count:antes}=await _sb.from('compras').select('id',{count:'exact',head:true}).eq('loja',loja);
+      if(!confirm(`O arquivo não tem nenhum item de compra.\n\nIsso LIMPA as compras da ${loja} (${(antes||0).toLocaleString('pt-BR')} linha(s) hoje). Continuar?`)) throw new Error('Importação cancelada.');
+    }
+    const lote='L'+Date.now(), agora=new Date().toISOString();
+    const dados=rows.map(r=>({...r,loja,arquivo:file.name,importado_em:agora,lote_import:lote}));
+    msg(`📤 Enviando ${dados.length} linha(s) de compra (${loja})...`);
+    for(let i=0;i<dados.length;i+=500){
+      const {error}=await _sb.from('compras').insert(dados.slice(i,i+500));
+      if(error) throw new Error(error.code==='42501'||/policy|permission/i.test(error.message)?'Apenas administradores podem importar as compras.':'Supabase: '+error.message);
+    }
+    msg(`🧹 Removendo a carga anterior da ${loja}...`);
+    const {error:eDel,count:removidos}=await _sb.from('compras').delete({count:'exact'}).eq('loja',loja).or(`lote_import.is.null,lote_import.neq.${lote}`);
+    if(eDel) throw new Error((eDel.code==='42501'?'Apenas administradores podem importar as compras. ':'Supabase: ')+eDel.message);
+    window._COMPRAS=null; window._comprasLoad=null;
+    reiniciarEstoqueE();
+    if(lbl) lbl.className='imp-card done';
+    registrarImport('compras',loja,file.name,dados.length);
+    const peds=new Set(dados.map(r=>r.pedido)).size, pcs=dados.reduce((x,r)=>x+r.qtde,0), val=dados.reduce((x,r)=>x+(r.total||0),0);
+    msg(`✅ ${dados.length} linha(s) de compra (${loja}) · ${peds} pedido(s) de compra · ${pcs.toLocaleString('pt-BR')} peça(s) · R$ ${val.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`+(removidos?` · ${removidos} linha(s) da carga anterior substituída(s)`:''));
+  }catch(e){
+    if(lbl) lbl.className='imp-card err'; msg('❌ '+e.message,'err'); input.value='';
+  }
+}
+function carregarCompras(){
+  if(window._COMPRAS) return Promise.resolve(window._COMPRAS);
+  if(window._comprasLoad) return window._comprasLoad;
+  window._comprasLoad=(async()=>{
+    let all=[],from=0;
+    for(;;){
+      const {data,error}=await _sb.from('compras').select('loja,pedido,fornecedor_cod,fornecedor,p_cliente,dt_emissao,dt_entrega,comprador,cod_produto,principal,descricao,marca,qtde,total,importado_em').order('loja').order('pedido').order('id').range(from,from+999);
+      if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000;
+    }
+    window._COMPRAS=all; return all;
+  })().catch(e=>{window._comprasLoad=null;throw e;});
+  return window._comprasLoad;
+}
+// cruza um item negativo com as compras em aberto da filial (pelo Cód. do produto / Principal)
+function compraDe(lj,cod,falta){
+  const k=x=>String(x??'').trim().toUpperCase(), c=k(cod), C=window._COMPRAS||[];
+  const hoje=new Date().toLocaleDateString('sv-SE');
+  const L=c?C.filter(x=>x.loja===lj&&(k(x.cod_produto)===c||k(x.principal)===c)):[];
+  L.sort((a,b)=>String(a.dt_entrega||'9999').localeCompare(String(b.dt_entrega||'9999')));
+  const q=L.reduce((a,x)=>a+(Number(x.qtde)||0),0);
+  let acum=0, cobreEm=null; for(const x of L){ acum+=Number(x.qtde)||0; if(acum>=falta){ cobreEm=x.dt_entrega||'sem data'; break; } }
+  const datas=L.map(x=>x.dt_entrega).filter(Boolean);
+  const prox=datas.find(d=>d>=hoje)||null, venc=datas.filter(d=>d<hoje);
+  const diasVenc=venc.length?Math.round((new Date(hoje)-new Date(venc[0]))/864e5):0;
+  const st=!L.length?'Sem compra':q<falta?'Não cobre':'Cobre';
+  return {L,q,cobreEm,prox,venc:venc.length,diasVenc,st,falta:Math.max(0,falta-q),hoje};
+}
+const _nf=v=>Number(v||0).toLocaleString('pt-BR');
+const _dm2=d=>{ const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+'/'+m[2]+'/'+m[1].slice(2):'sem data'; };
+const _escH=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function compraPrevCel(cp){
+  if(!cp.L.length) return '<span style="color:var(--mu)">—</span>';
+  const tip=cp.L.map(x=>'Compra #'+x.pedido+' · '+(x.fornecedor||'—')+' · '+x.qtde+' pç · entrega '+_dm2(x.dt_entrega)+(x.p_cliente?' · p/ cliente '+x.p_cliente:'')).join('\n');
+  const v=cp.L.slice(0,3).map(x=>{ const venc=x.dt_entrega&&x.dt_entrega<cp.hoje; return `<span style="white-space:nowrap${venc?';color:var(--bad)':''}">${_dm2(x.dt_entrega)} · ${Number(x.qtde)} pç${venc?' (vencida)':''}</span>`; }).join('<br>');
+  return `<span title="${_escH(tip)}">${v}${cp.L.length>3?'<br><small style="color:var(--mu)">+'+(cp.L.length-3)+' compra(s)</small>':''}</span>`;
+}
+function compraStCel(cp){
+  if(cp.st==='Sem compra') return '<span class="bd bad" style="font-size:.66rem" title="Não há pedido de compra em aberto para este item">Sem compra</span>';
+  const base=cp.st==='Cobre'?`<span class="bd ok" style="font-size:.66rem" title="As compras cobrem a falta">Cobre</span>${cp.cobreEm?' <small style="color:var(--mu)">em '+_dm2(cp.cobreEm)+'</small>':''}`:`<span class="bd wn" style="font-size:.66rem" title="A soma das compras é menor que a falta">Não cobre</span> <small style="color:var(--bad)">faltam ${Number(cp.falta)} pç</small>`;
+  return base+(cp.venc?` <span class="bd bad" style="font-size:.62rem" title="Há data de entrega já vencida — cobrar o fornecedor">vencida ${cp.diasVenc}d</span>`:'');
+}
+// pedidos parados (não expedidos) por falta de peça, com a situação da compra de cada item
+function pedidosParados(R){
+  const hoje=new Date().toLocaleDateString('sv-SE'), m=new Map();
+  R.forEach(r=>(r.pa||[]).forEach(p=>{ const k=p.loja+'|'+p.pedido_id; const o=m.get(k)||{loja:p.loja,pedido:p.pedido_id,cli:p.cli,sit:p.sit,dia:p.dia,hr:p.hr_emissao,itens:[]}; o.itens.push({r,qtde:p.qtde}); m.set(k,o); }));
+  return [...m.values()].map(o=>{
+    o.dias=o.dia?Math.max(0,Math.round((new Date(hoje)-new Date(String(o.dia).slice(0,10)))/864e5)):0;
+    o.sem=o.itens.some(i=>i.r.cp.st==='Sem compra');
+    o.naoCobre=!o.sem&&o.itens.some(i=>i.r.cp.st==='Não cobre');
+    const ds=o.itens.map(i=>i.r.cp.cobreEm).filter(Boolean).filter(d=>d!=='sem data').sort();
+    o.liber=o.sem||o.naoCobre?null:(ds.length?ds[ds.length-1]:null);
+    return o;
+  }).sort((a,b)=>(b.sem-a.sem)||(b.naoCobre-a.naoCobre)||b.dias-a.dias);
+}
+function painelPedParados(P){
+  const cab=`<article class="pn w2"><h3>🛒 Pedidos parados por falta de peça — plano de compras <small style="font-weight:400;color:var(--mu)">— pedidos não expedidos com item de saldo negativo · o pedido só libera quando todos os itens chegarem</small></h3>`;
+  if(!P.length) return cab+'<p style="color:var(--mu)">Nenhum pedido parado aguardando peça com os filtros escolhidos.</p></article>';
+  const dtp=(d,h)=>{ const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+'/'+m[2]+'/'+m[1]:'—'; };
+  const rows=P.slice(0,300).map(o=>{
+    const it=o.itens.map(i=>`<div style="white-space:nowrap"><b>${_escH(i.r.c)}</b> ${_escH(String(i.r.d||'').slice(0,34))} <small style="color:var(--mu)">pede ${Number(i.qtde)} · saldo ${Number(i.r.s)}</small> ${compraStCel(i.r.cp)}</div>`).join('');
+    const lib=o.sem?'<span class="bd bad" style="font-size:.66rem">Sem previsão — item sem compra</span>':o.naoCobre?'<span class="bd wn" style="font-size:.66rem">Compra não cobre todos os itens</span>':o.liber?(o.liber<new Date().toLocaleDateString('sv-SE')?`<b style="color:var(--bad)">${_dm2(o.liber)}</b> <span class="bd bad" style="font-size:.62rem" title="Data de entrega já passada — cobrar o fornecedor">vencida</span>`:`<b>${_dm2(o.liber)}</b>`):'<span style="color:var(--mu)">—</span>';
+    return `<tr><td><b style="color:var(--y)">#${_escH(o.pedido)}</b></td><td>${_escH(o.loja)}</td><td title="${_escH(o.cli||'')}">${_escH(String(o.cli||'').slice(0,28))}</td><td><span class="bd wn" style="font-size:.62rem">${_escH(String(o.sit||'').replace(/^\d+-/,''))}</span></td><td>${dtp(o.dia)}</td><td style="text-align:center;${o.dias>=15?'color:var(--bad);font-weight:700':''}">${o.dias}</td><td style="overflow:visible;max-width:none">${it}</td><td>${lib}</td></tr>`;
+  }).join('');
+  return cab+`<div class="tw" style="max-height:420px;overflow:auto"><table class="ped-tb"><thead><tr><th>Pedido</th><th>Filial</th><th>Cliente</th><th>Situação</th><th>Emissão</th><th style="text-align:center">Dias parado</th><th>Itens em falta · situação da compra</th><th>Liberação prevista</th></tr></thead><tbody>${rows}</tbody></table></div><p style="font-size:.72rem;color:var(--mu);margin:.4rem 0 0">${_nf(P.length)} pedido(s) parado(s)${P.length>300?' · mostrando os 300 mais críticos':''} · ordem: sem compra → compra não cobre → mais dias parado. Considera as compras como em aberto até a data de entrega; data vencida = cobrar o fornecedor.</p></article>`;
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('#neg-csv')) return;
+  const R=D.neg||[]; const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const lin=R.map(r=>[r.lj,r.r,r.c,r.d,r.m,r.s,Math.abs(r.s),(r.pa||[]).map(p=>'#'+p.pedido_id).join(' '),r.cp.q,r.cp.L.map(x=>'#'+x.pedido+' '+(x.fornecedor||'')+' '+x.qtde+'pç '+_dm2(x.dt_entrega)).join(' | '),r.cp.st,r.cp.falta,r.cp.cobreEm?_dm2(r.cp.cobreEm):''].map(q).join(';'));
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+[['Filial','Cód. Danfe','Cód. produto','Descrição','Marca','Saldo ERP','Falta','Pedidos aguardando','Compra (pç)','Pedidos de compra','Situação da compra','Falta comprar','Cobre em'].map(q).join(';'),...lin].join('\n')],{type:'text/csv;charset=utf-8'})); a.download='plano-de-compras-estoque-negativo.csv'; a.click(); URL.revokeObjectURL(a.href); });
 // célula "Pedido aguardando": nº do pedido, situação, cliente e data (pedido não expedido com saldo negativo no item)
 function negPedCel(pa){
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
