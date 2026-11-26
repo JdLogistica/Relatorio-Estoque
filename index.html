@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261126-1533">
+<meta name="version" content="20261126-1600">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -3187,14 +3187,18 @@ function bootEnd(){
  const endLink=e=>`<span data-endk="sel" data-endv="${esc(e)}" style="cursor:pointer;text-decoration:underline dotted;color:var(--y)" title="Ver itens deste endereço">${esc(e)}</span>`;
  // ── painel do endereço selecionado / filtrado ──
  const mostraItens=EF.sel||GF.loc||EF.rua&&EF.prat||endsF.length<=15;
- let painel='';
- if(mostraItens){
-  const lst=endsF.slice().sort((a,b)=>a.e.localeCompare(b.e,'pt-BR',{numeric:true})).slice(0,60);
-  painel=`<article class="pn w2"><h3>📍 Itens ${EF.sel?'do endereço '+esc(EF.sel):'dos endereços filtrados'} <small style="font-weight:400;color:var(--mu)">— ${N(lst.length)} endereço(s)</small> <button type="button" class="bt" id="end-csv" style="float:right;font-size:.75rem;padding:.2rem .6rem">Exportar CSV</button></h3>`+
-   lst.map(a=>{const its=a.its.filter(giroOk).sort((x,y)=>(y.s||0)-(x.s||0));return `<div style="margin:.5rem 0 .2rem;display:flex;gap:.8rem;flex-wrap:wrap;align-items:baseline"><b style="font-size:.95rem">${esc(a.e)}</b><span style="font-size:.78rem;color:var(--mu)">${esc(a.lj)} · rua ${esc(a.rua)}${a.prat?' · prateleira '+esc(a.prat):''}${a.niv?' · nível/posição '+esc(a.niv):''} · <b>${its.length}</b> itens · <b>${N(its.reduce((s,r)=>s+(r.s||0),0))}</b> peças · ${BRL(its.reduce((s,r)=>s+(r.cu||0)*(r.s||0),0))} · ${new Set(its.map(r=>r.m).filter(Boolean)).size} marca(s)</span></div>`+
-    tab([['Cód. produto'],['Cód. Danfe'],['Endereço do Cód. Danfe'],['Descrição'],['Marca'],['Qtde ERP',1],['Saldo WMS',1],['Custo un.',1],['Valor',1],['Vendas no ano',1],['Última venda',1],['Outros endereços do item'],['Outros Cód. Danfe do item · posição atual · marca']],
-     its.map(r=>{const o=[...(locsDe.get(r.lj+'|'+r.c)||[])].filter(x=>x!==a.e);return `<tr>${td(esc(r.c))}${td(esc(r.r||''))}${td(endDanfeHtml(r))}${td(esc(r.d))}${td(esc(r.m))}${td('<b>'+N0(r.s)+'</b>',1,r.s||0)}${td(wmsCel(r.lj,r.r,r.s),1,r.wq??-1)}${td(BRL(r.cu||0),1,r.cu||0)}${td(BRL((r.cu||0)*(r.s||0)),1,(r.cu||0)*(r.s||0))}${td(gT(r),1,temGiro?giroDe(r)[0]:'')}${td(ult(r),1,temGiro?(giroDe(r)[2]||''):'')}${td(o.length?o.map(endLink).join(', '):'—')}${td((()=>{const ou=(danfesDe.get(r.lj+'|'+r.c)||[]).filter(x=>x.r!==r.r).sort((x,y)=>(y.s||0)-(x.s||0));return ou.length?ou.map(x=>`<div style="white-space:nowrap">${esc(x.r||'')} · ${x.l?endLink(x.l):'<span style="color:var(--bad)">sem locação</span>'} · ${esc(x.m||'')} · <b>${N0(x.s)}</b> un.</div>`).join(''):'—'})())}</tr>`}),200)}).join('')+`</article>`;
- }
+
+ // ── tabela única: itens dos endereços (ou os que mais vendem) + onde estão ──
+ function unifHtml(){
+  const L=mostraItens?endsF.flatMap(a=>a.its.filter(giroOk).map(r=>({a,r}))):altoV.map(r=>({a:null,r}));
+  L.sort((x,y)=>(temGiro?(giroDe(y.r)[0]||0)-(giroDe(x.r)[0]||0):0)||((y.r.s||0)-(x.r.s||0)));
+  const tit=mostraItens?(EF.sel?'Itens do endereço '+esc(EF.sel):'Itens dos endereços filtrados'):'Itens que mais vendem e onde estão';
+  const sub=mostraItens?`${N(endsF.length)} endereço(s) · ${N(L.length)} item(ns) · mais vendidos primeiro`:'candidatos a ficar perto da expedição';
+  const cab=[['Filial'],['Endereço'],['Cód. produto'],['Cód. Danfe'],['Endereço do Cód. Danfe'],['Descrição'],['Marca'],['Qtde ERP',1],['Saldo WMS',1],['Custo un.',1],['Valor',1],['Pedidos no ano',1],['Unidades no ano',1],['Última venda',1],['Outros endereços do item'],['Outros Cód. Danfe do item · posição · marca · qtde']];
+  const rowsH=L.map(({a,r})=>{ const e=a?a.e:r.l, o=[...(locsDe.get(r.lj+'|'+r.c)||[])].filter(x=>x!==e), g=temGiro?giroDe(r):[0,0,''];
+   const ou=(danfesDe.get(r.lj+'|'+r.c)||[]).filter(x=>x.r!==r.r).sort((x,y)=>(y.s||0)-(x.s||0));
+   return `<tr>${td(esc(r.lj))}${td(e?endLink(e):'<span style="color:var(--bad)">sem locação</span>')}${td('<b>'+esc(r.c)+'</b>')}${td(esc(r.r||''))}${td(endDanfeHtml(r))}${td(esc(r.d))}${td(esc(r.m))}${td('<b>'+N0(r.s)+'</b>',1,r.s||0)}${td(wmsCel(r.lj,r.r,r.s),1,r.wq??-1)}${td(BRL(r.cu||0),1,r.cu||0)}${td(BRL((r.cu||0)*(r.s||0)),1,(r.cu||0)*(r.s||0))}${td(temGiro?'<b>'+N(g[0])+'</b>':'…',1,temGiro?g[0]:'')}${td(temGiro?N0(g[1]):'…',1,temGiro?g[1]:'')}${td(ult(r),1,temGiro?(g[2]||''):'')}${td(o.length?o.map(endLink).join(', '):'—')}${td(ou.length?ou.map(x=>`<div style="white-space:nowrap">${esc(x.r||'')} · ${x.l?endLink(x.l):'<span style="color:var(--bad)">sem locação</span>'} · ${esc(x.m||'')} · <b>${N0(x.s)}</b> un.</div>`).join(''):'—')}</tr>`; });
+  return `<article class="pn w2"><h3>📍 ${tit} <small style="font-weight:400;color:var(--mu)">— ${sub}</small> <button type="button" class="bt" id="end-csv" style="float:right;font-size:.75rem;padding:.2rem .6rem">Exportar CSV</button></h3>`+(temGiro?tab(cab,rowsH,300):carregando)+`</article>`; }
  // ── gráficos ──
  const porFx=END_FX.map(f=>{const es=ends.filter(a=>passE(a,'fx')&&a.fx===f[0]);return{k:f[0],l:f[1],v:es.length,it:es.reduce((s,a)=>s+a.its.length,0)}});
  const ruaM=new Map();ends.filter(a=>passE(a,'rua')).forEach(a=>{if(!ruaM.has(a.rua))ruaM.set(a.rua,{k:a.rua,v:0,e:0,p:0});const o=ruaM.get(a.rua);o.v+=a.its.length;o.e++;o.p+=a.pcs});
@@ -3209,7 +3213,7 @@ function bootEnd(){
  const altoV=temGiro?itensF.filter(r=>giroDe(r)[0]>0).sort((a,b)=>giroDe(b)[0]-giroDe(a)[0]):[];
  const misturados=endsF.filter(a=>a.mar.size>=5).sort((a,b)=>b.mar.size-a.mar.size);
  const carregando=`<p style="color:var(--mu)">${window._giroErro?'Não foi possível carregar as vendas.':'Carregando vendas dos itens…'}</p>`;
- $('#ch').innerHTML=painel+
+ $('#ch').innerHTML=(mostraItens?unifHtml():'')+
   `<article class="pn"><h3>📦 Endereços por quantidade de itens</h3>${barras(porFx,'fx',EF.fx,'var(--y)',x=>`${N(x.v)} end. · ${N(x.it)} itens`)}</article>`+
   `<article class="pn"><h3>🏷️ Top 20 endereços com mais itens</h3>${barras(topE,'sel',EF.sel,'var(--bad)',x=>`${N(x.v)} itens · ${N(x.p)} pç`)}</article>`+
   `<article class="pn"><h3>🛣️ Itens por rua / área (top 25)</h3>${barras(ruasT,'rua',EF.rua,'var(--ok)',x=>`${N(x.v)} itens · ${N(x.e)} end.`)}</article>`+
@@ -3245,8 +3249,7 @@ function bootEnd(){
    `<button type="button" class="bt" id="esp-csv" style="margin-top:.4rem;font-size:.75rem;padding:.2rem .6rem">Exportar CSV (uma linha por Cód. Danfe)</button></article>`+
   `<article class="pn w2"><h3>🚫 Itens com saldo e sem endereço <small style="font-weight:400;color:var(--mu)">— ${temGiro?'ordenados pelos que mais vendem':'por saldo'}: priorize endereçar estes</small></h3>`+
    tab([['Filial'],['Cód. produto'],['Descrição'],['Marca'],['Saldo ERP',1],['Saldo WMS',1],['Vendas no ano',1],['Última venda',1]],semEndV.map(r=>`<tr>${td(esc(r.lj))}${td(esc(r.c))}${td(esc(r.d))}${td(esc(r.m))}${td(N0(r.s),1,r.s||0)}${td(wmsCel(r.lj,r.r,r.s),1,r.wq??-1)}${td(gT(r),1,temGiro?giroDe(r)[0]:'')}${td(ult(r),1)}</tr>`),200)+`</article>`+
-  `<article class="pn w2"><h3>⚡ Itens que mais vendem e onde estão <small style="font-weight:400;color:var(--mu)">— candidatos a ficar perto da expedição</small></h3>`+
-   (temGiro?tab([['Filial'],['Cód. produto'],['Descrição'],['Endereço'],['Saldo ERP',1],['Saldo WMS',1],['Pedidos no ano',1],['Unidades no ano',1],['Última venda',1]],altoV.map(r=>`<tr>${td(esc(r.lj))}${td(esc(r.c))}${td(esc(r.d))}${td(endLink(r.l))}${td(N0(r.s),1,r.s||0)}${td(wmsCel(r.lj,r.r,r.s),1,r.wq??-1)}${td('<b>'+N(giroDe(r)[0])+'</b>',1,giroDe(r)[0])}${td(N0(giroDe(r)[1]),1,giroDe(r)[1])}${td(ult(r),1)}</tr>`),100):carregando)+`</article>`+
+  (mostraItens?'':unifHtml())+
   `<article class="pn w2"><h3>💤 Itens parados ocupando endereço <small style="font-weight:400;color:var(--mu)">— sem venda no ano, maior valor primeiro</small></h3>`+
    (temGiro?tab([['Filial'],['Cód. produto'],['Descrição'],['Marca'],['Endereço'],['Saldo ERP',1],['Saldo WMS',1],['Valor parado',1]],parV.map(r=>`<tr>${td(esc(r.lj))}${td(esc(r.c))}${td(esc(r.d))}${td(esc(r.m))}${td(endLink(r.l))}${td(N0(r.s),1,r.s||0)}${td(wmsCel(r.lj,r.r,r.s),1,r.wq??-1)}${td(BRL((r.cu||0)*(r.s||0)),1,(r.cu||0)*(r.s||0))}</tr>`),200):carregando)+`</article>`+
   `<article class="pn w2"><h3>🎨 Endereços misturados (5+ marcas) <small style="font-weight:400;color:var(--mu)">— revisar organização</small></h3>`+
