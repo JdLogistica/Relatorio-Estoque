@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261127-1546">
+<meta name="version" content="20261127-1602">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -504,12 +504,12 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
 .g-fp-ft{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
 .g-sec{grid-column:1/-1;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);font-weight:700;margin:.6rem 0 -.1rem;display:flex;align-items:center;gap:.5rem}
 .g-sec::after{content:"";flex:1;height:1px;background:var(--ln)}
-.g-kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.75rem;margin-bottom:.9rem}
-.g-kp .k{padding:.85rem 1rem;border-left-width:4px}
-.g-kp .k span{font-size:.78rem}
-.g-kp .k b{font-size:clamp(1.5rem,2.6vw,2.2rem);word-break:normal;overflow-wrap:normal}
-.g-kp .k small{display:block;color:var(--mu);font-size:.72rem;margin-top:.25rem;line-height:1.35}
-.g-kp .k.g-go{cursor:pointer;transition:transform .12s,box-shadow .12s}.g-kp .k.g-go:hover,.g-kp .k.g-go:focus-visible{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.22);outline:none}.g-kp .k.g-go::after{content:'Ver detalhes ›';display:block;margin-top:.4rem;font-size:.7rem;font-weight:600;color:var(--y)}
+.g-kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.5rem;margin-bottom:.6rem}
+.g-kp .k{padding:.55rem .75rem;border-left-width:4px}
+.g-kp .k span{font-size:.72rem}
+.g-kp .k b{font-size:clamp(1.2rem,1.9vw,1.65rem);word-break:normal;overflow-wrap:normal}
+.g-kp .k small{display:block;color:var(--mu);font-size:.66rem;margin-top:.15rem;line-height:1.3}
+.g-kp .k.g-go{cursor:pointer;transition:transform .12s,box-shadow .12s}.g-kp .k.g-go:hover,.g-kp .k.g-go:focus-visible{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.22);outline:none}.g-kp .k.g-go::after{content:'Ver detalhes ›';display:block;margin-top:.25rem;font-size:.66rem;font-weight:600;color:var(--y)}
 .g-kp .k.neg{border-left-color:var(--bad)}.g-kp .k.est{border-left-color:var(--bl)}.g-kp .k.tm{border-left-color:var(--ok)}
 .g-ft{color:var(--mu);font-size:.75rem;padding:.4rem 0 1rem;line-height:1.6}
 </style>
@@ -1103,7 +1103,7 @@ function toggleValores(){
   window._valHide=!window._valHide;
   const b=document.getElementById('eye-val');
   if(b){ b.textContent=window._valHide?'👁️ Mostrar valores':'🙈 Ocultar valores'; b.title=window._valHide?'Mostrar valores em R$':'Ocultar valores em R$'; }
-  try{ if(_curSection==='e'&&window._rerenderE) window._rerenderE(); else if(_curSection==='p'&&window._rerenderP) window._rerenderP(); }catch(e){ console.warn('[toggleValores]',e); }
+  try{ if(_curSection==='e'&&window._rerenderE) window._rerenderE(); else if(_curSection==='p'&&window._rerenderP) window._rerenderP(); else if(_curSection==='g'&&window._rerenderG) window._rerenderG(); }catch(e){ console.warn('[toggleValores]',e); }
 }
 
 // ── Estoque (seção Estoque): abas Estoques / Sem locação / Controle de Estoque
@@ -7783,12 +7783,12 @@ function calcular(){
   // estoque
   const D=gE()||{}, SW=window._SW, mEq=_mtM(F.eprod), mLq=_mtM(F.eloc);
   const eOk=r=>_mv(F.loja,r.lj)&&_mv(F.emarca,r.m)&&mLq(r.l)&&mEq((r.c||'')+' '+(r.r||'')+' '+(r.d||''));
-  const E=(D.sp||[]).filter(eOk), SL=(D.sl||[]).filter(eOk), NG=(D.neg||[]).filter(eOk), soW=(D.wmsOnly||[]).filter(eOk);
+  const E=(D.sp||[]).filter(eOk), SL=(D.sl||[]).filter(eOk), NG=(D.neg||[]).filter(eOk), soW=(D.wmsOnly||[]).filter(eOk), DV=(D.dv||[]).filter(r=>_mv(F.loja,r.lj)&&_mv(F.emarca,r.m));
   const lojasW=SW?[...SW.lojas].filter(l=>_mv(F.loja,l)).sort():[];
   const comW=E.filter(r=>lojasW.includes(r.lj)), wItens=comW.filter(r=>r.wq>0).length+soW.length, wPcs=comW.reduce((x,r)=>x+(r.wq||0),0)+soW.reduce((x,r)=>x+(r.wq||0),0);
   const porLj=(a,f)=>['LT','LL'].map(l=>l+' '+N(a.filter(r=>(f?f(r):r.loja)===l).length)).join(' · ');
   const pWms=P.filter(noWms), pCas=pWms.filter(r=>!r._soWms).length;
-  return {P,linhas,pecas,pedComIt,prods,itensOk,lead,sep,E,SL,NG,soW,comW,wItens,wPcs,lojasW,porLj,pWms,pCas,temFiltroItem,estOk:!!(D._estoqueOk)};
+  return {P,linhas,pecas,pedComIt,prods,itensOk,lead,sep,E,SL,NG,DV,soW,comW,wItens,wPcs,lojasW,porLj,pWms,pCas,temFiltroItem,estOk:!!(D._estoqueOk)};
 }
 function desenhar(){
   const R=calcular(), el=$('g-kp'); if(!el) return;
@@ -7805,6 +7805,8 @@ function desenhar(){
    k('tm','🛠️ Média tempo de separação',fm(avg(R.sep)),`início → fim da separação · mediana ${fm(pq(R.sep,.5))} · 90% até ${fm(pq(R.sep,.9))} · ${N(R.sep.length)} pedidos`,'p:tempos')+
    `<div class="g-sec">Estoque e WMS</div>`+
    k('neg','⚠️ Itens negativos',es?N(R.NG.length):'—',es?`${N(Math.abs(R.NG.reduce((x,r)=>x+r.s,0)))} peças negativas · ${R.porLj(R.NG,r=>r.lj)}`:'estoque não carregado','e:neg')+
+   k('neg','📉 Divergência de estoque',es?N(R.DV.length):'—',es?`${N(R.DV.reduce((x,r)=>x+(r.q||0),0))} peças pedidas · ${N(R.DV.filter(r=>r.st==='Sem saldo').length)} sem saldo · ${R.porLj(R.DV,r=>r.lj)}`:'estoque não carregado','e:dv')+
+   k('neg','💰 Valor em divergência',es?BRL_G(R.DV.reduce((x,r)=>x+(r.v||0),0)):'—',es?['LT','LL'].map(l=>l+' '+BRL_G(R.DV.filter(r=>r.lj===l).reduce((x,r)=>x+(r.v||0),0))).join(' · '):'estoque não carregado','e:dv')+
    k('est','🏷️ Itens sem preço',es?N(R.E.filter(r=>!(r.cu>0)).length):'—',es?`custo zerado no ERP · de ${N(R.E.length)} itens · ${R.porLj(R.E.filter(r=>!(r.cu>0)),r=>r.lj)}`:'estoque não carregado','e:sp:pr=Sem preço')+
    k('est','📍 Itens sem locação',es?N(R.SL.length):'—',es?`com saldo no ERP e sem endereço · ${N(R.SL.reduce((x,r)=>x+r.s,0))} peças · ${R.porLj(R.SL,r=>r.lj)}`:'estoque não carregado','e:sl')+
    k('est','🏬 Itens no WMS',es?N(R.lojasW.length?R.wItens:0):'—',es?(R.lojasW.length?`${N(R.wPcs)} peças · filial ${R.lojasW.join(' + ')}${R.soW.length?' · '+N(R.soW.length)+' só no WMS':''}`:(F.loja?'a filial '+F.loja+' ainda não tem estoque WMS importado':'sem dados do WMS importados')):'estoque não carregado','e:wms')+
@@ -7814,6 +7816,7 @@ function desenhar(){
   resumoAtivos();
 }
 // ── eventos ──
+window._rerenderG=()=>desenhar();
 let _t=null; const agenda=()=>{ clearTimeout(_t); _t=setTimeout(desenhar,120); };
 function irDetalhe(el){
   const [sec,tab,gf]=String(el.dataset.gdest||'').split(':'); if(!sec||!tab) return;
