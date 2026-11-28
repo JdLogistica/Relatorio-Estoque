@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261128-0941">
+<meta name="version" content="20261128-1054">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -2305,7 +2305,7 @@ function renderItensTab(dash){
   const histEl=$('#c-itens-hist');
   if(histEl){
     if(!histList.length){histEl.innerHTML=noData;}else{
-      const W=Math.max(560, histList.length*72+80), H=260;
+      const W=Math.max(900, histList.length*72+80), H=200;
       const PAD={t:24,r:24,b:40,l:52};
       const cw=W-PAD.l-PAD.r, ch=H-PAD.t-PAD.b;
       const xs=i=>PAD.l+(histList.length>1?i*(cw/(histList.length-1)):cw/2);
@@ -2540,7 +2540,7 @@ function renderItensTab(dash){
     // ponto 80%
     const n80=(rows.findIndex(r=>r._cum>=79.9999)+1)||n;
     // dimensões — mesmo cálculo do pareto() do bootP
-    const W=Math.max(n*34+104,340), H=270, L=58, R=40, T=14, B=78;
+    const W=Math.max(n*34+104,1000), H=215, L=58, R=40, T=14, B=78;
     const pw=W-L-R, ph=H-T-B, sl=pw/n;
     const y=p=>T+ph*(1-p/100);
     const fmtV=v=>window._valHide?'••':v>=1e6?(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi':
@@ -2841,7 +2841,7 @@ function pareto(tab,c,el){
  let acc=0;const rows=all.map(([k,v])=>({k,v,cum:(acc+=v)/tot*100})),n80=(rows.findIndex(r=>r.cum>=79.9999)+1)||rows.length;
  const sh=rows.slice(0,Math.min(rows.length,Math.max(n80+3,10),Math.max(24,n80)));
  if(sel&&!sh.some(r=>String(r.k)===sel)){const r=rows.find(r=>String(r.k)===sel);if(r)sh.push(r)}
- const n=sh.length,W=Math.max(n*34+104,340),H=270,L=58,R=40,T=14,B=78,pw=W-L-R,ph=H-T-B,sl=pw/n,y=p=>T+ph*(1-p/100);
+ const n=sh.length,W=Math.max(n*34+104,1000),H=215,L=58,R=40,T=14,B=78,pw=W-L-R,ph=H-T-B,sl=pw/n,y=p=>T+ph*(1-p/100);
  const lab=k=>{k=String(c.lab?c.lab(k):k);return esc(k.length>16?k.slice(0,15)+'…':k)};
  let s=[0,20,40,60,80,100].map(p=>`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(p)}" y2="${y(p)}"/><text x="${L-6}" y="${y(p)+3}" text-anchor="end">${c.fmt===BRL?(window._valHide?'••':'R$ '+short(tot*p/100)):short(tot*p/100)}</text><text x="${W-R+6}" y="${y(p)+3}">${p}%</text>`).join('');
  s+=sh.map((r,i)=>{const x=L+sl*i,p=r.v/tot*100,bh=ph*p/100,vt=`<text class="v${bh>=16?' vi':''}" x="${x+sl/2}" y="${bh>=16?y(p)+11:y(p)-3}">${c.fmt===BRL?(window._valHide?'••':short(r.v)):N(r.v)}</text>`;
@@ -3056,7 +3056,7 @@ function dvHistDesenha(){
   `<div class="dia-kpi" style="border-color:#5bafd6"><span>LL</span><b style="color:#5bafd6">${fN(ll)}</b></div>`+
   `<div class="dia-kpi" style="border-color:#66bb6a"><span>Pico: ${lblPk(T[pk].m)}</span><b style="color:#66bb6a">${fN(T[pk].tot)}</b></div>`+
   `<div class="dia-kpi"><span>Média/${mes?'mês':'dia'}</span><b>${$v?BRL(tot/n):(tot/n).toFixed(1).replace('.',',')}</b></div></div>`;
- const W=900,H=mes?250:270,PL=42,PR=12,PT=26,PB=mes?30:38, cW=W-PL-PR, cH=H-PT-PB;
+ const W=1100,H=mes?200:215,PL=42,PR=12,PT=26,PB=mes?30:38, cW=W-PL-PR, cH=H-PT-PB;
  const gap=mes?(n>18?6:12):(n>90?0:n>45?1:2), bw=Math.max(2,(cW-gap*Math.max(0,n-1))/n);
  const bx=i=>PL+i*(bw+gap), yv=v=>PT+cH-v/mx*cH;
  const grid=Array.from({length:5},(_,k)=>{ const f=k/4,y=yv(mx*f).toFixed(1),v=Math.round(mx*f);
@@ -5460,7 +5460,7 @@ function renderHistDia(rs,el){
   // ══════════════════════════════════════════════════════════════════
   // GRÁFICO 1 — Barras empilhadas diárias
   // ══════════════════════════════════════════════════════════════════
-  const W=900,H=280,PL=42,PR=12,PT=28,PB=38;
+  const W=1100,H=215,PL=42,PR=12,PT=28,PB=38;
   const cW=W-PL-PR, cH=H-PT-PB;
   const yv=v=>PT+cH-(v/mx*cH);
 
@@ -5755,7 +5755,7 @@ function renderHist(rs,el){
   const n=tots.length;
   // PL/PR fixos grandes o suficiente para o label do primeiro/último mês não cortar
   // PT alto para comportar: %var(10) + número(14) + LT(14) + gap(10) + %varLL(10) + LL(14) = ~72px acima do ponto
-  const W=900, H=310, PL=90, PR=90, PT=115, PB=32;
+  const W=1100, H=255, PL=80, PR=80, PT=80, PB=28;
   const cW=W-PL-PR, cH=H-PT-PB;
   const xs=i=>PL+i/(n-1||1)*cW;
   // Escala usa mxEscala (apenas meses fechados) → mês atual não achata o gráfico
@@ -5990,7 +5990,7 @@ function renderCliHist(rs,el){
     const dias=Array.from(diasSet).sort();
     if(!dias.length){el.innerHTML='<p style="color:var(--mu);padding:1rem">Sem dados diários</p>';return;}
 
-    const W=Math.max(500,dias.length*28+80), H=180;
+    const W=Math.max(900,dias.length*28+80), H=165;
     const PAD={t:20,r:20,b:38,l:40};
     const cw=W-PAD.l-PAD.r, ch=H-PAD.t-PAD.b;
     const xs=i=>PAD.l+i*(cw/(Math.max(dias.length-1,1)));
@@ -6050,7 +6050,7 @@ function renderCliHist(rs,el){
     cliMes[r.cli][r.mes]=(cliMes[r.cli][r.mes]||0)+1;
   });
 
-  const W=Math.max(400,meses.length*52+80), H=180;
+  const W=Math.max(900,meses.length*52+80), H=165;
   const PAD={t:20,r:20,b:38,l:40};
   const cw=W-PAD.l-PAD.r, ch=H-PAD.t-PAD.b;
   const xs=i=>PAD.l+(meses.length>1?i*(cw/(meses.length-1)):cw/2);
@@ -7664,7 +7664,7 @@ function renderTmEvol(rows,el){
     kpi(`${lbl(ult.p)} vs ${pen?lbl(pen.p):'—'}`,`<i style="font-style:normal;color:${varUlt==null?'var(--mu)':varUlt>0?'#ef5350':'#66bb6a'}">${fV(varUlt)}</i>`)+
     kpi('Pedidos considerados',totC.toLocaleString('pt-BR'))+`</div>`;
   // SVG
-  const W=900,H=250,PL=44,PR=12,PT=30,PB=36,cW=W-PL-PR,cH=H-PT-PB,n=pts.length;
+  const W=1100,H=210,PL=44,PR=12,PT=30,PB=36,cW=W-PL-PR,cH=H-PT-PB,n=pts.length;
   const mx=Math.max(1,...vals.map(x=>x.v));
   const yv=v=>PT+cH-(v/mx*cH);
   const gap=n>90?0:n>45?1:n>20?2:6;
