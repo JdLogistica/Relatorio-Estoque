@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261128-1054">
+<meta name="version" content="20261128-1102">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -502,14 +502,19 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
 .g-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.6rem .8rem}
 .g-grid .fl select,.g-grid .fl input{width:100%;min-width:0}
 .g-fp-ft{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
-.g-sec{grid-column:1/-1;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);font-weight:700;margin:.6rem 0 -.1rem;display:flex;align-items:center;gap:.5rem}
+.g-sec{grid-column:1/-1;font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);font-weight:700;margin:.4rem 0 -.2rem;display:flex;align-items:center;gap:.5rem}
 .g-sec::after{content:"";flex:1;height:1px;background:var(--ln)}
+.g-kp>.g-row{grid-column:1/-1;display:grid;gap:.5rem;align-items:stretch;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))}
+@media(min-width:1100px){.g-kp>.g-row{grid-template-columns:repeat(var(--n,5),minmax(0,1fr))}}
+.g-al{grid-column:1/-1;display:flex;gap:.4rem;flex-wrap:wrap}
+.g-alc{font-size:.72rem;font-weight:600;padding:.22rem .6rem;border-radius:999px;background:var(--s2);border:1px solid var(--ln);border-left-width:3px;color:var(--tx)}
+.g-alc.bad{border-left-color:var(--bad)}.g-alc.warn{border-left-color:var(--y)}.g-alc.info{border-left-color:var(--bl)}.g-alc.g-go{cursor:pointer}.g-alc.g-go:hover{background:var(--s3,var(--s2));filter:brightness(1.15)}
 .g-kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.5rem;margin-bottom:.6rem}
 .g-kp .k{padding:.55rem .75rem;border-left-width:4px}
 .g-kp .k span{font-size:.72rem}
 .g-kp .k b{font-size:clamp(1.2rem,1.9vw,1.65rem);word-break:normal;overflow-wrap:normal}
 .g-kp .k small{display:block;color:var(--mu);font-size:.66rem;margin-top:.15rem;line-height:1.3}
-.g-kp .k.g-go{cursor:pointer;transition:transform .12s,box-shadow .12s}.g-kp .k.g-go:hover,.g-kp .k.g-go:focus-visible{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.22);outline:none}.g-kp .k.g-go::after{content:'Ver detalhes ›';display:block;margin-top:.25rem;font-size:.66rem;font-weight:600;color:var(--y)}
+.g-kp .k.g-go{cursor:pointer;transition:transform .12s,box-shadow .12s}.g-kp .k.g-go:hover,.g-kp .k.g-go:focus-visible{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.22);outline:none}.g-kp .k.g-go{position:relative}.g-kp .k.g-go>span{padding-right:.9rem}.g-kp .k.g-go::after{content:'›';position:absolute;top:.3rem;right:.6rem;font-size:1.05rem;line-height:1;font-weight:700;color:var(--y)}
 .g-kp .k.neg{border-left-color:var(--bad)}.g-kp .k.est{border-left-color:var(--bl)}.g-kp .k.tm{border-left-color:var(--ok)}
 .g-ft{color:var(--mu);font-size:.75rem;padding:.4rem 0 1rem;line-height:1.6}
 </style>
@@ -7813,13 +7818,66 @@ function calcular(){
   const pWms=P.filter(noWms), pCas=pWms.filter(r=>!r._soWms).length;
   return {P,linhas,pecas,pedComIt,prods,itensOk,lead,sep,E,SL,NG,DV,soW,comW,wItens,wPcs,lojasW,porLj,pWms,pCas,temFiltroItem,estOk:!!(D._estoqueOk)};
 }
+// ── mês atual, qualidade e equipe (erros de separação, acurácia do estoque, ausências) ──
+const _ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+async function carregarGerExtra(){
+  if(window._GX) return window._GX;
+  const hoje=new Date(), ini=new Date(hoje.getFullYear(),hoje.getMonth()-1,1), fim7=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate()+7);
+  const X={erros:null,func:null,aus:null};
+  try{ let all=[],from=0; for(;;){ const {data,error}=await _sb.from('erros_separacao').select('data_erro,loja,qtde_errada,valor_erro').gte('data_erro',_ymd(ini)).order('data_erro').range(from,from+999); if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000; } X.erros=all; }catch(e){ console.warn('[gerencial: erros]',e); }
+  try{ const {data,error}=await _sb.from('funcionarios').select('id,nome,loja,ativo'); if(error) throw error; X.func=data||[];
+       const r=await _sb.from('ausencias').select('funcionario_id,data,tipo').gte('data',_ymd(hoje)).lte('data',_ymd(fim7)); if(r.error) throw r.error; X.aus=r.data||[]; }catch(e){ console.warn('[gerencial: equipe]',e); }
+  return window._GX=X;
+}
+function gExtra(R,k){
+  const X=window._GX||{}, P0=gP(), hoje=new Date(), hj=_ymd(hoje);
+  const lojaOk=l=>!F.loja||_mv(F.loja,l||'');
+  // pedidos: mês atual × mesmo período do mês anterior (usa o último dia com pedidos como referência)
+  let ref=''; P0.forEach(r=>{ const d=String(r.dia||'').slice(0,10); if(d>ref) ref=d; });
+  let cur=null,prv=null,rotulo='';
+  if(ref){ const y=+ref.slice(0,4), m=+ref.slice(5,7), dd=+ref.slice(8,10);
+    const i0=y+'-'+String(m).padStart(2,'0')+'-01', pm=m===1?12:m-1, py=m===1?y-1:y, last=new Date(py,pm,0).getDate();
+    const p0=py+'-'+String(pm).padStart(2,'0')+'-01', p1=py+'-'+String(pm).padStart(2,'0')+'-'+String(Math.min(dd,last)).padStart(2,'0');
+    cur=R.P.filter(r=>{ const d=String(r.dia||'').slice(0,10); return d>=i0&&d<=ref; }); prv=R.P.filter(r=>{ const d=String(r.dia||'').slice(0,10); return d>=p0&&d<=p1; });
+    rotulo='até o dia '+String(dd).padStart(2,'0'); }
+  const tend=(a,b,inv)=>{ if(!b) return a?'<span style="color:var(--mu)">sem base no mês anterior</span>':'';
+    const v=(a-b)/b*100, bom=inv?v<=0:v>=0; return `<span style="color:var(--${v===0?'mu':bom?'ok':'bad'});font-weight:700">${v>0?'▲':v<0?'▼':'■'} ${N1(Math.abs(v))}%</span> vs mês anterior`; };
+  // erros de separação
+  const hmes=hj.slice(0,7)+'-01', pm=new Date(hoje.getFullYear(),hoje.getMonth()-1,1), pmEnd=Math.min(hoje.getDate(),new Date(hoje.getFullYear(),hoje.getMonth(),0).getDate());
+  const p0e=_ymd(pm), p1e=_ymd(new Date(pm.getFullYear(),pm.getMonth(),pmEnd));
+  const E=X.erros?X.erros.filter(r=>lojaOk(r.loja)):null;
+  const eCur=E?E.filter(r=>String(r.data_erro).slice(0,10)>=hmes):null, ePrv=E?E.filter(r=>{ const d=String(r.data_erro).slice(0,10); return d>=p0e&&d<=p1e; }):null;
+  const pedMes=R.P.filter(r=>String(r.dia||'').slice(0,7)===hj.slice(0,7)).length;
+  const taxa=eCur&&pedMes?N1(eCur.length/pedMes*1000):null;
+  // acurácia do estoque
+  const es=R.estOk, nIt=R.E.length, eCod=new Set(R.E.flatMap(r=>[r.c,r.r].filter(Boolean).map(String))), nDv=new Set(R.DV.map(r=>String(r.p)).filter(c=>eCod.has(c))).size, acc=es&&nIt?Math.max(0,(1-nDv/nIt)*100):null;
+  // ausências hoje / próximos 7 dias
+  const F2=X.func&&X.aus?new Map(X.func.filter(f=>f.ativo&&lojaOk(f.loja)).map(f=>[f.id,f])):null;
+  const aus=F2?X.aus.filter(a=>F2.has(a.funcionario_id)):null, aH=aus?aus.filter(a=>String(a.data).slice(0,10)===hj):null;
+  const nFer=aH?aH.filter(a=>a.tipo==='Férias').length:0, nFol=aH?aH.filter(a=>a.tipo==='Folga').length:0;
+  const prox=aus?new Set(aus.filter(a=>String(a.data).slice(0,10)>hj).map(a=>a.funcionario_id)).size:0;
+  const cards=`<div class="g-sec">Mês atual, qualidade e equipe</div>`+
+   k('','📆 Pedidos no mês',cur?N(cur.length):'—',cur?`${tend(cur.length,prv.length)} (${N(prv.length)} ${rotulo})`:'sem pedidos','p:ov')+
+   k('neg','🎯 Erros de separação no mês',eCur?N(eCur.length):'—',eCur?`${taxa!=null?taxa+' por 1.000 pedidos · ':''}${N(eCur.reduce((x,r)=>x+(Number(r.qtde_errada)||0),0))} peças · ${tend(eCur.length,ePrv.length,true)}`:'erros não carregados','p:erros')+
+   k('est','🏅 Acurácia do estoque',acc!=null?N1(acc)+'%':'—',es?`${N(nDv)} itens com divergência de ${N(nIt)} no ERP`:'estoque não carregado','e:dv')+
+   k('tm','🌴 Equipe ausente hoje',aH?N(aH.length):'—',aH?`🌴 ${N(nFer)} férias · 😴 ${N(nFol)} folga · ${N(prox)} ausente(s) nos próximos 7 dias`:'calendário não carregado','p:cal');
+  // alertas
+  const A=[]; const chip=(c,t,d)=>`<span class="g-alc ${c}${d?' g-go':''}"${d?` data-gdest="${d}" role="link" tabindex="0"`:''}>${t}</span>`;
+  if(es&&R.NG.length) A.push(chip('bad',`⚠️ ${N(R.NG.length)} iten(s) com saldo negativo`,'e:neg'));
+  if(eCur&&ePrv&&eCur.length>ePrv.length&&eCur.length>=3) A.push(chip('warn',`🎯 erros de separação acima do mês anterior (${N(eCur.length)} × ${N(ePrv.length)})`,'p:erros'));
+  if(aH&&aH.length) A.push(chip('info',`🌴 ${N(aH.length)} pessoa(s) ausente(s) hoje`,'p:cal'));
+  const L=window._IMPLOG||[]; let velho=0; ['LT','LL'].forEach(l=>{ const r=L.find(x=>x.fonte==='pedidos'&&(x.loja||'')===l); if(r){ const h=(Date.now()-new Date(r.importado_em))/36e5; if(h>36) velho=Math.max(velho,Math.round(h/24)); } });
+  if(velho) A.push(chip('warn',`🕒 pedidos sem atualização há ${velho} dia(s) — importe de novo`));
+  return {cards,al:A.length?`<div class="g-al" role="status">${A.join('')}</div>`:''};
+}
 function desenhar(){
   const R=calcular(), el=$('g-kp'); if(!el) return;
   const k=(cls,l,v,s,dest)=>`<div class="k ${cls}${dest?' g-go':''}"${dest?` data-gdest="${dest}" role="link" tabindex="0" title="Abrir a página com os detalhes"`:''}><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`;
   const P=R.P, nCanc=P.filter(r=>r.canc).length, nSo=P.filter(r=>r._soWms).length, semIt=R.itensOk?P.length-R.pedComIt-nSo:null;
   const it=R.itensOk, es=R.estOk;
   const sub=(a,txt)=>a.length?txt:'';
-  el.innerHTML=
+  const GX=gExtra(R,k);
+  const H=GX.al+
    `<div class="g-sec">Pedidos</div>`+
    k('','📋 Total de pedidos',N(P.length),`${R.porLj(P)}${nCanc?' · '+N(nCanc)+' cancelados':''}${nSo?' · '+N(nSo)+' só no WMS':''}`,'p:ov')+
    k('','🧩 Produtos distintos',it?N(R.prods.size):'—',it?`${N(R.linhas)} linhas de item · ${N(R.pecas)} peças${R.temFiltroItem?' · só os itens filtrados':''}`:'itens não carregados','p:itens')+
@@ -7833,7 +7891,10 @@ function desenhar(){
    k('est','🏷️ Itens sem preço',es?N(R.E.filter(r=>!(r.cu>0)).length):'—',es?`custo zerado no ERP · de ${N(R.E.length)} itens · ${R.porLj(R.E.filter(r=>!(r.cu>0)),r=>r.lj)}`:'estoque não carregado','e:sp:pr=Sem preço')+
    k('est','📍 Itens sem locação',es?N(R.SL.length):'—',es?`com saldo no ERP e sem endereço · ${N(R.SL.reduce((x,r)=>x+r.s,0))} peças · ${R.porLj(R.SL,r=>r.lj)}`:'estoque não carregado','e:sl')+
    k('est','🏬 Itens no WMS',es?N(R.lojasW.length?R.wItens:0):'—',es?(R.lojasW.length?`${N(R.wPcs)} peças · filial ${R.lojasW.join(' + ')}${R.soW.length?' · '+N(R.soW.length)+' só no WMS':''}`:(F.loja?'a filial '+F.loja+' ainda não tem estoque WMS importado':'sem dados do WMS importados')):'estoque não carregado','e:wms')+
-   k('est','📦 Pedidos no WMS',N(R.pWms.length),`${N(R.pCas)} ligados a pedido do ERP · ${N(R.pWms.length-R.pCas)} só no WMS`,'p:tempos');
+   k('est','📦 Pedidos no WMS',N(R.pWms.length),`${N(R.pCas)} ligados a pedido do ERP · ${N(R.pWms.length-R.pCas)} só no WMS`,'p:tempos')+
+   GX.cards;
+  // cada seção vira uma linha de cards que ocupa a largura toda (colunas = nº de cards, máx. 7)
+  el.innerHTML=H.split('<div class="g-sec">').map((p,i)=>{ if(!i) return p; const j=p.indexOf('</div>')+6, n=(p.slice(j).match(/<div class="k /g)||[]).length; return '<div class="g-sec">'+p.slice(0,j)+'<div class="g-row" style="--n:'+Math.max(1,Math.min(n,7))+'">'+p.slice(j)+'</div>'; }).join('');
   const ft=$('g-ft'); if(ft){ const L=window._IMPLOG||[], f=(fo,lj)=>{ const r=L.find(x=>x.fonte===fo&&(x.loja||'')===(lj||'')); return r?(window._impFmtG?window._impFmtG(r.importado_em):''):''; };
     ft.innerHTML=L.length?'🕒 Última atualização dos dados — Pedidos: '+['LT','LL'].map(l=>l+' '+(f('pedidos',l)||'—')).join(' · ')+' · Itens: '+['LT','LL'].map(l=>l+' '+(f('itens',l)||'—')).join(' · ')+' · Estoque ERP: '+['LT','LL'].map(l=>l+' '+(f('estoque',l)||'—')).join(' · ')+' · Estoque negativo: '+['LT','LL'].map(l=>l+' '+(f('neg',l)||'—')).join(' · ')+' · Estoque WMS: '+['LT','LL'].map(l=>l+' '+(f('ewms',l)||'—')).join(' · '):''; }
   resumoAtivos();
@@ -7874,6 +7935,7 @@ window.bootG=async function(){
   const id=++_boot, el=$('g-kp'); if(el&&!el.children.length) el.innerHTML='<span style="color:var(--mu);font-size:.85rem">Carregando indicadores…</span>';
   const tarefas=[];
   tarefas.push(carregarItensGer().catch(e=>console.warn('[gerencial: itens]',e)));
+  tarefas.push(carregarGerExtra().catch(e=>console.warn('[gerencial: extra]',e)));
   tarefas.push((window._WMS?Promise.resolve():(window.carregarWms?carregarWms().catch(()=>[]):Promise.resolve())));
   if(gE()&&!gE()._estoqueOk) tarefas.push(prepararEstoqueE(gE()).catch(e=>console.warn('[gerencial: estoque]',e)));
   if(!window._IMPLOG&&window.atualizarCarimbosImport) tarefas.push(atualizarCarimbosImport());
