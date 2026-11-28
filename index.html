@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261128-1102">
+<meta name="version" content="20261128-1113">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -506,6 +506,7 @@ table th.r button,table th[style*="text-align:right"] button{justify-content:cen
 .g-sec::after{content:"";flex:1;height:1px;background:var(--ln)}
 .g-kp>.g-row{grid-column:1/-1;display:grid;gap:.5rem;align-items:stretch;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))}
 @media(min-width:1100px){.g-kp>.g-row{grid-template-columns:repeat(var(--n,5),minmax(0,1fr))}}
+.g-mds{display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.25rem}.g-md{font:inherit;font-size:.64rem;font-weight:700;padding:.08rem .4rem;border-radius:999px;border:1px solid var(--ln);background:var(--s2);color:var(--mu);cursor:pointer}.g-md.on{background:var(--y);border-color:var(--y);color:#0a0a0a}
 .g-al{grid-column:1/-1;display:flex;gap:.4rem;flex-wrap:wrap}
 .g-alc{font-size:.72rem;font-weight:600;padding:.22rem .6rem;border-radius:999px;background:var(--s2);border:1px solid var(--ln);border-left-width:3px;color:var(--tx)}
 .g-alc.bad{border-left-color:var(--bad)}.g-alc.warn{border-left-color:var(--y)}.g-alc.info{border-left-color:var(--bl)}.g-alc.g-go{cursor:pointer}.g-alc.g-go:hover{background:var(--s3,var(--s2));filter:brightness(1.15)}
@@ -6394,6 +6395,13 @@ function esDesenhaDados(){
     const ant=(ES.rows||[]).filter(r=>r.data_erro>=aF&&r.data_erro<=aT&&(!F.loja||r.loja===F.loja)&&(!F.sep||r.separador===F.sep)&&(!F.conf||r.conferente===F.conf)&&(!F.tipo||(r.tipo_erro||'Não informado')===F.tipo)).length;
     varTxt=ant?` · ${nR>=ant?'▲':'▼'} ${_en(Math.abs(nR-ant)/ant*100,0)}% vs. ${dias} dia(s) anteriores (${_en(ant)})`:` · período anterior sem registros`; }
   const kp=[['Erros registrados',_en(nR),(F.de||F.ate?'no período':'todo o histórico')+varTxt],['Peças erradas',_en(pcs,2),'soma das quantidades erradas'],['Valor dos erros',_eMoeda(val),'qtde errada × valor unitário do pedido'],['Pedidos com erro',_en(peds),nPed?_en(nPed)+' pedido(s) emitido(s) no recorte':'sem pedidos no recorte'],['Taxa de erro',taxa==null?'—':_en(taxa,1),'pedidos com erro por 1.000 pedidos'],['Peças que faltaram',_en(R.reduce((a,r)=>a+(r.diferenca<0?-r.diferenca:0),0),2),R.filter(r=>r.diferenca<0).length+' erro(s) de quantidade a menos'],['Peças que sobraram',_en(R.reduce((a,r)=>a+(r.diferenca>0?r.diferenca:0),0),2),R.filter(r=>r.diferenca>0).length+' erro(s) de quantidade a mais'],['Erros por pedido afetado',peds?_en(nR/peds,2):'—','itens errados por pedido com erro']];
+  // % de erros em 4 modos: numerador = erros do recorte; base = pedidos emitidos no mesmo recorte (função base_erros_periodo, no banco)
+  const baseKey=[F.de||'',F.ate||'',F.loja||'',F.sep||''].join('|'); ES.base=ES.base||{}; const bB=ES.base[baseKey];
+  if(!bB){ ES.base[baseKey]='...'; _sb.rpc('base_erros_periodo',{p_ini:F.de||null,p_fim:F.ate||null,p_loja:F.loja||null,p_conf:F.sep||null}).then(({data,error})=>{ if(error) throw error; const r=(data&&data[0])||{}; ES.base[baseKey]={ped:Number(r.pedidos)||0,lin:Number(r.linhas)||0,pec:Number(r.pecas)||0,val:Number(r.valor)||0}; if(cur==='erros'&&ES.vista==='dash') esDesenhaDados(); }).catch(e=>{ console.warn('[erros: base]',e); ES.base[baseKey]={erro:1}; if(cur==='erros'&&ES.vista==='dash') esDesenhaDados(); }); }
+  const nLin=new Set(R.map(r=>r.loja+'|'+r.pedido_id+'|'+r.seq)).size, bOk=bB&&typeof bB==='object'&&!bB.erro;
+  const pc2=(a,b)=>b>0?_en(a/b*100,2)+'%':'—';
+  const tx=[['Por pedidos',peds,bOk?bB.ped:0,_en,'pedidos com erro ÷ pedidos do período'],['Por itens',nLin,bOk?bB.lin:0,_en,'itens (linhas) com erro ÷ itens dos pedidos'],['Por valor',val,bOk?bB.val:0,_eMoeda,'valor dos erros ÷ valor dos pedidos'],['Por peças',pcs,bOk?bB.pec:0,v=>_en(v,0),'peças erradas ÷ peças dos pedidos']];
+  const taxasH=`<article class="pn w2" id="es-taxas"><h3>📐 Percentual de erros de separação <small style="font-weight:400;color:var(--mu)">— ${F.de||F.ate?'no período':'todo o histórico'} · 4 formas de medir</small></h3><section class="kp">${tx.map(([l,a,b,f,d])=>`<div class="k"><span>${l}</span><b>${bOk?pc2(a,b):(bB&&bB.erro?'—':'…')}</b><small>${bOk?f(a)+' de '+f(b)+' · ':''}${d}</small></div>`).join('')}</section></article>`;
   const bySep=esGrp(R,r=>r.separador), byConf=esGrp(R,r=>r.conferente), byTipo=esGrp(R,r=>r.tipo_erro||'Não informado'), byMarca=esGrp(R,r=>String(r.marca||'').replace(/\s+\d+\s*$/,'').trim()), byLj=esGrp(R,r=>r.loja);
   const byProd=(()=>{ const m=new Map(); R.forEach(r=>{ const k=r.loja+'|'+r.cod_produto; const o=m.get(k)||{k:r.cod_produto,d:r.descricao,n:0,q:0,v:0,seps:new Set()}; o.n++; o.q+=Number(r.qtde_errada)||0; o.v+=Number(r.valor_erro)||0; o.seps.add(r.separador); m.set(k,o); }); return [...m.values()].sort((a,b)=>b.n-a.n||b.q-a.q); })();
   const dowN=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'], dow=dowN.map((l,i)=>[l,R.filter(r=>new Date(r.data_erro+'T12:00:00').getDay()===i).length]);
@@ -6416,7 +6424,7 @@ function esDesenhaDados(){
     if(byConf[0]) ins.push(`O conferente com mais erros que passaram é <b>${_eh(byConf[0].k)}</b> (${byConf[0].n}) — erro de separação só vira erro de cliente quando a conferência falha.`);
     const volr=bySep.map(o=>({k:o.k,v:volSep.get(o.k)||0,r:o.peds.size})).filter(o=>o.v>=30).map(o=>({...o,t:o.r/o.v*1000})).sort((a,b)=>b.t-a.t)[0]; if(volr) ins.push(`Em proporção ao volume (mín. 30 pedidos), <b>${_eh(volr.k)}</b> tem a maior taxa: <b>${_en(volr.t,1)}</b> pedidos com erro por 1.000 separados.`);
   }
-  box.innerHTML=filtroH+`<section class="kp" style="grid-column:1/-1">${[...kp].map(([l,v,s])=>`<div class="k"><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`).join('')}</section>`+
+  box.innerHTML=filtroH+`<section class="kp" style="grid-column:1/-1">${[...kp].map(([l,v,s])=>`<div class="k"><span>${l}</span><b>${v}</b>${s?`<small>${s}</small>`:''}</div>`).join('')}</section>`+(nR?taxasH:'')+
    (nR?(`<article class="pn w2"><h3>🧠 Leitura gerencial</h3><ul style="margin:.2rem 0 0 1.1rem;padding:0;line-height:1.55;font-size:.88rem">${ins.map(t=>`<li>${t}</li>`).join('')}</ul></article>`):`<article class="pn w2"><h3>📊 Dashboard</h3><p style="color:var(--mu)">Nenhum erro registrado para os filtros escolhidos. Use <b>➕ Registrar erro</b> para começar.</p></article>`)+
    (nR?(`<article class="pn w2"><h3>📈 Erros por ${modo} <small style="font-weight:400;color:var(--mu)">(data do erro)</small></h3>${svg}</article>`+
    `<article class="pn w2"><h3>👷 Separadores — erros e taxa por volume</h3>${tabSep}</article>`+
@@ -7823,11 +7831,23 @@ const _ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+Str
 async function carregarGerExtra(){
   if(window._GX) return window._GX;
   const hoje=new Date(), ini=new Date(hoje.getFullYear(),hoje.getMonth()-1,1), fim7=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate()+7);
-  const X={erros:null,func:null,aus:null};
-  try{ let all=[],from=0; for(;;){ const {data,error}=await _sb.from('erros_separacao').select('data_erro,loja,qtde_errada,valor_erro').gte('data_erro',_ymd(ini)).order('data_erro').range(from,from+999); if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000; } X.erros=all; }catch(e){ console.warn('[gerencial: erros]',e); }
+  const X={erros:null,func:null,aus:null,base:{}};
+  try{ let all=[],from=0; for(;;){ const {data,error}=await _sb.from('erros_separacao').select('data_erro,loja,pedido_id,seq,qtde_errada,valor_erro').gte('data_erro',_ymd(ini)).order('data_erro').range(from,from+999); if(error) throw error; all=all.concat(data||[]); if(!data||data.length<1000) break; from+=1000; } X.erros=all; }catch(e){ console.warn('[gerencial: erros]',e); }
   try{ const {data,error}=await _sb.from('funcionarios').select('id,nome,loja,ativo'); if(error) throw error; X.func=data||[];
        const r=await _sb.from('ausencias').select('funcionario_id,data,tipo').gte('data',_ymd(hoje)).lte('data',_ymd(fim7)); if(r.error) throw r.error; X.aus=r.data||[]; }catch(e){ console.warn('[gerencial: equipe]',e); }
   return window._GX=X;
+}
+// % de erros de separação em 4 modos (erros do mês × base de pedidos do mês)
+const GMODOS=[['ped','Pedidos','pedidos com erro ÷ pedidos do mês'],['lin','Itens','itens com erro ÷ itens (linhas) dos pedidos do mês'],['val','Valor','valor dos erros ÷ valor dos pedidos do mês'],['pec','Peças','peças erradas ÷ peças dos pedidos do mês']];
+const _pct2=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
+function gBaseMes(ini,fim){
+  const X=window._GX; if(!X) return null;
+  const lj=F.loja&&!String(F.loja).includes(MS_SEP)?F.loja:null, key=ini+'|'+fim+'|'+(lj||''), b=X.base[key];
+  if(b&&b!=='...') return b; if(b==='...') return null;
+  X.base[key]='...';
+  _sb.rpc('base_erros_periodo',{p_ini:ini,p_fim:fim,p_loja:lj,p_conf:null}).then(({data,error})=>{ if(error) throw error; const r=(data&&data[0])||{}; X.base[key]={ped:Number(r.pedidos)||0,lin:Number(r.linhas)||0,pec:Number(r.pecas)||0,val:Number(r.valor)||0}; desenhar(); })
+   .catch(e=>{ console.warn('[gerencial: base de erros]',e); X.base[key]={erro:1}; });
+  return null;
 }
 function gExtra(R,k){
   const X=window._GX||{}, P0=gP(), hoje=new Date(), hj=_ymd(hoje);
@@ -7849,6 +7869,13 @@ function gExtra(R,k){
   const eCur=E?E.filter(r=>String(r.data_erro).slice(0,10)>=hmes):null, ePrv=E?E.filter(r=>{ const d=String(r.data_erro).slice(0,10); return d>=p0e&&d<=p1e; }):null;
   const pedMes=R.P.filter(r=>String(r.dia||'').slice(0,7)===hj.slice(0,7)).length;
   const taxa=eCur&&pedMes?N1(eCur.length/pedMes*1000):null;
+  // % de erros de separação (modo escolhido)
+  let modo='ped'; try{ modo=localStorage.getItem('lt-gx-modo')||'ped'; }catch(_){} if(!GMODOS.some(m=>m[0]===modo)) modo='ped';
+  const bM=eCur?gBaseMes(hmes,hj):null, okB=bM&&!bM.erro;
+  const num={ped:eCur?new Set(eCur.map(r=>r.loja+'|'+r.pedido_id)).size:0,lin:eCur?new Set(eCur.map(r=>r.loja+'|'+r.pedido_id+'|'+r.seq)).size:0,val:eCur?eCur.reduce((x,r)=>x+(Number(r.valor_erro)||0),0):0,pec:eCur?eCur.reduce((x,r)=>x+(Number(r.qtde_errada)||0),0):0};
+  const pctV=okB&&bM[modo]?num[modo]/bM[modo]*100:null;
+  const fmtN=(m,v)=>m==='val'?BRL_G(v):N(v);
+  const chips=GMODOS.map(([m,l])=>`<button type="button" class="g-md${m===modo?' on':''}" data-gmode="${m}" title="${esc(GMODOS.find(x=>x[0]===m)[2])}">${l}</button>`).join('');
   // acurácia do estoque
   const es=R.estOk, nIt=R.E.length, eCod=new Set(R.E.flatMap(r=>[r.c,r.r].filter(Boolean).map(String))), nDv=new Set(R.DV.map(r=>String(r.p)).filter(c=>eCod.has(c))).size, acc=es&&nIt?Math.max(0,(1-nDv/nIt)*100):null;
   // ausências hoje / próximos 7 dias
@@ -7859,6 +7886,7 @@ function gExtra(R,k){
   const cards=`<div class="g-sec">Mês atual, qualidade e equipe</div>`+
    k('','📆 Pedidos no mês',cur?N(cur.length):'—',cur?`${tend(cur.length,prv.length)} (${N(prv.length)} ${rotulo})`:'sem pedidos','p:ov')+
    k('neg','🎯 Erros de separação no mês',eCur?N(eCur.length):'—',eCur?`${taxa!=null?taxa+' por 1.000 pedidos · ':''}${N(eCur.reduce((x,r)=>x+(Number(r.qtde_errada)||0),0))} peças · ${tend(eCur.length,ePrv.length,true)}`:'erros não carregados','p:erros')+
+   k('neg','📐 % de erros de separação',pctV!=null?_pct2(pctV):(eCur&&!bM?'…':'—'),eCur?(okB?`${fmtN(modo,num[modo])} de ${fmtN(modo,bM[modo])} · ${esc(GMODOS.find(x=>x[0]===modo)[2])}`:(bM&&bM.erro?'não foi possível calcular a base':'calculando a base de pedidos…'))+`<span class="g-mds">${chips}</span>`:'erros não carregados','p:erros')+
    k('est','🏅 Acurácia do estoque',acc!=null?N1(acc)+'%':'—',es?`${N(nDv)} itens com divergência de ${N(nIt)} no ERP`:'estoque não carregado','e:dv')+
    k('tm','🌴 Equipe ausente hoje',aH?N(aH.length):'—',aH?`🌴 ${N(nFer)} férias · 😴 ${N(nFol)} folga · ${N(prox)} ausente(s) nos próximos 7 dias`:'calendário não carregado','p:cal');
   // alertas
@@ -7916,6 +7944,7 @@ function irDetalhe(el){
 }
 document.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.g-go')){ e.preventDefault(); irDetalhe(e.target.closest('.g-go')); } });
 document.addEventListener('click',e=>{
+  const gm=e.target.closest('[data-gmode]'); if(gm){ e.stopPropagation(); try{ localStorage.setItem('lt-gx-modo',gm.dataset.gmode); }catch(_){} desenhar(); return; }
   const gd=e.target.closest('.g-go'); if(gd){ irDetalhe(gd); return; }
   if(e.target.closest('#g-fbtn')){ const fp=$('g-fp'); fp.hidden=!fp.hidden; $('g-fbtn').setAttribute('aria-expanded',String(!fp.hidden)); resumoAtivos(); return; }
   if(e.target.closest('#g-clr')||e.target.closest('[data-gclr]')){ Object.keys(F).forEach(k=>delete F[k]); desenharFiltros(); desenhar(); }
