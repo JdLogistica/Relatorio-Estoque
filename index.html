@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261127-1612">
+<meta name="version" content="20261128-0941">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -3023,7 +3023,7 @@ async function dvDatas(R){
 }
 // ── Histórico de divergências (mês a mês / dia a dia) ──
 const DVH={mode:'mes',met:'ped',A:null};
-const DVH_MET={ped:'Pedidos',n:'Itens',q:'Peças'};
+const DVH_MET={ped:'Pedidos',n:'Itens',q:'Peças',v:'Valor'};
 function dvDpLbl(k){ const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return k.length===7?MN[+k.slice(5,7)-1]+'/'+k.slice(2,4):k.slice(8)+'/'+k.slice(5,7)+'/'+k.slice(0,4); }
 function dvHistHtml(){
  return `<article class="pn" id="dv-hist"><h3>📈 Histórico de divergências <small style="font-weight:400;color:var(--mu)">— pedidos “Não separar” / “Divergência de estoque” pela data de emissão</small></h3><div id="dv-hist-body"></div></article>`;
@@ -3031,7 +3031,7 @@ function dvHistHtml(){
 function dvHistDesenha(){
  const el=document.getElementById('dv-hist-body'); if(!el) return;
  const A=(DVH.A||[]).filter(r=>r.dia), mes=DVH.mode==='mes', met=DVH.met;
- const val=r=>met==='q'?(Number(r._q)||0):met==='n'?(Number(r._n)||0):1;
+ const val=r=>met==='q'?(Number(r._q)||0):met==='n'?(Number(r._n)||0):met==='v'?(Number(r._v)||0):1;
  const bt=(attr,v,on,l)=>`<button type="button" class="hist-tog${on?' hist-tog-on':''}" data-${attr}="${v}">${l}</button>`;
  const ctl=`<div style="display:flex;gap:.5rem;margin-bottom:.45rem;align-items:center;flex-wrap:wrap"><span style="font-size:.78rem;color:var(--mu);font-weight:600">Visualização:</span>${bt('dvm','mes',mes,'Mensal')}${bt('dvm','dia',!mes,'Diário')}<span style="font-size:.78rem;color:var(--mu);font-weight:600;margin-left:.8rem">Medir por:</span>${Object.entries(DVH_MET).map(([k,l])=>bt('dvt',k,met===k,l)).join('')}${GF.dp?`<button type="button" class="hist-tog hist-tog-on" data-dvx="1" style="margin-left:.8rem" title="Remover o filtro de período">📅 Filtrando: ${dvDpLbl(GF.dp)} ✕</button>`:'<span style="font-size:.72rem;color:var(--mu);margin-left:.8rem">clique numa barra para filtrar a página inteira</span>'}</div>`;
  if(!A.length){ el.innerHTML=ctl+'<p style="color:var(--mu);padding:.4rem 0">Sem pedidos de divergência com data para o filtro escolhido.</p>'; return dvHistLig(el); }
@@ -3048,13 +3048,14 @@ function dvHistDesenha(){
  const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
  const lblMes=m=>MN[+m.slice(5,7)-1]+'/'+m.slice(2,4);
  const lblPk=x=>mes?lblMes(x):_dsem(x)+' '+x.slice(8)+'/'+x.slice(5,7);
- const fm=v=>v>=1000?(v/1000).toFixed(v%1000===0?0:1)+'k':String(v);
+ const $v=met==='v', fN=$v?(v=>BRL(v)):(v=>N(v));
+ const fm=$v?(v=>window._valHide?'':v>=1e6?(v/1e6).toFixed(1).replace('.',',')+'M':v>=1000?(v/1000).toFixed(v>=1e5?0:1).replace('.',',')+'k':String(Math.round(v))):(v=>v>=1000?(v/1000).toFixed(v%1000===0?0:1)+'k':String(v));
  const kp=`<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem">`+
-  `<div class="dia-kpi"><span>Total ${DVH_MET[met].toLowerCase()}</span><b>${N(tot)}</b></div>`+
-  `<div class="dia-kpi" style="border-color:#f5c518"><span>LT</span><b style="color:#f5c518">${N(lt)}</b></div>`+
-  `<div class="dia-kpi" style="border-color:#5bafd6"><span>LL</span><b style="color:#5bafd6">${N(ll)}</b></div>`+
-  `<div class="dia-kpi" style="border-color:#66bb6a"><span>Pico: ${lblPk(T[pk].m)}</span><b style="color:#66bb6a">${N(T[pk].tot)}</b></div>`+
-  `<div class="dia-kpi"><span>Média/${mes?'mês':'dia'}</span><b>${(tot/n).toFixed(1).replace('.',',')}</b></div></div>`;
+  `<div class="dia-kpi"><span>Total ${DVH_MET[met].toLowerCase()}</span><b>${fN(tot)}</b></div>`+
+  `<div class="dia-kpi" style="border-color:#f5c518"><span>LT</span><b style="color:#f5c518">${fN(lt)}</b></div>`+
+  `<div class="dia-kpi" style="border-color:#5bafd6"><span>LL</span><b style="color:#5bafd6">${fN(ll)}</b></div>`+
+  `<div class="dia-kpi" style="border-color:#66bb6a"><span>Pico: ${lblPk(T[pk].m)}</span><b style="color:#66bb6a">${fN(T[pk].tot)}</b></div>`+
+  `<div class="dia-kpi"><span>Média/${mes?'mês':'dia'}</span><b>${$v?BRL(tot/n):(tot/n).toFixed(1).replace('.',',')}</b></div></div>`;
  const W=900,H=mes?250:270,PL=42,PR=12,PT=26,PB=mes?30:38, cW=W-PL-PR, cH=H-PT-PB;
  const gap=mes?(n>18?6:12):(n>90?0:n>45?1:2), bw=Math.max(2,(cW-gap*Math.max(0,n-1))/n);
  const bx=i=>PL+i*(bw+gap), yv=v=>PT+cH-v/mx*cH;
@@ -3064,9 +3065,9 @@ function dvHistDesenha(){
  const bars=T.map((x,i)=>{ const L=bx(i), cx=(L+bw/2).toFixed(1), hLL=x.LL/mx*cH, hLT=x.LT/mx*cH;
   const rLL=hLL>=1.5?`<rect x="${L.toFixed(1)}" y="${(PT+cH-hLL).toFixed(1)}" width="${bw.toFixed(1)}" height="${hLL.toFixed(1)}" fill="#5bafd6"/>`:'';
   const rLT=hLT>=1.5?`<rect x="${L.toFixed(1)}" y="${(PT+cH-hLL-hLT).toFixed(1)}" width="${bw.toFixed(1)}" height="${hLT.toFixed(1)}" fill="#f5c518"/>`:'';
-  const inn=(v,h,y)=>(bw>=22&&v>0&&h>=14)?`<text x="${cx}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8.5" font-weight="700" fill="rgba(0,0,0,.85)">${fm(v)}</text>`:'';
+  const inn=(v,h,y)=>(bw>=($v?34:22)&&v>0&&h>=14&&!($v&&window._valHide))?`<text x="${cx}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8.5" font-weight="700" fill="rgba(0,0,0,.85)">${fm(v)}</text>`:'';
   const lLL=inn(x.LL,hLL,PT+cH-hLL/2), lLT=inn(x.LT,hLT,PT+cH-hLL-hLT/2);
-  const lTot=(bw>=5&&x.tot>0)?`<text x="${cx}" y="${(PT+cH-hLL-hLT-5).toFixed(1)}" text-anchor="middle" font-size="${fTot}" font-weight="800" fill="var(--tx)">${fm(x.tot)}</text>`:'';
+  const lTot=(bw>=($v?26:5)&&x.tot>0&&!($v&&window._valHide))?`<text x="${cx}" y="${(PT+cH-hLL-hLT-5).toFixed(1)}" text-anchor="middle" font-size="${fTot}" font-weight="800" fill="var(--tx)">${fm(x.tot)}</text>`:'';
   let lx='';
   if(mes) lx=`<text x="${cx}" y="${H-10}" text-anchor="middle" font-size="${bw>=30?9.5:8}" fill="var(--mu)">${lblMes(x.m)}</text>`;
   else if((i%xStep===0&&(n-1-i>=xStep*.7||i===n-1))||i===n-1) lx=`<text x="${cx}" y="${H-17}" text-anchor="middle" font-size="${bw>=10?8.5:7}" fill="var(--mu)">${x.m.slice(8)}/${x.m.slice(5,7)}</text><text x="${cx}" y="${H-6}" text-anchor="middle" font-size="${bw>=10?8:6.5}" fill="var(--mu)" opacity=".85">${_dsem(x.m)}</text>`;
@@ -3080,7 +3081,7 @@ function dvHistDesenha(){
  const wrap=el.querySelector('.dvh-wrap'), tip=el.querySelector('.dvh-tip');
  wrap.querySelectorAll('.dvh-bar').forEach(b=>{
   b.addEventListener('mousemove',ev=>{ const x=T[+b.dataset.i], r=wrap.getBoundingClientRect();
-   tip.innerHTML=`<b style="display:block;margin-bottom:.15rem">${mes?lblMes(x.m):_dsem(x.m)+' '+x.m.slice(8)+'/'+x.m.slice(5,7)+'/'+x.m.slice(0,4)}</b>Total: <b>${N(x.tot)}</b><br><span style="color:#f5c518">LT: <b>${N(x.LT)}</b></span> · <span style="color:#5bafd6">LL: <b>${N(x.LL)}</b></span>`;
+   tip.innerHTML=`<b style="display:block;margin-bottom:.15rem">${mes?lblMes(x.m):_dsem(x.m)+' '+x.m.slice(8)+'/'+x.m.slice(5,7)+'/'+x.m.slice(0,4)}</b>Total: <b>${fN(x.tot)}</b><br><span style="color:#f5c518">LT: <b>${fN(x.LT)}</b></span> · <span style="color:#5bafd6">LL: <b>${fN(x.LL)}</b></span>`;
    tip.style.display='block'; const w=tip.offsetWidth||140;
    let l=ev.clientX-r.left+wrap.scrollLeft+12; if(l+w>wrap.scrollLeft+r.width) l=ev.clientX-r.left+wrap.scrollLeft-w-12;
    tip.style.left=Math.max(0,l)+'px'; tip.style.top=Math.max(0,ev.clientY-r.top-10)+'px'; });
