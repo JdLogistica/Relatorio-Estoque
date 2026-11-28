@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<meta name="version" content="20261128-1113">
+<meta name="version" content="20261128-1150">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -6389,6 +6389,7 @@ function esDesenhaDados(){
   // volume de pedidos do mesmo recorte (base para a taxa de erro): pedidos emitidos no período, não cancelados
   const volBase=(rows||[]).filter(r=>!r.canc&&(!F.de||r.dia>=F.de)&&(!F.ate||r.dia<=F.ate)&&(!F.loja||r.loja===F.loja)&&(!F.sep||_eNome(r.conf)===F.sep));
   const nPed=volBase.length, taxa=nPed?peds/nPed*1000:null;
+  const nPedTot=(rows||[]).filter(r=>(!F.de||r.dia>=F.de)&&(!F.ate||r.dia<=F.ate)&&(!F.loja||r.loja===F.loja)&&(!F.sep||_eNome(r.conf)===F.sep)).length; // total de pedidos (como no card Total de pedidos: inclui cancelados e só no WMS)
   // período anterior de mesmo tamanho (variação)
   let varTxt='';
   if(F.de&&F.ate){ const d0=new Date(F.de),d1=new Date(F.ate),dias=Math.round((d1-d0)/864e5)+1, aF=new Date(d0-dias*864e5).toLocaleDateString('sv-SE'), aT=new Date(d0-864e5).toLocaleDateString('sv-SE');
@@ -6400,7 +6401,7 @@ function esDesenhaDados(){
   if(!bB){ ES.base[baseKey]='...'; _sb.rpc('base_erros_periodo',{p_ini:F.de||null,p_fim:F.ate||null,p_loja:F.loja||null,p_conf:F.sep||null}).then(({data,error})=>{ if(error) throw error; const r=(data&&data[0])||{}; ES.base[baseKey]={ped:Number(r.pedidos)||0,lin:Number(r.linhas)||0,pec:Number(r.pecas)||0,val:Number(r.valor)||0}; if(cur==='erros'&&ES.vista==='dash') esDesenhaDados(); }).catch(e=>{ console.warn('[erros: base]',e); ES.base[baseKey]={erro:1}; if(cur==='erros'&&ES.vista==='dash') esDesenhaDados(); }); }
   const nLin=new Set(R.map(r=>r.loja+'|'+r.pedido_id+'|'+r.seq)).size, bOk=bB&&typeof bB==='object'&&!bB.erro;
   const pc2=(a,b)=>b>0?_en(a/b*100,2)+'%':'—';
-  const tx=[['Por pedidos',peds,bOk?bB.ped:0,_en,'pedidos com erro ÷ pedidos do período'],['Por itens',nLin,bOk?bB.lin:0,_en,'itens (linhas) com erro ÷ itens dos pedidos'],['Por valor',val,bOk?bB.val:0,_eMoeda,'valor dos erros ÷ valor dos pedidos'],['Por peças',pcs,bOk?bB.pec:0,v=>_en(v,0),'peças erradas ÷ peças dos pedidos']];
+  const tx=[['Por pedidos',peds,nPedTot,_en,'pedidos com erro ÷ total de pedidos do período'],['Por itens',nLin,bOk?bB.lin:0,_en,'itens (linhas) com erro ÷ itens dos pedidos'],['Por valor',val,bOk?bB.val:0,_eMoeda,'valor dos erros ÷ valor dos pedidos'],['Por peças',pcs,bOk?bB.pec:0,v=>_en(v,0),'peças erradas ÷ peças dos pedidos']];
   const taxasH=`<article class="pn w2" id="es-taxas"><h3>📐 Percentual de erros de separação <small style="font-weight:400;color:var(--mu)">— ${F.de||F.ate?'no período':'todo o histórico'} · 4 formas de medir</small></h3><section class="kp">${tx.map(([l,a,b,f,d])=>`<div class="k"><span>${l}</span><b>${bOk?pc2(a,b):(bB&&bB.erro?'—':'…')}</b><small>${bOk?f(a)+' de '+f(b)+' · ':''}${d}</small></div>`).join('')}</section></article>`;
   const bySep=esGrp(R,r=>r.separador), byConf=esGrp(R,r=>r.conferente), byTipo=esGrp(R,r=>r.tipo_erro||'Não informado'), byMarca=esGrp(R,r=>String(r.marca||'').replace(/\s+\d+\s*$/,'').trim()), byLj=esGrp(R,r=>r.loja);
   const byProd=(()=>{ const m=new Map(); R.forEach(r=>{ const k=r.loja+'|'+r.cod_produto; const o=m.get(k)||{k:r.cod_produto,d:r.descricao,n:0,q:0,v:0,seps:new Set()}; o.n++; o.q+=Number(r.qtde_errada)||0; o.v+=Number(r.valor_erro)||0; o.seps.add(r.separador); m.set(k,o); }); return [...m.values()].sort((a,b)=>b.n-a.n||b.q-a.q); })();
@@ -7838,7 +7839,7 @@ async function carregarGerExtra(){
   return window._GX=X;
 }
 // % de erros de separação em 4 modos (erros do mês × base de pedidos do mês)
-const GMODOS=[['ped','Pedidos','pedidos com erro ÷ pedidos do mês'],['lin','Itens','itens com erro ÷ itens (linhas) dos pedidos do mês'],['val','Valor','valor dos erros ÷ valor dos pedidos do mês'],['pec','Peças','peças erradas ÷ peças dos pedidos do mês']];
+const GMODOS=[['ped','Pedidos','pedidos com erro ÷ total de pedidos do mês'],['lin','Itens','itens com erro ÷ itens (linhas) dos pedidos do mês'],['val','Valor','valor dos erros ÷ valor dos pedidos do mês'],['pec','Peças','peças erradas ÷ peças dos pedidos do mês']];
 const _pct2=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
 function gBaseMes(ini,fim){
   const X=window._GX; if(!X) return null;
@@ -7873,7 +7874,8 @@ function gExtra(R,k){
   let modo='ped'; try{ modo=localStorage.getItem('lt-gx-modo')||'ped'; }catch(_){} if(!GMODOS.some(m=>m[0]===modo)) modo='ped';
   const bM=eCur?gBaseMes(hmes,hj):null, okB=bM&&!bM.erro;
   const num={ped:eCur?new Set(eCur.map(r=>r.loja+'|'+r.pedido_id)).size:0,lin:eCur?new Set(eCur.map(r=>r.loja+'|'+r.pedido_id+'|'+r.seq)).size:0,val:eCur?eCur.reduce((x,r)=>x+(Number(r.valor_erro)||0),0):0,pec:eCur?eCur.reduce((x,r)=>x+(Number(r.qtde_errada)||0),0):0};
-  const pctV=okB&&bM[modo]?num[modo]/bM[modo]*100:null;
+  const baseM=m=>m==='ped'?pedMes:(okB?bM[m]:null), bAtual=baseM(modo), okM=modo==='ped'||okB;
+  const pctV=bAtual?num[modo]/bAtual*100:null;
   const fmtN=(m,v)=>m==='val'?BRL_G(v):N(v);
   const chips=GMODOS.map(([m,l])=>`<button type="button" class="g-md${m===modo?' on':''}" data-gmode="${m}" title="${esc(GMODOS.find(x=>x[0]===m)[2])}">${l}</button>`).join('');
   // acurácia do estoque
@@ -7886,7 +7888,7 @@ function gExtra(R,k){
   const cards=`<div class="g-sec">Mês atual, qualidade e equipe</div>`+
    k('','📆 Pedidos no mês',cur?N(cur.length):'—',cur?`${tend(cur.length,prv.length)} (${N(prv.length)} ${rotulo})`:'sem pedidos','p:ov')+
    k('neg','🎯 Erros de separação no mês',eCur?N(eCur.length):'—',eCur?`${taxa!=null?taxa+' por 1.000 pedidos · ':''}${N(eCur.reduce((x,r)=>x+(Number(r.qtde_errada)||0),0))} peças · ${tend(eCur.length,ePrv.length,true)}`:'erros não carregados','p:erros')+
-   k('neg','📐 % de erros de separação',pctV!=null?_pct2(pctV):(eCur&&!bM?'…':'—'),eCur?(okB?`${fmtN(modo,num[modo])} de ${fmtN(modo,bM[modo])} · ${esc(GMODOS.find(x=>x[0]===modo)[2])}`:(bM&&bM.erro?'não foi possível calcular a base':'calculando a base de pedidos…'))+`<span class="g-mds">${chips}</span>`:'erros não carregados','p:erros')+
+   k('neg','📐 % de erros de separação',pctV!=null?_pct2(pctV):(eCur&&!bM?'…':'—'),eCur?(okM?`${fmtN(modo,num[modo])} de ${fmtN(modo,bAtual||0)} · ${esc(GMODOS.find(x=>x[0]===modo)[2])}`:(bM&&bM.erro?'não foi possível calcular a base':'calculando a base de pedidos…'))+`<span class="g-mds">${chips}</span>`:'erros não carregados','p:erros')+
    k('est','🏅 Acurácia do estoque',acc!=null?N1(acc)+'%':'—',es?`${N(nDv)} itens com divergência de ${N(nIt)} no ERP`:'estoque não carregado','e:dv')+
    k('tm','🌴 Equipe ausente hoje',aH?N(aH.length):'—',aH?`🌴 ${N(nFer)} férias · 😴 ${N(nFol)} folga · ${N(prox)} ausente(s) nos próximos 7 dias`:'calendário não carregado','p:cal');
   // alertas
